@@ -43,10 +43,34 @@ export async function GET(req: NextRequest) {
     );
     return NextResponse.json({ accounts: details }, { status: 200 });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json(
-      { error: message, name: err instanceof Error ? err.name : undefined },
-      { status: 500 },
-    );
+    return NextResponse.json(formatError(err), { status: 500 });
   }
+}
+
+function formatError(err: unknown) {
+  const e = err as { name?: string; message?: string; cause?: unknown; code?: string };
+  const cause = e.cause as
+    | { name?: string; message?: string; code?: string; errno?: number; syscall?: string; address?: string; hostname?: string }
+    | undefined;
+  return {
+    name: e?.name,
+    message: e?.message,
+    code: e?.code,
+    cause: cause
+      ? {
+          name: cause.name,
+          message: cause.message,
+          code: cause.code,
+          errno: cause.errno,
+          syscall: cause.syscall,
+          address: cause.address,
+          hostname: cause.hostname,
+        }
+      : undefined,
+    config: {
+      baseUrl: process.env.APITIC_BASE_URL ?? null,
+      emailSet: Boolean(process.env.APITIC_EMAIL),
+      passwordSet: Boolean(process.env.APITIC_PASSWORD),
+    },
+  };
 }
