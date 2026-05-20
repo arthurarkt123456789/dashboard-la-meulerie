@@ -327,30 +327,36 @@ async function aggregateOneStore(
     );
 
   // 2. Fetch sales per day (cached) — Promise.all relies on http.ts to throttle.
-  const openedTs = new Date(`${storeMeta.openedDate}T00:00:00Z`).getTime();
-
   const salesByDate = new Map<string, ApiticSale[]>();
   await Promise.all(
     dates.map(async (date) => {
-      const dTs = new Date(`${date}T00:00:00Z`).getTime();
-      if (dTs < openedTs) {
-        salesByDate.set(date, []);
-        return;
-      }
       try {
         const sales = await getOrFetchSales(accountId, date, () =>
           fetchSalesForDate(accountId, date),
         );
         salesByDate.set(date, sales);
       } catch {
-        // any failure: treat as closed/missing for that day. The UI handles
-        // missing data via the periodMetrics yoyAvailable flag.
+        // Network/API failure for that one day. Treat as "no data" — the day
+        // will be 0€ but not marked closed, so it just dilutes the period.
+        // (sumYoY only flags `available: false` when a day is `closed: true`.)
         salesByDate.set(date, []);
       }
     }),
   );
 
-  // 3. Build StoreDaily[]
+  // 2b. Detect actual opening date from the data: first day with any sales.
+  // Falls back to the storeMeta hint if APITIC returned nothing at all.
+  let firstSaleDate: string | null = null;
+  for (const date of dates) {
+    if ((salesByDate.get(date) ?? []).length > 0) {
+      firstSaleDate = date;
+      break;
+    }
+  }
+  const effectiveOpenedDate = firstSaleDate ?? storeMeta.openedDate;
+  const openedTs = new Date(`${effectiveOpenedDate}T00:00:00Z`).getTime();
+
+  // 3. Build StoreDaily[] — mark anything before the first sale as `closed`.
   const daily: StoreDaily[] = dates.map((date) => {
     const dTs = new Date(`${date}T00:00:00Z`).getTime();
     if (dTs < openedTs) {
@@ -386,14 +392,21 @@ async function aggregateOneStore(
   );
   const payments = buildPayments(todaySales, paymentLookup);
 
+  const openedLabel = firstSaleDate
+    ? new Intl.DateTimeFormat("fr-FR", {
+        month: "short",
+        year: "numeric",
+      }).format(new Date(`${firstSaleDate}T12:00:00Z`))
+    : storeMeta.opened;
+
   return {
     id: storeMeta.id,
     name: storeMeta.name,
     fullName: storeMeta.fullName,
     address: storeMeta.address,
     manager: storeMeta.manager,
-    opened: storeMeta.opened,
-    openedDate: storeMeta.openedDate,
+    opened: openedLabel,
+    openedDate: effectiveOpenedDate,
     daily,
     hourly,
     topProducts,
