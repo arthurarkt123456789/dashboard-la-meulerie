@@ -1,20 +1,34 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { aggregateStore } from "@/lib/apitic/aggregator";
+import { warmStore } from "@/lib/apitic/aggregator";
 import { getConfiguredStoreLinks } from "@/lib/apitic/mapping";
 import { checkAdmin } from "@/lib/admin-auth";
 
-// Warms the APITIC cache for one store at a time. Designed to be invoked
-// once per store after a fresh deploy, e.g.:
+// Warms the APITIC sales cache for one store + one date range at a time.
 //
-//   for s in davso endoume malmousque republique; do
-//     curl -fsS "$URL/api/admin/bootstrap?storeId=$s&token=$TOKEN"
-//   done
+//   GET /api/admin/bootstrap                                   → list configured stores
+//   GET /api/admin/bootstrap?storeId=davso&from=2025-01-01&to=2025-01-30
 //
-// Each call iterates through APITIC_HISTORY_DAYS days of sales (cached after
-// the first fetch). Subsequent invocations are fast no-ops.
+// Without from/to it defaults to the last 30 days. The bootstrap script in
+// /scripts iterates the full history in chunks.
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 300; // 5 min — Railway tolerates this on PRO; on Hobby it caps lower.
+export const maxDuration = 300;
+
+function subtractDays(date: string, days: number): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
+function todayInParis(): string {
+  const parts = new Intl.DateTimeFormat("fr-CA", {
+    timeZone: "Europe/Paris",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  return `${parts.find((p) => p.type === "year")?.value}-${parts.find((p) => p.type === "month")?.value}-${parts.find((p) => p.type === "day")?.value}`;
+}
 
 export async function GET(req: NextRequest) {
   const auth = checkAdmin(req);
@@ -30,31 +44,26 @@ export async function GET(req: NextRequest) {
 
   const url = new URL(req.url);
   const storeId = url.searchParams.get("storeId");
-  const start = Date.now();
 
-  try {
-    if (storeId) {
-      const data = await aggregateStore(storeId);
-      if (!data) {
-        return NextResponse.json(
-          { error: `Unknown or unmapped storeId: ${storeId}` },
-          { status: 404 },
-        );
-      }
-      return NextResponse.json({
-        ok: true,
-        storeId,
-        days: data.daily.length,
-        elapsedMs: Date.now() - start,
-      });
-    }
-
-    // No storeId → list configured stores so the caller can iterate.
+  if (!storeId) {
     const links = getConfiguredStoreLinks();
     return NextResponse.json({
       stores: links.map((l) => l.storeId),
       hint:
-        "Call this endpoint with ?storeId=<id> for each store to warm its cache.",
+        "Call ?storeId=<id>&from=YYYY-MM-DD&to=YYYY-MM-DD to warm a date range.",
+    });
+  }
+
+  const today = todayInParis();
+  const to = url.searchParams.get("to") || today;
+  const from = url.searchParams.get("from") || subtractDays(to, 29);
+
+  const start = Date.now();
+  try {
+    const result = await warmStore(storeId, from, to);
+    return NextResponse.json({
+      ...result,
+      elapsedMs: Date.now() - start,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

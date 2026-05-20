@@ -1,5 +1,5 @@
 import "server-only";
-import { getOrFetchSales } from "./cache";
+import { getOrFetchSales, listCachedDates, readSalesCache } from "./cache";
 import {
   fetchAccounts,
   fetchCategories,
@@ -290,11 +290,16 @@ function buildPayments(
 // Per-store aggregate
 // ────────────────────────────────────────────────────────────────────────
 
+type AggregateMode =
+  | { kind: "read" } // only read what's in cache; always refresh today
+  | { kind: "warm"; from: string; to: string }; // fetch and cache this range
+
 async function aggregateOneStore(
   accountId: string,
   storeMeta: Store,
   now: Date,
   segmentMapper: ReturnType<typeof buildSegmentMapper>,
+  mode: AggregateMode = { kind: "read" },
 ): Promise<StoreData> {
   const today = parisDate(now);
   const start = subtractDays(today, HISTORY_DAYS - 1);
@@ -326,23 +331,53 @@ async function aggregateOneStore(
       name ?? categoryLookup.get(categoryId)?.name,
     );
 
-  // 2. Fetch sales per day (cached) — Promise.all relies on http.ts to throttle.
+  // 2. Fetch sales per day.
+  // In READ mode we only read what's already cached (fast) and always
+  // refresh today (live). Missing historical days are treated as "no data".
+  // In WARM mode we actively fetch the requested date range and cache it.
   const salesByDate = new Map<string, ApiticSale[]>();
-  await Promise.all(
-    dates.map(async (date) => {
-      try {
-        const sales = await getOrFetchSales(accountId, date, () =>
-          fetchSalesForDate(accountId, date),
-        );
-        salesByDate.set(date, sales);
-      } catch {
-        // Network/API failure for that one day. Treat as "no data" — the day
-        // will be 0€ but not marked closed, so it just dilutes the period.
-        // (sumYoY only flags `available: false` when a day is `closed: true`.)
-        salesByDate.set(date, []);
-      }
-    }),
-  );
+  const cached = await listCachedDates(accountId, dates);
+
+  async function fetchOne(date: string) {
+    try {
+      const sales = await getOrFetchSales(accountId, date, () =>
+        fetchSalesForDate(accountId, date),
+      );
+      salesByDate.set(date, sales);
+    } catch {
+      salesByDate.set(date, []);
+    }
+  }
+
+  if (mode.kind === "read") {
+    await Promise.all(
+      dates.map(async (date) => {
+        if (date === today) {
+          await fetchOne(date); // always fresh
+        } else if (cached.has(date)) {
+          const sales = await readSalesCache(accountId, date);
+          salesByDate.set(date, sales ?? []);
+        } else {
+          salesByDate.set(date, []); // not cached → blank
+        }
+      }),
+    );
+  } else {
+    // warm: re-fetch the requested range, ignore cache for that window
+    const warmSet = new Set(listDates(mode.from, mode.to));
+    await Promise.all(
+      dates.map(async (date) => {
+        if (warmSet.has(date) || date === today) {
+          await fetchOne(date);
+        } else if (cached.has(date)) {
+          const sales = await readSalesCache(accountId, date);
+          salesByDate.set(date, sales ?? []);
+        } else {
+          salesByDate.set(date, []);
+        }
+      }),
+    );
+  }
 
   // 2b. Detect actual opening date from the data: first day with any sales.
   // Falls back to the storeMeta hint if APITIC returned nothing at all.
@@ -428,6 +463,44 @@ export function listConfiguredStores(): Store[] {
     opened: meta.opened,
     openedDate: meta.openedDate,
   }));
+}
+
+/**
+ * Warms the cache for a date range without doing the full aggregation
+ * computation. Returns the number of dates fetched + skipped.
+ */
+export async function warmStore(
+  storeId: string,
+  fromDate: string,
+  toDate: string,
+): Promise<{ storeId: string; fetched: number; skipped: number; failed: number; from: string; to: string }> {
+  const link = getConfiguredStoreLinks().find((l) => l.storeId === storeId);
+  if (!link) {
+    return { storeId, fetched: 0, skipped: 0, failed: 0, from: fromDate, to: toDate };
+  }
+  const accountId = link.accountId;
+  const dates = listDates(fromDate, toDate);
+  const cached = await listCachedDates(accountId, dates);
+  let fetched = 0;
+  let skipped = 0;
+  let failed = 0;
+  await Promise.all(
+    dates.map(async (date) => {
+      if (cached.has(date)) {
+        skipped++;
+        return;
+      }
+      try {
+        const sales = await fetchSalesForDate(accountId, date);
+        const { writeSalesCache } = await import("./cache");
+        await writeSalesCache(accountId, date, sales);
+        fetched++;
+      } catch {
+        failed++;
+      }
+    }),
+  );
+  return { storeId, fetched, skipped, failed, from: fromDate, to: toDate };
 }
 
 export async function aggregateStore(
