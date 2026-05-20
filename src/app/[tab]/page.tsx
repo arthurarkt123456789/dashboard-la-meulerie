@@ -2,11 +2,14 @@ import { Dashboard } from "@/components/Dashboard";
 import { listStores } from "@/lib/apitic/client";
 import { notFound } from "next/navigation";
 
-const VALID_TABS = new Set(["all"]);
+// Pre-render the well-known tabs at build time (no APITIC call needed since
+// the store ids are stable). Any other slug 404s.
+export const dynamicParams = true;
 
-export async function generateStaticParams() {
-  const stores = await listStores();
-  return [{ tab: "all" }, ...stores.map((s) => ({ tab: s.id }))];
+const KNOWN_TABS = ["all", "davso", "endoume", "malmousque", "republique"] as const;
+
+export function generateStaticParams() {
+  return KNOWN_TABS.map((tab) => ({ tab }));
 }
 
 export default async function TabPage({
@@ -14,10 +17,10 @@ export default async function TabPage({
 }: {
   params: { tab: string };
 }) {
-  const stores = await listStores();
-  for (const s of stores) VALID_TABS.add(s.id);
-  if (!VALID_TABS.has(params.tab)) {
-    notFound();
-  }
+  const valid = new Set<string>(KNOWN_TABS);
+  // Add any extra ids the operator may have mapped beyond the four canonical
+  // stores. listStores() is cheap (mock or local mapping read), no APITIC.
+  for (const s of await listStores()) valid.add(s.id);
+  if (!valid.has(params.tab)) notFound();
   return <Dashboard tab={params.tab} />;
 }

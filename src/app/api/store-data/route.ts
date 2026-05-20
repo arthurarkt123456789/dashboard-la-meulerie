@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { getAllStoreData } from "@/lib/apitic/client";
 
-// Cache: 60s for live data freshness. Today's row is partial and recomputed
-// each call (mock is deterministic; real APITIC adapter will re-fetch).
-export const revalidate = 60;
+// Always server-rendered. Aggregation pulls live data from APITIC at runtime —
+// pre-rendering this would attempt the same calls during the build and
+// brick the deploy whenever APITIC is unreachable or in a blackout.
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   const data = await getAllStoreData();
