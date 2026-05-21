@@ -3,6 +3,7 @@ import {
   getOrFetchSales,
   listCachedDates,
   readSalesCacheBatch,
+  writeSalesCache,
 } from "./cache";
 import {
   fetchAccounts,
@@ -497,10 +498,13 @@ export async function warmStore(
       }
       try {
         const sales = await fetchSalesForDate(accountId, date);
-        const { writeSalesCache } = await import("./cache");
         await writeSalesCache(accountId, date, sales);
         fetched++;
-      } catch {
+      } catch (err) {
+        const e = err as { name?: string; message?: string };
+        console.warn(
+          `[warmStore] ${storeId} ${date} failed: ${e?.name ?? "?"} ${e?.message ?? ""}`,
+        );
         failed++;
       }
     }),
