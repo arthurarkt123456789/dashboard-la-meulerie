@@ -96,7 +96,7 @@ function rollupDay(
   let fromagerieCA = 0;
   let snackingCA = 0;
   for (const sale of sales) {
-    for (const line of sale.lines) {
+    for (const line of sale.lines ?? []) {
       if (line.line_type !== "sale") continue;
       const net = line.ati_price - line.discount_ati_price;
       ca += net;
@@ -130,7 +130,7 @@ function rollupHourly(
     const b = buckets.get(h);
     if (!b) continue;
     let amount = 0;
-    for (const line of sale.lines) {
+    for (const line of sale.lines ?? []) {
       if (line.line_type !== "sale") continue;
       amount += line.ati_price - line.discount_ati_price;
     }
@@ -189,7 +189,7 @@ function buildTopProducts(
     const inLast30 = date >= cutoff30;
     const isToday = date === today;
     for (const sale of sales) {
-      for (const line of sale.lines) {
+      for (const line of sale.lines ?? []) {
         if (line.line_type !== "sale") continue;
         const t = totals.get(line.product_id) ?? {
           unitsToday: 0,
@@ -264,7 +264,7 @@ function buildPayments(
     "Tickets resto": 0,
   };
   for (const sale of todaySales) {
-    for (const p of sale.payments) {
+    for (const p of sale.payments ?? []) {
       const name = paymentLookup.get(p.payment_mean_id)?.name ?? "";
       const method = classifyPayment(name);
       totals[method] += p.amount;
