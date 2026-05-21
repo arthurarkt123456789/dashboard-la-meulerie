@@ -103,15 +103,19 @@ function rollupDay(
     let saleHasSnacking = false;
     for (const line of sale.lines ?? []) {
       if (line.line_type !== "sale") continue;
-      const net = line.ati_price - line.discount_ati_price;
-      ca += net;
+      // ati_price is the TTC amount AFTER any line-level discount — APITIC
+      // already subtracts discount_ati_price from it, so subtracting again
+      // double-discounts the day. Verified against POS report: this formula
+      // matches caLinesGross to the cent.
+      const amount = line.ati_price;
+      ca += amount;
       const product = productLookup.get(line.product_id);
       const seg = product ? segmentOf(product.categoryId) : "Snacking";
       if (seg === "Fromagerie") {
-        fromagerieCA += net;
+        fromagerieCA += amount;
         saleHasFromagerie = true;
       } else {
-        snackingCA += net;
+        snackingCA += amount;
         saleHasSnacking = true;
       }
     }
@@ -157,7 +161,7 @@ function rollupHourlyAverage(
       let amount = 0;
       for (const line of sale.lines ?? []) {
         if (line.line_type !== "sale") continue;
-        amount += line.ati_price - line.discount_ati_price;
+        amount += line.ati_price;
       }
       b.ca += amount;
       b.tx += 1;
@@ -217,14 +221,15 @@ function buildTopProducts(
           revenue30d: 0,
         };
         const qty = line.quantity;
-        const net = line.ati_price - line.discount_ati_price;
+        // ati_price already net of discount_ati_price (see rollupDay note).
+        const amount = line.ati_price;
         if (isToday) t.unitsToday += qty;
         if (inLast7) t.units7d += qty;
         if (inLast30) {
           t.units30d += qty;
-          t.revenue30d += net;
+          t.revenue30d += amount;
         }
-        if (inLast7) t.revenue7d += net;
+        if (inLast7) t.revenue7d += amount;
         totals.set(line.product_id, t);
       }
     }
