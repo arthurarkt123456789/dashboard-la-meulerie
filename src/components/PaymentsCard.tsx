@@ -3,6 +3,7 @@
 import { fmtEURshort, fmtPctNoSign } from "@/lib/format";
 import type { PaymentSplit } from "@/lib/apitic/types";
 import { Donut } from "./charts/Donut";
+import type { AmountMode } from "./AmountModeToggle";
 
 const COLORS = [
   "var(--color-coral)",
@@ -11,7 +12,14 @@ const COLORS = [
   "var(--color-warm-gray-mid)",
 ];
 
-export function PaymentsCard({ payments }: { payments: PaymentSplit[] }) {
+export function PaymentsCard({
+  payments,
+  amountMode = "TTC",
+}: {
+  payments: PaymentSplit[];
+  amountMode?: AmountMode;
+}) {
+  const isHT = amountMode === "HT";
   return (
     <div className="lm-payments" style={{ display: "flex", alignItems: "center", gap: 32 }}>
       <Donut data={payments} size={160} thickness={22} colors={COLORS} />
@@ -55,7 +63,10 @@ export function PaymentsCard({ payments }: { payments: PaymentSplit[] }) {
                   fontVariantNumeric: "tabular-nums",
                 }}
               >
-                {p.amount ? fmtEURshort(p.amount) : ""}
+                {(() => {
+                  const v = isHT ? p.amountHT : p.amount;
+                  return v ? fmtEURshort(v) : "";
+                })()}
               </div>
             </div>
             <div

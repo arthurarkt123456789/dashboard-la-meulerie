@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { maybeBucket, type Granularity } from "@/lib/bucketing";
 import { GranularityToggle } from "./GranularityToggle";
+import type { AmountMode } from "./AmountModeToggle";
 import type { PeriodSelection, StoreData } from "@/lib/apitic/types";
 import {
   consolidateDaily,
@@ -46,13 +47,15 @@ function granularityAllowed(period: PeriodSelection): boolean {
 type Props = {
   stores: StoreData[];
   period: PeriodSelection;
+  amountMode: AmountMode;
 };
 
-export function ConsolidatedView({ stores, period }: Props) {
+export function ConsolidatedView({ stores, period, amountMode }: Props) {
   const [segmentFilter] = useSegmentFilter();
   const allowWeekly = granularityAllowed(period);
   const [granularity, setGranularity] = useState<Granularity>("day");
   const effectiveGranularity: Granularity = allowWeekly ? granularity : "day";
+  const isHT = amountMode === "HT";
 
   const view = useMemo(() => {
     const consolidatedDaily = consolidateDaily(stores.map((s) => s.daily));
@@ -71,24 +74,28 @@ export function ConsolidatedView({ stores, period }: Props) {
   }, [stores, period]);
 
   const { consolidatedDaily, consolidatedProducts, consolidatedPayments, m } = view;
-  const sparkValues = consolidatedDaily.slice(-14).map((d) => d.ca);
+  const sparkValues = consolidatedDaily
+    .slice(-14)
+    .map((d) => (isHT ? d.caHT ?? 0 : d.ca));
 
   const storeMetrics = useMemo(() => {
     return stores
       .map((s) => {
         const ms = periodMetricsForSelection(s.daily, period);
+        const value = isHT ? ms.caHT : ms.ca;
+        const yoyValue = isHT ? ms.yoyCaHT : ms.yoyCa;
         return {
           label: s.name,
-          value: ms.ca,
-          ticket: ms.avgTicket,
+          value,
+          ticket: isHT ? ms.avgTicketHT : ms.avgTicket,
           delta: ms.caDelta,
-          yoyValue: ms.yoyAvailable ? ms.yoyCa : null,
+          yoyValue: ms.yoyAvailable ? yoyValue : null,
           yoyDelta: ms.yoyAvailable ? ms.yoyCaDelta : null,
           yoyAvailable: ms.yoyAvailable,
         };
       })
       .sort((a, b) => b.value - a.value);
-  }, [stores, period]);
+  }, [stores, period, isHT]);
 
   const lineSeries: LineSeries[] = stores.map((s, i) => ({
     key: s.id,
@@ -114,11 +121,15 @@ export function ConsolidatedView({ stores, period }: Props) {
       };
       for (const s of stores) {
         const day = s.daily.find((dd) => dd.date === d.date);
-        row[s.id] = day && !day.closed ? day.ca : null;
+        if (!day || day.closed) {
+          row[s.id] = null;
+        } else {
+          row[s.id] = isHT ? (day.caHT ?? 0) : day.ca;
+        }
       }
       return row;
     });
-  }, [stores, consolidatedDaily, period]);
+  }, [stores, consolidatedDaily, period, isHT]);
 
   const chartData = useMemo(
     () => maybeBucket(lineData, effectiveGranularity),
@@ -144,8 +155,8 @@ export function ConsolidatedView({ stores, period }: Props) {
       <div className="lm-kpis">
         <KPICard
           label={"CA " + periodLabel}
-          value={fmtEUR(m.ca).replace(" €", "")}
-          suffix="€"
+          value={fmtEUR(isHT ? m.caHT : m.ca).replace(" €", "")}
+          suffix={isHT ? "€ HT" : "€ TTC"}
           delta={m.caDelta}
           yoyDelta={m.yoyAvailable ? m.yoyCaDelta : undefined}
           yoyAvailable={m.yoyAvailable}
@@ -153,7 +164,7 @@ export function ConsolidatedView({ stores, period }: Props) {
           spark={sparkValues}
           sparkColor="var(--color-coral)"
           accent
-                  />
+        />
         <KPICard
           label="Transactions"
           value={fmtNum(m.tx)}
@@ -162,12 +173,19 @@ export function ConsolidatedView({ stores, period }: Props) {
           yoyAvailable={m.yoyAvailable}
           yoyNote={yoyNote}
           spark={consolidatedDaily.slice(-14).map((d) => d.tx)}
-                  />
+        />
         <BasketBreakdown
-          global={{ value: m.avgTicket, delta: m.ticketDelta }}
-          fromagerie={{ value: m.avgTicketFromagerie, delta: m.ticketFromagerieDelta }}
-          snacking={{ value: m.avgTicketSnacking, delta: m.ticketSnackingDelta }}
-                  />
+          global={{ value: isHT ? m.avgTicketHT : m.avgTicket, delta: m.ticketDelta }}
+          fromagerie={{
+            value: isHT ? m.avgTicketFromagerieHT : m.avgTicketFromagerie,
+            delta: m.ticketFromagerieDelta,
+          }}
+          snacking={{
+            value: isHT ? m.avgTicketSnackingHT : m.avgTicketSnacking,
+            delta: m.ticketSnackingDelta,
+          }}
+          suffix={isHT ? "€ HT" : "€ TTC"}
+        />
         <KPICard
           label="Magasins actifs"
           value={String(stores.length)}
@@ -295,12 +313,16 @@ export function ConsolidatedView({ stores, period }: Props) {
         title="Répartition Fromagerie / Snacking"
         subtitle={periodLabel}
       >
-        <SegmentSplit fromagerie={m.fromagerieCA} snacking={m.snackingCA} />
+        <SegmentSplit
+          fromagerie={isHT ? m.fromagerieCAHT : m.fromagerieCA}
+          snacking={isHT ? m.snackingCAHT : m.snackingCA}
+          suffix={isHT ? "€ HT" : "€ TTC"}
+        />
       </Card>
 
       <Card
         title="Top produits"
-        subtitle={`Classement par CA · ${periodLabel}`}
+        subtitle={`Classement par CA ${isHT ? "HT" : "TTC"} · ${periodLabel}`}
         action={<SegmentFilterInline />}
         span={2}
       >
@@ -308,14 +330,15 @@ export function ConsolidatedView({ stores, period }: Props) {
           products={consolidatedProducts}
           period={period}
           segmentFilter={segmentFilter}
+          amountMode={amountMode}
         />
       </Card>
 
       <Card
         title="Moyens de paiement"
-        subtitle="30 derniers jours · tous magasins"
+        subtitle={`30 derniers jours · tous magasins · ${isHT ? "HT" : "TTC"}`}
       >
-        <PaymentsCard payments={consolidatedPayments} />
+        <PaymentsCard payments={consolidatedPayments} amountMode={amountMode} />
       </Card>
     </div>
   );

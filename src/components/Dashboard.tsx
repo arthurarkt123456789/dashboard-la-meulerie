@@ -7,6 +7,7 @@ import { Header } from "./Header";
 import { ConsolidatedView } from "./ConsolidatedView";
 import { StoreView } from "./StoreView";
 import { SegmentFilterProvider } from "./SegmentFilter";
+import type { AmountMode } from "./AmountModeToggle";
 
 type Props = { tab: string };
 
@@ -15,6 +16,7 @@ export function Dashboard({ tab }: Props) {
     kind: "preset",
     key: "7d",
   });
+  const [amountMode, setAmountMode] = useState<AmountMode>("HT");
   const stores = useStores();
   const storeData = useStoreData();
   const today = useToday();
@@ -29,6 +31,8 @@ export function Dashboard({ tab }: Props) {
         activeTab={tab}
         period={period}
         onPeriod={setPeriod}
+        amountMode={amountMode}
+        onAmountMode={setAmountMode}
         todayIso={todayIso}
       />
 
@@ -67,6 +71,7 @@ export function Dashboard({ tab }: Props) {
                 <ConsolidatedView
                   stores={storeData.data}
                   period={period}
+                  amountMode={amountMode}
                 />
               );
             }
@@ -75,7 +80,12 @@ export function Dashboard({ tab }: Props) {
               return <div className="lm-empty">Magasin introuvable.</div>;
             }
             return (
-              <StoreView store={store} period={period} today={todayDate} />
+              <StoreView
+                store={store}
+                period={period}
+                today={todayDate}
+                amountMode={amountMode}
+              />
             );
           })()}
         </SegmentFilterProvider>

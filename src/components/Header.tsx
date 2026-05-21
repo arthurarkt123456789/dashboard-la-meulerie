@@ -4,12 +4,15 @@ import { useMemo } from "react";
 import type { PeriodSelection, Store } from "@/lib/apitic/types";
 import { PeriodToggle } from "./PeriodToggle";
 import { Tabs } from "./Tabs";
+import { AmountModeToggle, type AmountMode } from "./AmountModeToggle";
 
 type Props = {
   stores: Store[];
   activeTab: string;
   period: PeriodSelection;
   onPeriod: (p: PeriodSelection) => void;
+  amountMode: AmountMode;
+  onAmountMode: (m: AmountMode) => void;
   todayIso: string | null;
 };
 
@@ -18,6 +21,8 @@ export function Header({
   activeTab,
   period,
   onPeriod,
+  amountMode,
+  onAmountMode,
   todayIso,
 }: Props) {
   const { dateStr, lastDayStr } = useMemo(() => {
@@ -113,7 +118,10 @@ export function Header({
 
       <div className="lm-header-bottom">
         <Tabs value={activeTab} stores={stores} />
-        <PeriodToggle value={period} onChange={onPeriod} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <AmountModeToggle value={amountMode} onChange={onAmountMode} />
+          <PeriodToggle value={period} onChange={onPeriod} />
+        </div>
       </div>
     </header>
   );

@@ -72,56 +72,80 @@ export function rangeForSelection(
 
 function sumRange(slice: StoreDaily[]): PeriodSum {
   const ca = slice.reduce((s, d) => s + d.ca, 0);
+  const caHT = slice.reduce((s, d) => s + (d.caHT ?? 0), 0);
   const tx = slice.reduce((s, d) => s + d.tx, 0);
   const fromagerieCA = slice.reduce((s, d) => s + d.fromagerieCA, 0);
+  const fromagerieCAHT = slice.reduce((s, d) => s + (d.fromagerieCAHT ?? 0), 0);
   const snackingCA = slice.reduce((s, d) => s + d.snackingCA, 0);
+  const snackingCAHT = slice.reduce((s, d) => s + (d.snackingCAHT ?? 0), 0);
   const fromagerieTx = slice.reduce((s, d) => s + (d.fromagerieTx ?? 0), 0);
   const snackingTx = slice.reduce((s, d) => s + (d.snackingTx ?? 0), 0);
   return {
     ca,
+    caHT,
     tx,
     fromagerieCA,
+    fromagerieCAHT,
     snackingCA,
+    snackingCAHT,
     fromagerieTx,
     snackingTx,
     avgTicket: tx ? ca / tx : 0,
+    avgTicketHT: tx ? caHT / tx : 0,
     avgTicketFromagerie: fromagerieTx ? fromagerieCA / fromagerieTx : 0,
+    avgTicketFromagerieHT: fromagerieTx ? fromagerieCAHT / fromagerieTx : 0,
     avgTicketSnacking: snackingTx ? snackingCA / snackingTx : 0,
+    avgTicketSnackingHT: snackingTx ? snackingCAHT / snackingTx : 0,
     slice,
   };
 }
 
 type PeriodSum = {
   ca: number;
+  caHT: number;
   tx: number;
   avgTicket: number;
+  avgTicketHT: number;
   fromagerieCA: number;
+  fromagerieCAHT: number;
   snackingCA: number;
+  snackingCAHT: number;
   fromagerieTx: number;
   snackingTx: number;
   avgTicketFromagerie: number;
+  avgTicketFromagerieHT: number;
   avgTicketSnacking: number;
+  avgTicketSnackingHT: number;
   slice: StoreDaily[];
 };
 
 export function sumPeriod(daily: StoreDaily[], days: number): PeriodSum {
   const slice = daily.slice(-days);
   const ca = slice.reduce((s, d) => s + d.ca, 0);
+  const caHT = slice.reduce((s, d) => s + (d.caHT ?? 0), 0);
   const tx = slice.reduce((s, d) => s + d.tx, 0);
   const fromagerieCA = slice.reduce((s, d) => s + d.fromagerieCA, 0);
+  const fromagerieCAHT = slice.reduce((s, d) => s + (d.fromagerieCAHT ?? 0), 0);
   const snackingCA = slice.reduce((s, d) => s + d.snackingCA, 0);
+  const snackingCAHT = slice.reduce((s, d) => s + (d.snackingCAHT ?? 0), 0);
   const fromagerieTx = slice.reduce((s, d) => s + (d.fromagerieTx ?? 0), 0);
   const snackingTx = slice.reduce((s, d) => s + (d.snackingTx ?? 0), 0);
   return {
     ca,
+    caHT,
     tx,
     fromagerieCA,
+    fromagerieCAHT,
     snackingCA,
+    snackingCAHT,
     fromagerieTx,
     snackingTx,
     avgTicket: tx ? ca / tx : 0,
+    avgTicketHT: tx ? caHT / tx : 0,
     avgTicketFromagerie: fromagerieTx ? fromagerieCA / fromagerieTx : 0,
+    avgTicketFromagerieHT: fromagerieTx ? fromagerieCAHT / fromagerieTx : 0,
     avgTicketSnacking: snackingTx ? snackingCA / snackingTx : 0,
+    avgTicketSnackingHT: snackingTx ? snackingCAHT / snackingTx : 0,
     slice,
   };
 }
@@ -142,19 +166,39 @@ export function sumYoY(
   days: number,
 ): {
   ca: number;
+  caHT: number;
   tx: number;
   avgTicket: number;
+  avgTicketHT: number;
   available: boolean;
   slice: StoreDaily[];
 } {
   const offset = 365;
   const start = daily.length - days - offset;
-  if (start < 0) return { ca: 0, tx: 0, avgTicket: 0, available: false, slice: [] };
+  if (start < 0)
+    return {
+      ca: 0,
+      caHT: 0,
+      tx: 0,
+      avgTicket: 0,
+      avgTicketHT: 0,
+      available: false,
+      slice: [],
+    };
   const slice = daily.slice(start, start + days);
   const available = slice.length === days && !slice.some((d) => d.closed);
   const ca = slice.reduce((s, d) => s + d.ca, 0);
+  const caHT = slice.reduce((s, d) => s + (d.caHT ?? 0), 0);
   const tx = slice.reduce((s, d) => s + d.tx, 0);
-  return { ca, tx, avgTicket: tx ? ca / tx : 0, available, slice };
+  return {
+    ca,
+    caHT,
+    tx,
+    avgTicket: tx ? ca / tx : 0,
+    avgTicketHT: tx ? caHT / tx : 0,
+    available,
+    slice,
+  };
 }
 
 export type StoreMetrics = PeriodSum & {
@@ -168,8 +212,10 @@ export type StoreMetrics = PeriodSum & {
   yoyTxDelta: number;
   yoyTicketDelta: number;
   yoyCa: number;
+  yoyCaHT: number;
   yoyTx: number;
   yoyTicket: number;
+  yoyTicketHT: number;
   yoySlice: StoreDaily[];
   days: number;
 };
@@ -236,8 +282,10 @@ export function periodMetricsForSelection(
     yoyTxDelta,
     yoyTicketDelta,
     yoyCa: yoy.ca,
+    yoyCaHT: yoy.caHT,
     yoyTx: yoy.tx,
     yoyTicket: yoy.avgTicket,
+    yoyTicketHT: yoy.avgTicketHT,
     yoySlice,
     days,
   };
@@ -322,8 +370,10 @@ export function consolidatedPeriodMetricsForSelection(
     yoyTxDelta,
     yoyTicketDelta,
     yoyCa: yoyScope,
+    yoyCaHT: 0,
     yoyTx: yoyTxScope,
     yoyTicket: yoyTicketScope,
+    yoyTicketHT: 0,
     yoySlice: [],
     days,
     scopeStores: eligible.length,
@@ -370,8 +420,10 @@ function periodMetricsFromRange(daily: StoreDaily[], days: number): StoreMetrics
     yoyTxDelta,
     yoyTicketDelta,
     yoyCa: yoy.ca,
+    yoyCaHT: yoy.caHT,
     yoyTx: yoy.tx,
     yoyTicket: yoy.avgTicket,
+    yoyTicketHT: yoy.avgTicketHT,
     yoySlice: yoy.slice,
     days,
   };
@@ -456,8 +508,10 @@ export function consolidatedPeriodMetrics(
     yoyTxDelta,
     yoyTicketDelta,
     yoyCa: yoyScope,
+    yoyCaHT: 0,
     yoyTx: yoyTxScope,
     yoyTicket: yoyTicketScope,
+    yoyTicketHT: 0,
     yoySlice: [],
     days,
     scopeStores: eligible.length,
@@ -480,19 +534,26 @@ export function consolidateDaily(perStore: StoreDaily[][]): StoreDaily[] {
         byDate.set(d.date, {
           date: d.date,
           ca: d.ca,
+          caHT: d.caHT ?? 0,
           tx: d.tx,
           avgTicket: 0,
+          avgTicketHT: 0,
           fromagerieCA: d.fromagerieCA,
+          fromagerieCAHT: d.fromagerieCAHT ?? 0,
           snackingCA: d.snackingCA,
+          snackingCAHT: d.snackingCAHT ?? 0,
           fromagerieTx: d.fromagerieTx ?? 0,
           snackingTx: d.snackingTx ?? 0,
           partial: d.partial,
         });
       } else {
         existing.ca += d.ca;
+        existing.caHT = (existing.caHT ?? 0) + (d.caHT ?? 0);
         existing.tx += d.tx;
         existing.fromagerieCA += d.fromagerieCA;
+        existing.fromagerieCAHT = (existing.fromagerieCAHT ?? 0) + (d.fromagerieCAHT ?? 0);
         existing.snackingCA += d.snackingCA;
+        existing.snackingCAHT = (existing.snackingCAHT ?? 0) + (d.snackingCAHT ?? 0);
         existing.fromagerieTx = (existing.fromagerieTx ?? 0) + (d.fromagerieTx ?? 0);
         existing.snackingTx = (existing.snackingTx ?? 0) + (d.snackingTx ?? 0);
         if (d.partial) existing.partial = true;
@@ -501,7 +562,11 @@ export function consolidateDaily(perStore: StoreDaily[][]): StoreDaily[] {
   }
   return Array.from(byDate.values())
     .sort((a, b) => a.date.localeCompare(b.date))
-    .map((d) => ({ ...d, avgTicket: d.tx ? d.ca / d.tx : 0 }));
+    .map((d) => ({
+      ...d,
+      avgTicket: d.tx ? d.ca / d.tx : 0,
+      avgTicketHT: d.tx ? (d.caHT ?? 0) / d.tx : 0,
+    }));
 }
 
 export function consolidateProducts(perStore: Product[][]): Product[] {
@@ -510,20 +575,17 @@ export function consolidateProducts(perStore: Product[][]): Product[] {
     for (const p of list) {
       const existing = map.get(p.name);
       if (!existing) {
-        map.set(p.name, {
-          ...p,
-          unitsToday: p.unitsToday,
-          units7d: p.units7d,
-          units30d: p.units30d,
-          revenue7d: p.revenue7d,
-          revenue30d: p.revenue30d,
-        });
+        map.set(p.name, { ...p });
       } else {
         existing.unitsToday += p.unitsToday;
         existing.units7d += p.units7d;
         existing.units30d += p.units30d;
         existing.revenue7d += p.revenue7d;
         existing.revenue30d += p.revenue30d;
+        existing.revenue7dHT = (existing.revenue7dHT ?? 0) + (p.revenue7dHT ?? 0);
+        existing.revenue30dHT = (existing.revenue30dHT ?? 0) + (p.revenue30dHT ?? 0);
+        // Promote unit to "au poids" if any store sells it by weight.
+        if (p.unit === "au poids") existing.unit = "au poids";
       }
     }
   }
@@ -533,17 +595,34 @@ export function consolidateProducts(perStore: Product[][]): Product[] {
 export function consolidatePayments(
   perStore: { daily: StoreDaily[]; payments: PaymentSplit[] }[],
 ): PaymentSplit[] {
-  const map = new Map<string, { method: PaymentSplit["method"]; amount: number }>();
+  const map = new Map<
+    string,
+    { method: PaymentSplit["method"]; amount: number; amountHT: number }
+  >();
   for (const { daily, payments } of perStore) {
-    const todayCA = daily[daily.length - 1]?.ca ?? 0;
+    // Use the same 30-day window that buildPayments aggregated for shares.
+    const window = daily.slice(-30);
+    const windowTTC = window.reduce((s, d) => s + d.ca, 0);
+    const windowHT = window.reduce((s, d) => s + (d.caHT ?? 0), 0);
+    const htRatio = windowTTC > 0 ? windowHT / windowTTC : 1;
     for (const p of payments) {
       const existing = map.get(p.method);
-      const amount = todayCA * p.share;
-      if (!existing) map.set(p.method, { method: p.method, amount });
-      else existing.amount += amount;
+      const amountTTC = p.amount ?? 0;
+      const amountHT = p.amountHT ?? amountTTC * htRatio;
+      if (!existing) {
+        map.set(p.method, { method: p.method, amount: amountTTC, amountHT });
+      } else {
+        existing.amount += amountTTC;
+        existing.amountHT += amountHT;
+      }
     }
   }
   const all = Array.from(map.values());
   const total = all.reduce((s, x) => s + x.amount, 0);
-  return all.map((p) => ({ method: p.method, share: total ? p.amount / total : 0, amount: p.amount }));
+  return all.map((p) => ({
+    method: p.method,
+    share: total ? p.amount / total : 0,
+    amount: p.amount,
+    amountHT: p.amountHT,
+  }));
 }

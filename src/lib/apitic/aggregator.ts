@@ -94,8 +94,11 @@ function rollupDay(
   segmentOf: (categoryId: number) => Segment,
 ): StoreDaily {
   let ca = 0;
+  let caHT = 0;
   let fromagerieCA = 0;
+  let fromagerieCAHT = 0;
   let snackingCA = 0;
+  let snackingCAHT = 0;
   let fromagerieTx = 0;
   let snackingTx = 0;
   for (const sale of sales) {
@@ -103,19 +106,21 @@ function rollupDay(
     let saleHasSnacking = false;
     for (const line of sale.lines ?? []) {
       if (line.line_type !== "sale") continue;
-      // ati_price is the TTC amount AFTER any line-level discount — APITIC
-      // already subtracts discount_ati_price from it, so subtracting again
-      // double-discounts the day. Verified against POS report: this formula
-      // matches caLinesGross to the cent.
-      const amount = line.ati_price;
-      ca += amount;
+      // ati_price is already net of discount_ati_price; same convention for
+      // price_excl_tax. Verified against the POS to the cent.
+      const amountTTC = line.ati_price;
+      const amountHT = line.price_excl_tax;
+      ca += amountTTC;
+      caHT += amountHT;
       const product = productLookup.get(line.product_id);
       const seg = product ? segmentOf(product.categoryId) : "Snacking";
       if (seg === "Fromagerie") {
-        fromagerieCA += amount;
+        fromagerieCA += amountTTC;
+        fromagerieCAHT += amountHT;
         saleHasFromagerie = true;
       } else {
-        snackingCA += amount;
+        snackingCA += amountTTC;
+        snackingCAHT += amountHT;
         saleHasSnacking = true;
       }
     }
@@ -126,10 +131,14 @@ function rollupDay(
   return {
     date: fiscalDate,
     ca: Math.round(ca),
+    caHT: Math.round(caHT * 100) / 100,
     tx,
     avgTicket: tx ? ca / tx : 0,
+    avgTicketHT: tx ? caHT / tx : 0,
     fromagerieCA: Math.round(fromagerieCA),
+    fromagerieCAHT: Math.round(fromagerieCAHT * 100) / 100,
     snackingCA: Math.round(snackingCA),
+    snackingCAHT: Math.round(snackingCAHT * 100) / 100,
     fromagerieTx,
     snackingTx,
   };
@@ -192,16 +201,17 @@ function buildTopProducts(
   segmentOf: (categoryId: number, name?: string) => Segment,
   today: string,
 ): InternalProduct[] {
-  const totals = new Map<
-    number,
-    {
-      unitsToday: number;
-      units7d: number;
-      units30d: number;
-      revenue7d: number;
-      revenue30d: number;
-    }
-  >();
+  type Agg = {
+    unitsToday: number;
+    units7d: number;
+    units30d: number;
+    revenue7d: number;
+    revenue30d: number;
+    revenue7dHT: number;
+    revenue30dHT: number;
+    hasFractionalQty: boolean;
+  };
+  const totals = new Map<number, Agg>();
 
   const cutoff7 = subtractDays(today, 6);
   const cutoff30 = subtractDays(today, 29);
@@ -213,23 +223,32 @@ function buildTopProducts(
     for (const sale of sales) {
       for (const line of sale.lines ?? []) {
         if (line.line_type !== "sale") continue;
-        const t = totals.get(line.product_id) ?? {
+        const t: Agg = totals.get(line.product_id) ?? {
           unitsToday: 0,
           units7d: 0,
           units30d: 0,
           revenue7d: 0,
           revenue30d: 0,
+          revenue7dHT: 0,
+          revenue30dHT: 0,
+          hasFractionalQty: false,
         };
         const qty = line.quantity;
-        // ati_price already net of discount_ati_price (see rollupDay note).
-        const amount = line.ati_price;
+        // ati_price / price_excl_tax already net of any discount.
+        const amountTTC = line.ati_price;
+        const amountHT = line.price_excl_tax;
+        if (!Number.isInteger(qty)) t.hasFractionalQty = true;
         if (isToday) t.unitsToday += qty;
-        if (inLast7) t.units7d += qty;
+        if (inLast7) {
+          t.units7d += qty;
+          t.revenue7d += amountTTC;
+          t.revenue7dHT += amountHT;
+        }
         if (inLast30) {
           t.units30d += qty;
-          t.revenue30d += amount;
+          t.revenue30d += amountTTC;
+          t.revenue30dHT += amountHT;
         }
-        if (inLast7) t.revenue7d += amount;
         totals.set(line.product_id, t);
       }
     }
@@ -245,13 +264,15 @@ function buildTopProducts(
       name: product.name,
       segment,
       category: category?.name ?? "—",
-      unit: "pièce",
+      unit: agg.hasFractionalQty ? "au poids" : "pièce",
       price: product.price,
       unitsToday: agg.unitsToday,
       units7d: agg.units7d,
       units30d: agg.units30d,
       revenue7d: Math.round(agg.revenue7d),
       revenue30d: Math.round(agg.revenue30d),
+      revenue7dHT: Math.round(agg.revenue7dHT),
+      revenue30dHT: Math.round(agg.revenue30dHT),
     });
   }
   return out.sort((a, b) => b.revenue30d - a.revenue30d);
@@ -289,10 +310,19 @@ function buildPayments(
     "Espèces": 0,
     "Tickets resto": 0,
   };
+  // Track aggregated TTC and HT across the window so we can scale payment
+  // amounts to HT using the realised VAT ratio.
+  let totalTTC = 0;
+  let totalHT = 0;
   const fromDate = subtractDays(endDateExclusive, daysBack);
   for (const [date, sales] of salesByDate) {
     if (date < fromDate || date >= endDateExclusive) continue;
     for (const sale of sales) {
+      for (const line of sale.lines ?? []) {
+        if (line.line_type !== "sale") continue;
+        totalTTC += line.ati_price;
+        totalHT += line.price_excl_tax;
+      }
       for (const p of sale.payments ?? []) {
         const name = paymentLookup.get(p.payment_mean_id)?.name ?? "";
         const method = classifyPayment(name);
@@ -300,6 +330,7 @@ function buildPayments(
       }
     }
   }
+  const htRatio = totalTTC > 0 ? totalHT / totalTTC : 1;
   const total =
     totals["Carte bancaire"] +
     totals["Sans contact"] +
@@ -316,6 +347,7 @@ function buildPayments(
     method,
     share: total ? totals[method] / total : 0,
     amount: totals[method],
+    amountHT: totals[method] * htRatio,
   }));
   return list;
 }
@@ -430,10 +462,14 @@ async function aggregateOneStore(
       return {
         date,
         ca: 0,
+        caHT: 0,
         tx: 0,
         avgTicket: 0,
+        avgTicketHT: 0,
         fromagerieCA: 0,
+        fromagerieCAHT: 0,
         snackingCA: 0,
+        snackingCAHT: 0,
         closed: true,
       };
     }

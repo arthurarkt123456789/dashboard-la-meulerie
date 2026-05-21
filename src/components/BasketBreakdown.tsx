@@ -12,6 +12,8 @@ type Props = {
   fromagerie: { value: number; delta?: number | null };
   snacking: { value: number; delta?: number | null };
   partial?: boolean;
+  /** "€" by default. Pass "€ HT" or "€ TTC" to add a clarifier. */
+  suffix?: string;
 };
 
 function fmtEur2(n: number): string {
@@ -27,7 +29,13 @@ function deltaClass(delta: number | null | undefined): string {
   return "neu";
 }
 
-export function BasketBreakdown({ global, fromagerie, snacking, partial }: Props) {
+export function BasketBreakdown({
+  global,
+  fromagerie,
+  snacking,
+  partial,
+  suffix = "€",
+}: Props) {
   return (
     <div className="lm-card lm-kpi">
       <div className="lm-kpi-head">
@@ -37,7 +45,7 @@ export function BasketBreakdown({ global, fromagerie, snacking, partial }: Props
       <div className="lm-kpi-value-row">
         <div className="lm-kpi-value">
           {fmtEur2(global.value)}
-          <span className="lm-kpi-suffix">€</span>
+          <span className="lm-kpi-suffix">{suffix}</span>
         </div>
       </div>
       <div className="lm-kpi-deltas">
@@ -51,8 +59,8 @@ export function BasketBreakdown({ global, fromagerie, snacking, partial }: Props
           </div>
         )}
       </div>
-      <SegmentRow label="Fromagerie" color="var(--color-dark)" b={fromagerie} />
-      <SegmentRow label="Snacking" color="var(--color-coral)" b={snacking} />
+      <SegmentRow label="Fromagerie" color="var(--color-dark)" b={fromagerie} suffix={suffix} />
+      <SegmentRow label="Snacking" color="var(--color-coral)" b={snacking} suffix={suffix} />
     </div>
   );
 }
@@ -61,10 +69,12 @@ function SegmentRow({
   label,
   color,
   b,
+  suffix,
 }: {
   label: string;
   color: string;
   b: { value: number; delta?: number | null };
+  suffix: string;
 }) {
   return (
     <div
@@ -115,7 +125,7 @@ function SegmentRow({
             letterSpacing: "-0.01em",
           }}
         >
-          {fmtEur2(b.value)} <span style={{ fontSize: 12, color: "var(--fg-secondary)" }}>€</span>
+          {fmtEur2(b.value)} <span style={{ fontSize: 12, color: "var(--fg-secondary)" }}>{suffix}</span>
         </span>
         {typeof b.delta === "number" && isFinite(b.delta) && b.delta !== 0 && (
           <span

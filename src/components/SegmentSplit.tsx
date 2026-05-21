@@ -1,8 +1,8 @@
 import { fmtEURshort, fmtPctNoSign } from "@/lib/format";
 
-type Props = { fromagerie: number; snacking: number };
+type Props = { fromagerie: number; snacking: number; suffix?: string };
 
-export function SegmentSplit({ fromagerie, snacking }: Props) {
+export function SegmentSplit({ fromagerie, snacking, suffix = "€" }: Props) {
   const total = fromagerie + snacking;
   const fPct = total ? fromagerie / total : 0;
   const sPct = total ? snacking / total : 0;
@@ -36,12 +36,14 @@ export function SegmentSplit({ fromagerie, snacking }: Props) {
           color="var(--color-dark)"
           amount={fromagerie}
           pct={fPct}
+          suffix={suffix}
         />
         <SegmentColumn
           label="Snacking"
           color="var(--color-coral)"
           amount={snacking}
           pct={sPct}
+          suffix={suffix}
         />
       </div>
     </div>
@@ -53,11 +55,16 @@ function SegmentColumn({
   color,
   amount,
   pct,
+  // suffix kept in API for symmetry; rendered amount already has the unit
+  // baked in via fmtEURshort, and the card subtitle clarifies HT vs TTC.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  suffix: _suffix,
 }: {
   label: string;
   color: string;
   amount: number;
   pct: number;
+  suffix: string;
 }) {
   return (
     <div>

@@ -164,10 +164,14 @@ function generateDaily(store: StoreSeed, today: Date): StoreDaily[] {
       series.push({
         date: iso,
         ca: 0,
+        caHT: 0,
         tx: 0,
         avgTicket: 0,
+        avgTicketHT: 0,
         fromagerieCA: 0,
+        fromagerieCAHT: 0,
         snackingCA: 0,
+        snackingCAHT: 0,
         closed: true,
       });
       continue;
@@ -185,13 +189,20 @@ function generateDaily(store: StoreSeed, today: Date): StoreDaily[] {
       dayMul *
       (0.9 + rng() * 0.2) *
       Math.pow(1 + growth * 0.5, -ageYears);
+    const fromagerieCA = Math.round(ca * (1 - store.snackingShare) * (0.92 + rng() * 0.16));
+    const snackingCA = Math.round(ca * store.snackingShare * (0.92 + rng() * 0.16));
+    const caHT = ca / 1.1; // approx 10% VAT for the mock
     series.push({
       date: iso,
       ca: Math.round(ca),
+      caHT: Math.round(caHT * 100) / 100,
       tx: Math.round(tx),
       avgTicket: tx ? ca / tx : 0,
-      fromagerieCA: Math.round(ca * (1 - store.snackingShare) * (0.92 + rng() * 0.16)),
-      snackingCA: Math.round(ca * store.snackingShare * (0.92 + rng() * 0.16)),
+      avgTicketHT: tx ? caHT / tx : 0,
+      fromagerieCA,
+      fromagerieCAHT: Math.round((fromagerieCA / 1.1) * 100) / 100,
+      snackingCA,
+      snackingCAHT: Math.round((snackingCA / 1.1) * 100) / 100,
     });
   }
   // partial day for today
@@ -247,6 +258,8 @@ function generateTopProducts(store: StoreSeed): Product[] {
       units30d: Math.max(8, units * 30),
       revenue7d: Math.round(units * 7 * p.price),
       revenue30d: Math.round(units * 30 * p.price),
+      revenue7dHT: Math.round((units * 7 * p.price) / 1.1),
+      revenue30dHT: Math.round((units * 30 * p.price) / 1.1),
     };
   });
   return products.sort((a, b) => b.revenue30d - a.revenue30d);

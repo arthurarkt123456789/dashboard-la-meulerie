@@ -23,11 +23,15 @@ export type Store = {
 
 export type StoreDaily = {
   date: string;        // YYYY-MM-DD
-  ca: number;          // €
+  ca: number;          // € TTC
+  caHT: number;        // € HT
   tx: number;          // tickets
   avgTicket: number;
+  avgTicketHT: number;
   fromagerieCA: number;
+  fromagerieCAHT: number;
   snackingCA: number;
+  snackingCAHT: number;
   /** Tickets with at least one Fromagerie line. Mixed tickets count in both. */
   fromagerieTx?: number;
   /** Tickets with at least one Snacking line. Mixed tickets count in both. */
@@ -52,8 +56,10 @@ export type Product = {
   unitsToday: number;
   units7d: number;
   units30d: number;
-  revenue7d: number;
-  revenue30d: number;
+  revenue7d: number;     // TTC
+  revenue30d: number;    // TTC
+  revenue7dHT: number;
+  revenue30dHT: number;
 };
 
 export type PaymentMethod = "Carte bancaire" | "Sans contact" | "Espèces" | "Tickets resto";
@@ -61,7 +67,8 @@ export type PaymentMethod = "Carte bancaire" | "Sans contact" | "Espèces" | "Ti
 export type PaymentSplit = {
   method: PaymentMethod;
   share: number;       // 0..1
-  amount?: number;     // €
+  amount?: number;     // € TTC (what was actually collected)
+  amountHT?: number;   // € HT (scaled using day's overall HT/TTC ratio)
 };
 
 export type StoreData = Store & {

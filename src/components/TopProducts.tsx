@@ -3,12 +3,14 @@
 import { fmtEUR, fmtEURshort, fmtNum } from "@/lib/format";
 import type { PeriodSelection, Product } from "@/lib/apitic/types";
 import type { SegmentFilterValue } from "./SegmentFilter";
+import type { AmountMode } from "./AmountModeToggle";
 
 type Props = {
   products: Product[];
   period: PeriodSelection;
   segmentFilter: SegmentFilterValue;
   limit?: number;
+  amountMode: AmountMode;
 };
 
 export function TopProducts({
@@ -16,11 +18,19 @@ export function TopProducts({
   period,
   segmentFilter,
   limit = 10,
+  amountMode,
 }: Props) {
+  const isHT = amountMode === "HT";
   const presetKey =
     period.kind === "preset" ? period.key : "30d"; // month → use 30d aggregates
-  const revenueKey: "revenue7d" | "revenue30d" =
-    presetKey === "30d" || presetKey === "90d" ? "revenue30d" : "revenue7d";
+  const revenueKey: "revenue7d" | "revenue30d" | "revenue7dHT" | "revenue30dHT" =
+    presetKey === "30d" || presetKey === "90d"
+      ? isHT
+        ? "revenue30dHT"
+        : "revenue30d"
+      : isHT
+        ? "revenue7dHT"
+        : "revenue7d";
   const unitsKey: "unitsToday" | "units7d" | "units30d" =
     presetKey === "today"
       ? "unitsToday"

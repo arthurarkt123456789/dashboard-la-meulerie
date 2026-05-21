@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { PeriodSelection, StoreData } from "@/lib/apitic/types";
 import { maybeBucket, type Granularity } from "@/lib/bucketing";
 import { GranularityToggle } from "./GranularityToggle";
+import type { AmountMode } from "./AmountModeToggle";
 import {
   periodLabelFor,
   periodMetricsForSelection,
@@ -24,6 +25,7 @@ type Props = {
   store: StoreData;
   period: PeriodSelection;
   today: Date;
+  amountMode: AmountMode;
 };
 
 function granularityAllowed(period: PeriodSelection): boolean {
@@ -31,24 +33,32 @@ function granularityAllowed(period: PeriodSelection): boolean {
   return period.key === "30d" || period.key === "90d";
 }
 
-export function StoreView({ store, period, today }: Props) {
+export function StoreView({ store, period, today, amountMode }: Props) {
   const [segmentFilter] = useSegmentFilter();
   const allowWeekly = granularityAllowed(period);
   const [granularity, setGranularity] = useState<Granularity>("day");
   const effectiveGranularity: Granularity = allowWeekly ? granularity : "day";
+  const isHT = amountMode === "HT";
 
   const m = useMemo(
     () => periodMetricsForSelection(store.daily, period),
     [store.daily, period],
   );
-  const sparkValues = store.daily.slice(-14).map((d) => d.ca);
+  const sparkValues = store.daily
+    .slice(-14)
+    .map((d) => (isHT ? d.caHT ?? 0 : d.ca));
   const periodLabel = periodLabelFor(period);
 
   const lineData = useMemo(() => {
     const todayISO = store.daily[store.daily.length - 1]?.date ?? "";
     const { from, to } = rangeForSelection(period, todayISO);
-    return store.daily.filter((d) => d.date >= from && d.date <= to);
-  }, [store.daily, period]);
+    return store.daily
+      .filter((d) => d.date >= from && d.date <= to)
+      .map((d) => ({
+        ...d,
+        ca: isHT ? d.caHT ?? 0 : d.ca,
+      }));
+  }, [store.daily, period, isHT]);
 
   const chartData = useMemo(
     () => maybeBucket(lineData, effectiveGranularity),
@@ -60,10 +70,10 @@ export function StoreView({ store, period, today }: Props) {
     const start = store.daily.length - days - 365;
     const raw = store.daily.slice(start, start + days).map((d, i) => ({
       date: lineData[i]?.date ?? d.date,
-      ca: d.ca,
+      ca: isHT ? d.caHT ?? 0 : d.ca,
     }));
     return maybeBucket(raw, effectiveGranularity);
-  }, [m.yoyAvailable, m.days, store.daily, lineData, effectiveGranularity]);
+  }, [m.yoyAvailable, m.days, store.daily, lineData, effectiveGranularity, isHT]);
   const openedDate = new Date(store.openedDate + "T00:00:00");
   const monthsOpen = Math.round(
     (today.getTime() - openedDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44),
@@ -118,8 +128,8 @@ export function StoreView({ store, period, today }: Props) {
       <div className="lm-kpis">
         <KPICard
           label={"CA " + periodLabel}
-          value={fmtEUR(m.ca).replace(" €", "")}
-          suffix="€"
+          value={fmtEUR(isHT ? m.caHT : m.ca).replace(" €", "")}
+          suffix={isHT ? "€ HT" : "€ TTC"}
           delta={m.caDelta}
           yoyDelta={m.yoyAvailable ? m.yoyCaDelta : undefined}
           yoyAvailable={m.yoyAvailable}
@@ -127,7 +137,7 @@ export function StoreView({ store, period, today }: Props) {
           spark={sparkValues}
           sparkColor="var(--color-coral)"
           accent
-                  />
+        />
         <KPICard
           label="Transactions"
           value={fmtNum(m.tx)}
@@ -136,16 +146,25 @@ export function StoreView({ store, period, today }: Props) {
           yoyAvailable={m.yoyAvailable}
           yoyNote={yoyNote}
           spark={store.daily.slice(-14).map((d) => d.tx)}
-                  />
+        />
         <BasketBreakdown
-          global={{ value: m.avgTicket, delta: m.ticketDelta }}
-          fromagerie={{ value: m.avgTicketFromagerie, delta: m.ticketFromagerieDelta }}
-          snacking={{ value: m.avgTicketSnacking, delta: m.ticketSnackingDelta }}
-                  />
+          global={{ value: isHT ? m.avgTicketHT : m.avgTicket, delta: m.ticketDelta }}
+          fromagerie={{
+            value: isHT ? m.avgTicketFromagerieHT : m.avgTicketFromagerie,
+            delta: m.ticketFromagerieDelta,
+          }}
+          snacking={{
+            value: isHT ? m.avgTicketSnackingHT : m.avgTicketSnacking,
+            delta: m.ticketSnackingDelta,
+          }}
+          suffix={isHT ? "€ HT" : "€ TTC"}
+        />
         <KPICard
           label="CA / jour moyen"
-          value={fmtEUR(m.days ? m.ca / m.days : 0).replace(" €", "")}
-          suffix="€"
+          value={fmtEUR(
+            m.days ? (isHT ? m.caHT : m.ca) / m.days : 0,
+          ).replace(" €", "")}
+          suffix={isHT ? "€ HT" : "€ TTC"}
           yoyNote={
             m.days > 1 ? `sur ${m.days} jours de la période` : "période"
           }
@@ -233,14 +252,18 @@ export function StoreView({ store, period, today }: Props) {
 
       <Card
         title="Répartition Fromagerie / Snacking"
-        subtitle={periodLabel}
+        subtitle={`${periodLabel} · ${isHT ? "HT" : "TTC"}`}
       >
-        <SegmentSplit fromagerie={m.fromagerieCA} snacking={m.snackingCA} />
+        <SegmentSplit
+          fromagerie={isHT ? m.fromagerieCAHT : m.fromagerieCA}
+          snacking={isHT ? m.snackingCAHT : m.snackingCA}
+          suffix={isHT ? "€ HT" : "€ TTC"}
+        />
       </Card>
 
       <Card
         title="Top produits"
-        subtitle={`Classement · ${periodLabel}`}
+        subtitle={`Classement ${isHT ? "HT" : "TTC"} · ${periodLabel}`}
         action={<SegmentFilterInline />}
         span={2}
       >
@@ -248,11 +271,15 @@ export function StoreView({ store, period, today }: Props) {
           products={store.topProducts}
           period={period}
           segmentFilter={segmentFilter}
+          amountMode={amountMode}
         />
       </Card>
 
-      <Card title="Moyens de paiement" subtitle="30 derniers jours">
-        <PaymentsCard payments={store.payments} />
+      <Card
+        title="Moyens de paiement"
+        subtitle={`30 derniers jours · ${isHT ? "HT" : "TTC"}`}
+      >
+        <PaymentsCard payments={store.payments} amountMode={amountMode} />
       </Card>
     </div>
   );
