@@ -20,19 +20,22 @@ export function Header({
   onPeriod,
   todayIso,
 }: Props) {
-  const { dateStr, timeStr } = useMemo(() => {
-    if (!todayIso) return { dateStr: "—", timeStr: "—" };
-    const d = new Date(todayIso);
+  const { dateStr, lastDayStr } = useMemo(() => {
+    if (!todayIso) return { dateStr: "—", lastDayStr: "—" };
+    const today = new Date(todayIso);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
     return {
-      dateStr: d.toLocaleDateString("fr-FR", {
+      dateStr: today.toLocaleDateString("fr-FR", {
         weekday: "long",
         day: "numeric",
         month: "long",
         year: "numeric",
       }),
-      timeStr: d.toLocaleTimeString("fr-FR", {
-        hour: "2-digit",
-        minute: "2-digit",
+      lastDayStr: yesterday.toLocaleDateString("fr-FR", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
       }),
     };
   }, [todayIso]);
@@ -69,7 +72,7 @@ export function Header({
           <div className="lm-date-block">
             <div className="lm-date-day">{dateStr}</div>
             <div className="lm-date-time">
-              <span className="lm-status-dot" /> APITIC connecté · sync {timeStr}
+              <span className="lm-status-dot" /> APITIC · données arrêtées au {lastDayStr}
             </div>
           </div>
           <button className="lm-icon-btn" title="Rafraîchir" aria-label="Rafraîchir">

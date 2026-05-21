@@ -131,43 +131,47 @@ function rollupDay(
   };
 }
 
-function rollupHourly(
-  sales: ApiticSale[],
-  now: Date,
-  fiscalDate: string,
+/**
+ * Hourly profile averaged over the last N closed days. APITIC doesn't give us
+ * today's data, so the intraday chart shows a typical day instead of a live
+ * curve that would always drift to zero in the right half.
+ */
+function rollupHourlyAverage(
+  salesByDate: Map<string, ApiticSale[]>,
+  endDateExclusive: string,
+  daysBack: number,
 ): StoreHourly[] {
   const buckets = new Map<number, { ca: number; tx: number }>();
   for (let h = 7; h <= 19; h++) buckets.set(h, { ca: 0, tx: 0 });
-  for (const sale of sales) {
-    const h = parisHour(sale.datetime_paid || sale.datetime_created);
-    if (h < 7 || h > 19) continue;
-    const b = buckets.get(h);
-    if (!b) continue;
-    let amount = 0;
-    for (const line of sale.lines ?? []) {
-      if (line.line_type !== "sale") continue;
-      amount += line.ati_price - line.discount_ati_price;
+  const seenDates = new Set<string>();
+  const fromDate = subtractDays(endDateExclusive, daysBack);
+  for (const [date, sales] of salesByDate) {
+    if (date < fromDate || date >= endDateExclusive) continue;
+    if (sales.length === 0) continue;
+    seenDates.add(date);
+    for (const sale of sales) {
+      const h = parisHour(sale.datetime_paid || sale.datetime_created);
+      if (h < 7 || h > 19) continue;
+      const b = buckets.get(h);
+      if (!b) continue;
+      let amount = 0;
+      for (const line of sale.lines ?? []) {
+        if (line.line_type !== "sale") continue;
+        amount += line.ati_price - line.discount_ati_price;
+      }
+      b.ca += amount;
+      b.tx += 1;
     }
-    b.ca += amount;
-    b.tx += 1;
   }
-  // current hour in Paris (only meaningful when fiscalDate == today)
-  const isToday = fiscalDate === parisDate(now);
-  const currentHour = Number(
-    new Intl.DateTimeFormat("en-GB", {
-      timeZone: "Europe/Paris",
-      hour: "2-digit",
-      hour12: false,
-    }).format(now),
-  );
+  const n = Math.max(1, seenDates.size);
   const hourly: StoreHourly[] = [];
   for (let h = 7; h <= 19; h++) {
     const b = buckets.get(h)!;
     hourly.push({
       hour: h,
-      ca: Math.round(b.ca),
-      tx: b.tx,
-      done: !isToday ? true : h < currentHour,
+      ca: Math.round(b.ca / n),
+      tx: Math.round(b.tx / n),
+      done: true, // every bucket has data — it's a profile, not a live curve
     });
   }
   return hourly;
@@ -249,7 +253,8 @@ function buildTopProducts(
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// Payment split (today only — matches the proto's UI)
+// Payment split aggregated over a window of recent days (since APITIC
+// doesn't expose today's tickets we can't build a live "today" donut).
 // ────────────────────────────────────────────────────────────────────────
 
 const PAYMENT_KEYWORDS: { method: PaymentMethod; keywords: string[] }[] = [
@@ -268,7 +273,9 @@ function classifyPayment(name: string): PaymentMethod {
 }
 
 function buildPayments(
-  todaySales: ApiticSale[],
+  salesByDate: Map<string, ApiticSale[]>,
+  endDateExclusive: string,
+  daysBack: number,
   paymentLookup: PaymentLookup,
 ): PaymentSplit[] {
   const totals: Record<PaymentMethod, number> = {
@@ -277,11 +284,15 @@ function buildPayments(
     "Espèces": 0,
     "Tickets resto": 0,
   };
-  for (const sale of todaySales) {
-    for (const p of sale.payments ?? []) {
-      const name = paymentLookup.get(p.payment_mean_id)?.name ?? "";
-      const method = classifyPayment(name);
-      totals[method] += p.amount;
+  const fromDate = subtractDays(endDateExclusive, daysBack);
+  for (const [date, sales] of salesByDate) {
+    if (date < fromDate || date >= endDateExclusive) continue;
+    for (const sale of sales) {
+      for (const p of sale.payments ?? []) {
+        const name = paymentLookup.get(p.payment_mean_id)?.name ?? "";
+        const method = classifyPayment(name);
+        totals[method] += p.amount;
+      }
     }
   }
   const total =
@@ -319,9 +330,12 @@ async function aggregateOneStore(
   segmentMapper: ReturnType<typeof buildSegmentMapper>,
   mode: AggregateMode = { kind: "read" },
 ): Promise<StoreData> {
+  // APITIC doesn't expose the current fiscal day, so the series ends at
+  // yesterday and "today" is never present in the dashboard.
   const today = parisDate(now);
-  const start = subtractDays(today, HISTORY_DAYS - 1);
-  const dates = listDates(start, today);
+  const lastDay = subtractDays(today, 1);
+  const start = subtractDays(lastDay, HISTORY_DAYS - 1);
+  const dates = listDates(start, lastDay);
 
   // 1. Fetch reference data once per store (also cacheable, but they're small)
   const [products, categories, paymentMeans] = await Promise.all([
@@ -368,28 +382,22 @@ async function aggregateOneStore(
   }
 
   // Batch-read every cached historical date in one query (no N+1).
-  const cachedDates = dates.filter((d) => d !== today && cached.has(d));
+  const cachedDates = dates.filter((d) => cached.has(d));
   const cacheBatch = await readSalesCacheBatch(accountId, cachedDates);
   for (const [date, sales] of cacheBatch) salesByDate.set(date, sales);
 
   if (mode.kind === "read") {
-    // Only fill today live; everything else stays as whatever the cache gave us.
-    await Promise.all(
-      dates.map(async (date) => {
-        if (salesByDate.has(date)) return;
-        if (date === today) {
-          await fetchOne(date);
-        } else {
-          salesByDate.set(date, []); // not cached → blank
-        }
-      }),
-    );
+    // Nothing to refresh — APITIC has no live "today" endpoint and yesterday
+    // is immutable once the fiscal day has closed.
+    for (const date of dates) {
+      if (!salesByDate.has(date)) salesByDate.set(date, []);
+    }
   } else {
     // warm: re-fetch the requested range, ignore cache for that window
     const warmSet = new Set(listDates(mode.from, mode.to));
     await Promise.all(
       dates.map(async (date) => {
-        if (warmSet.has(date) || date === today) {
+        if (warmSet.has(date)) {
           await fetchOne(date);
         } else if (!salesByDate.has(date)) {
           salesByDate.set(date, []);
@@ -425,26 +433,24 @@ async function aggregateOneStore(
       };
     }
     const sales = salesByDate.get(date) ?? [];
-    const day = rollupDay(sales, date, productLookup, (id) =>
+    return rollupDay(sales, date, productLookup, (id) =>
       segmentOf(id, categoryLookup.get(id)?.name),
     );
-    if (date === today) day.partial = true;
-    return day;
   });
 
-  // 4. Hourly for today
-  const todaySales = salesByDate.get(today) ?? [];
-  const hourly = rollupHourly(todaySales, now, today);
+  // 4. Intraday profile averaged over the last 30 closed days (yesterday and back).
+  //    Anchored on `today` exclusive, so yesterday is included in the average.
+  const hourly = rollupHourlyAverage(salesByDate, today, 30);
 
-  // 5. Top products + payments
+  // 5. Top products + payments — both aggregate the last 30 closed days too.
   const topProducts = buildTopProducts(
     salesByDate,
     productLookup,
     categoryLookup,
     segmentOf,
-    today,
+    lastDay,
   );
-  const payments = buildPayments(todaySales, paymentLookup);
+  const payments = buildPayments(salesByDate, today, 30, paymentLookup);
 
   const openedLabel = firstSaleDate
     ? new Intl.DateTimeFormat("fr-FR", {

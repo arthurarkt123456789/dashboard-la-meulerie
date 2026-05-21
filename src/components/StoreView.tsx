@@ -39,8 +39,6 @@ export function StoreView({ store, period, today }: Props) {
     const { from, to } = rangeForSelection(period, todayISO);
     return store.daily.filter((d) => d.date >= from && d.date <= to);
   }, [store.daily, period]);
-  const todayCA = store.daily[store.daily.length - 1]?.ca ?? 0;
-
   const openedDate = new Date(store.openedDate + "T00:00:00");
   const monthsOpen = Math.round(
     (today.getTime() - openedDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44),
@@ -99,7 +97,7 @@ export function StoreView({ store, period, today }: Props) {
         </div>
         <div className="lm-store-status">
           <span className="lm-status-dot" />
-          <span>Caisse en ligne · dernière sync il y a 2 min</span>
+          <span>Données arrêtées au dernier fiscal jour</span>
         </div>
       </div>
 
@@ -115,8 +113,7 @@ export function StoreView({ store, period, today }: Props) {
           spark={sparkValues}
           sparkColor="var(--color-coral)"
           accent
-          partial={period.kind === "preset" && period.key === "today"}
-        />
+                  />
         <KPICard
           label="Transactions"
           value={fmtNum(m.tx)}
@@ -125,20 +122,19 @@ export function StoreView({ store, period, today }: Props) {
           yoyAvailable={m.yoyAvailable}
           yoyNote={yoyNote}
           spark={store.daily.slice(-14).map((d) => d.tx)}
-          partial={period.kind === "preset" && period.key === "today"}
-        />
+                  />
         <BasketBreakdown
           global={{ value: m.avgTicket, delta: m.ticketDelta }}
           fromagerie={{ value: m.avgTicketFromagerie, delta: m.ticketFromagerieDelta }}
           snacking={{ value: m.avgTicketSnacking, delta: m.ticketSnackingDelta }}
-          partial={period.kind === "preset" && period.key === "today"}
-        />
+                  />
         <KPICard
-          label="CA aujourd'hui"
-          value={fmtEUR(todayCA).replace(" €", "")}
+          label="CA / jour moyen"
+          value={fmtEUR(m.days ? m.ca / m.days : 0).replace(" €", "")}
           suffix="€"
-          spark={store.hourly.filter((h) => h.done).map((h) => h.ca)}
-          partial
+          yoyNote={
+            m.days > 1 ? `sur ${m.days} jours de la période` : "période"
+          }
         />
       </div>
 
@@ -164,7 +160,10 @@ export function StoreView({ store, period, today }: Props) {
         />
       </Card>
 
-      <Card title="Affluence intraday" subtitle="CA par heure · aujourd'hui">
+      <Card
+        title="Affluence intraday"
+        subtitle="CA moyen par heure · 30 derniers jours"
+      >
         <HourlyBars hourly={store.hourly} height={140} />
         <div
           style={{
@@ -178,7 +177,7 @@ export function StoreView({ store, period, today }: Props) {
         >
           <div>
             <div className="lm-label" style={{ fontSize: 10 }}>
-              Pic du jour
+              Pic moyen
             </div>
             <div
               style={{
@@ -232,7 +231,7 @@ export function StoreView({ store, period, today }: Props) {
         />
       </Card>
 
-      <Card title="Moyens de paiement" subtitle="Aujourd'hui">
+      <Card title="Moyens de paiement" subtitle="30 derniers jours">
         <PaymentsCard payments={store.payments} />
       </Card>
     </div>

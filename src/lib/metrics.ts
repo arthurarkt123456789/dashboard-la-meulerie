@@ -19,7 +19,7 @@ export const PERIOD_DAYS: Record<PeriodKey, number> = {
 };
 
 export const PERIOD_LABELS: Record<PeriodKey, string> = {
-  today: "aujourd'hui",
+  today: "hier",
   "7d": "sur 7 jours",
   "30d": "sur 30 jours",
   "90d": "sur 90 jours",

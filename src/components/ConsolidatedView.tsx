@@ -138,8 +138,7 @@ export function ConsolidatedView({ stores, period }: Props) {
           spark={sparkValues}
           sparkColor="var(--color-coral)"
           accent
-          partial={period.kind === "preset" && period.key === "today"}
-        />
+                  />
         <KPICard
           label="Transactions"
           value={fmtNum(m.tx)}
@@ -148,14 +147,12 @@ export function ConsolidatedView({ stores, period }: Props) {
           yoyAvailable={m.yoyAvailable}
           yoyNote={yoyNote}
           spark={consolidatedDaily.slice(-14).map((d) => d.tx)}
-          partial={period.kind === "preset" && period.key === "today"}
-        />
+                  />
         <BasketBreakdown
           global={{ value: m.avgTicket, delta: m.ticketDelta }}
           fromagerie={{ value: m.avgTicketFromagerie, delta: m.ticketFromagerieDelta }}
           snacking={{ value: m.avgTicketSnacking, delta: m.ticketSnackingDelta }}
-          partial={period.kind === "preset" && period.key === "today"}
-        />
+                  />
         <KPICard
           label="Magasins actifs"
           value={String(stores.length)}
@@ -290,7 +287,10 @@ export function ConsolidatedView({ stores, period }: Props) {
         />
       </Card>
 
-      <Card title="Moyens de paiement" subtitle="Aujourd'hui · tous magasins">
+      <Card
+        title="Moyens de paiement"
+        subtitle="30 derniers jours · tous magasins"
+      >
         <PaymentsCard payments={consolidatedPayments} />
       </Card>
     </div>

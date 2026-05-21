@@ -4,7 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import type { PeriodKey, PeriodSelection } from "@/lib/apitic/types";
 
 const PRESETS: { id: PeriodKey; label: string }[] = [
-  { id: "today", label: "Aujourd'hui" },
+  // APITIC has no live "today" feed, so the shortest preset rolls back to
+  // the last closed fiscal day (= yesterday).
+  { id: "today", label: "Hier" },
   { id: "7d", label: "7 jours" },
   { id: "30d", label: "30 jours" },
   { id: "90d", label: "90 jours" },
