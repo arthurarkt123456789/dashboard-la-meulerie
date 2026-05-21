@@ -1,5 +1,9 @@
 import "server-only";
-import { getOrFetchSales, listCachedDates, readSalesCache } from "./cache";
+import {
+  getOrFetchSales,
+  listCachedDates,
+  readSalesCacheBatch,
+} from "./cache";
 import {
   fetchAccounts,
   fetchCategories,
@@ -349,14 +353,18 @@ async function aggregateOneStore(
     }
   }
 
+  // Batch-read every cached historical date in one query (no N+1).
+  const cachedDates = dates.filter((d) => d !== today && cached.has(d));
+  const cacheBatch = await readSalesCacheBatch(accountId, cachedDates);
+  for (const [date, sales] of cacheBatch) salesByDate.set(date, sales);
+
   if (mode.kind === "read") {
+    // Only fill today live; everything else stays as whatever the cache gave us.
     await Promise.all(
       dates.map(async (date) => {
+        if (salesByDate.has(date)) return;
         if (date === today) {
-          await fetchOne(date); // always fresh
-        } else if (cached.has(date)) {
-          const sales = await readSalesCache(accountId, date);
-          salesByDate.set(date, sales ?? []);
+          await fetchOne(date);
         } else {
           salesByDate.set(date, []); // not cached → blank
         }
@@ -369,10 +377,7 @@ async function aggregateOneStore(
       dates.map(async (date) => {
         if (warmSet.has(date) || date === today) {
           await fetchOne(date);
-        } else if (cached.has(date)) {
-          const sales = await readSalesCache(accountId, date);
-          salesByDate.set(date, sales ?? []);
-        } else {
+        } else if (!salesByDate.has(date)) {
           salesByDate.set(date, []);
         }
       }),

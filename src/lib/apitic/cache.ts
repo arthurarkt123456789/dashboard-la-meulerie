@@ -194,8 +194,6 @@ export async function listCachedDates(
   dates: string[],
 ): Promise<Set<string>> {
   if (!isConfigured()) {
-    // fs check is cheap (just stat); skipped for now since it's only used in
-    // chunked bootstrap which is intended for the PG path
     const set = new Set<string>();
     await Promise.all(
       dates.map(async (d) => {
@@ -211,7 +209,6 @@ export async function listCachedDates(
   }
   await ready();
   const sql = getSql();
-  // Use parameterized array — postgres lib handles the binding
   const rows = await sql<{ date: string }[]>`
     select to_char(date, 'YYYY-MM-DD') as date
     from apitic_sales_cache
@@ -219,4 +216,36 @@ export async function listCachedDates(
       and date = any(${dates}::date[])
   `;
   return new Set(rows.map((r) => r.date));
+}
+
+/**
+ * Batched read: returns a Map<dateISO, ApiticSale[]> for every cached date
+ * in `dates`. Missing keys mean not cached. Today is excluded — callers
+ * should always fetch today live.
+ */
+export async function readSalesCacheBatch(
+  accountId: string,
+  dates: string[],
+): Promise<Map<string, ApiticSale[]>> {
+  const result = new Map<string, ApiticSale[]>();
+  if (dates.length === 0) return result;
+  if (!isConfigured()) {
+    await Promise.all(
+      dates.map(async (d) => {
+        const hit = await readFs(accountId, d);
+        if (hit !== null) result.set(d, hit);
+      }),
+    );
+    return result;
+  }
+  await ready();
+  const sql = getSql();
+  const rows = await sql<{ date: string; sales: ApiticSale[] }[]>`
+    select to_char(date, 'YYYY-MM-DD') as date, sales
+    from apitic_sales_cache
+    where account_id = ${accountId}
+      and date = any(${dates}::date[])
+  `;
+  for (const row of rows) result.set(row.date, row.sales);
+  return result;
 }
