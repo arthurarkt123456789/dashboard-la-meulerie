@@ -1,5 +1,6 @@
 import "server-only";
 import {
+  getOrFetchRefs,
   getOrFetchSales,
   listCachedDates,
   readSalesCacheBatch,
@@ -92,6 +93,7 @@ function rollupDay(
   fiscalDate: string,
   productLookup: ProductLookup,
   segmentOf: (categoryId: number) => Segment,
+  fallbackSegment: Segment = "Snacking",
 ): StoreDaily {
   let ca = 0;
   let caHT = 0;
@@ -113,7 +115,7 @@ function rollupDay(
       ca += amountTTC;
       caHT += amountHT;
       const product = productLookup.get(line.product_id);
-      const seg = product ? segmentOf(product.categoryId) : "Snacking";
+      const seg = product ? segmentOf(product.categoryId) : fallbackSegment;
       if (seg === "Fromagerie") {
         fromagerieCA += amountTTC;
         fromagerieCAHT += amountHT;
@@ -374,11 +376,19 @@ async function aggregateOneStore(
   const start = subtractDays(lastDay, HISTORY_DAYS - 1);
   const dates = listDates(start, lastDay);
 
-  // 1. Fetch reference data once per store (also cacheable, but they're small)
+  // 1. Reference data: products/categories/payment_means are cached in PG
+  // with a 24h TTL. During APITIC blackouts (or any transient failure) we
+  // serve the previous snapshot so segment routing keeps working.
   const [products, categories, paymentMeans] = await Promise.all([
-    fetchProducts(accountId).catch(() => [] as ApiticProduct[]),
-    fetchCategories(accountId).catch(() => [] as ApiticCategory[]),
-    fetchPaymentMeans(accountId).catch(() => [] as ApiticPaymentMean[]),
+    getOrFetchRefs<ApiticProduct>(accountId, "products", () =>
+      fetchProducts(accountId),
+    ).catch(() => [] as ApiticProduct[]),
+    getOrFetchRefs<ApiticCategory>(accountId, "categories", () =>
+      fetchCategories(accountId),
+    ).catch(() => [] as ApiticCategory[]),
+    getOrFetchRefs<ApiticPaymentMean>(accountId, "payment_means", () =>
+      fetchPaymentMeans(accountId),
+    ).catch(() => [] as ApiticPaymentMean[]),
   ]);
 
   const productLookup: ProductLookup = new Map(
@@ -474,8 +484,12 @@ async function aggregateOneStore(
       };
     }
     const sales = salesByDate.get(date) ?? [];
-    return rollupDay(sales, date, productLookup, (id) =>
-      segmentOf(id, categoryLookup.get(id)?.name),
+    return rollupDay(
+      sales,
+      date,
+      productLookup,
+      (id) => segmentOf(id, categoryLookup.get(id)?.name),
+      segmentMapper.defaultSegment,
     );
   });
 

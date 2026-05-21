@@ -233,6 +233,98 @@ export async function listCachedDates(
   return new Set(rows.map((r) => r.date));
 }
 
+// ────────────────────────────────────────────────────────────────────────
+// Reference data cache (products / categories / payment_means)
+// Survives APITIC blackouts so the segment routing stays accurate even
+// when live fetches are rejected.
+// ────────────────────────────────────────────────────────────────────────
+
+type RefKind = "products" | "categories" | "payment_means";
+const REF_TTL_MS = 24 * 60 * 60 * 1000;
+
+export async function readRefs<T>(
+  accountId: string,
+  kind: RefKind,
+): Promise<{ data: T[]; ageMs: number } | null> {
+  if (!isConfigured()) return null;
+  try {
+    await ready();
+    const sql = getSql();
+    const rows = await sql<
+      { fetched_at: Date; data: T[] | string }[]
+    >`
+      select fetched_at, data
+      from apitic_refs_cache
+      where account_id = ${accountId} and kind = ${kind}
+      limit 1
+    `;
+    if (rows.length === 0) return null;
+    const row = rows[0];
+    const parsed: T[] =
+      typeof row.data === "string"
+        ? (JSON.parse(row.data) as T[])
+        : (row.data as T[]);
+    return {
+      data: parsed,
+      ageMs: Date.now() - new Date(row.fetched_at).getTime(),
+    };
+  } catch (err) {
+    console.warn(`[apitic-cache] readRefs ${kind} failed: ${(err as Error).message}`);
+    return null;
+  }
+}
+
+export async function writeRefs<T>(
+  accountId: string,
+  kind: RefKind,
+  data: T[],
+): Promise<void> {
+  if (!isConfigured()) return;
+  try {
+    await ready();
+    const sql = getSql();
+    const payload = JSON.stringify(data);
+    await sql`
+      insert into apitic_refs_cache (account_id, kind, fetched_at, data)
+      values (${accountId}, ${kind}, now(), ${payload}::jsonb)
+      on conflict (account_id, kind) do update
+        set fetched_at = excluded.fetched_at,
+            data = excluded.data
+    `;
+  } catch (err) {
+    console.warn(
+      `[apitic-cache] writeRefs ${kind} failed: ${(err as Error).message}`,
+    );
+  }
+}
+
+/**
+ * Read-cache-first wrapper: fetch live if no fresh cache, return stale on
+ * failure so blackouts/network issues don't blank the data. Returns null
+ * only when there's no cache at all AND the fetch fails.
+ */
+export async function getOrFetchRefs<T>(
+  accountId: string,
+  kind: RefKind,
+  fetcher: () => Promise<T[]>,
+): Promise<T[]> {
+  const cached = await readRefs<T>(accountId, kind);
+  if (cached && cached.ageMs < REF_TTL_MS) return cached.data;
+  try {
+    const fresh = await fetcher();
+    await writeRefs(accountId, kind, fresh);
+    return fresh;
+  } catch (err) {
+    if (cached) {
+      console.warn(
+        `[apitic-cache] live ${kind} fetch failed (${(err as Error).message}); serving stale cache (age ${Math.round(cached.ageMs / 60000)} min)`,
+      );
+      return cached.data;
+    }
+    throw err;
+  }
+}
+
 /**
  * Batched read: returns a Map<dateISO, ApiticSale[]> for every cached date
  * in `dates`. Missing keys mean not cached. Today is excluded — callers

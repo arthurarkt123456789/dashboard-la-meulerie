@@ -44,6 +44,15 @@ async function ensureSchema(): Promise<void> {
     create index if not exists apitic_sales_cache_fetched_at
       on apitic_sales_cache (fetched_at)
   `;
+  await s`
+    create table if not exists apitic_refs_cache (
+      account_id text not null,
+      kind text not null,
+      fetched_at timestamptz not null default now(),
+      data jsonb not null,
+      primary key (account_id, kind)
+    )
+  `;
 }
 
 export function getSql() {

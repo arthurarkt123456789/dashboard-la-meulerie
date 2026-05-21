@@ -110,6 +110,7 @@ const CHEESE_KEYWORDS = [
 
 export type SegmentMapper = {
   segmentForCategory(categoryId: number, categoryName?: string): Segment;
+  defaultSegment: Segment;
 };
 
 export function buildSegmentMapper(): SegmentMapper {
@@ -122,6 +123,7 @@ export function buildSegmentMapper(): SegmentMapper {
   const hasConfig = fromagerieIds.size + snackingIds.size > 0;
 
   return {
+    defaultSegment,
     segmentForCategory(categoryId: number, categoryName?: string): Segment {
       if (fromagerieIds.has(categoryId)) return "Fromagerie";
       if (snackingIds.has(categoryId)) return "Snacking";
