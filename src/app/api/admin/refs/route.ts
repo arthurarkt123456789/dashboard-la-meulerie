@@ -4,8 +4,14 @@ import {
   fetchProducts,
   fetchPaymentMeans,
 } from "@/lib/apitic/endpoints";
+import { getOrFetchRefs } from "@/lib/apitic/cache";
 import { buildSegmentMapper, getConfiguredStoreLinks } from "@/lib/apitic/mapping";
 import { checkAdmin } from "@/lib/admin-auth";
+import type {
+  ApiticCategory,
+  ApiticProduct,
+  ApiticPaymentMean,
+} from "@/lib/apitic/raw-types";
 
 // Diagnostic: for each store, fetch reference data (products / categories /
 // payment_means) and report counts + segment coverage. Helps detect whether
@@ -24,12 +30,16 @@ export async function GET(req: NextRequest) {
 
   const results = await Promise.all(
     links.map(async (link) => {
-      let products: Awaited<ReturnType<typeof fetchProducts>> = [];
-      let categories: Awaited<ReturnType<typeof fetchCategories>> = [];
-      let paymentMeans: Awaited<ReturnType<typeof fetchPaymentMeans>> = [];
+      let products: ApiticProduct[] = [];
+      let categories: ApiticCategory[] = [];
+      let paymentMeans: ApiticPaymentMean[] = [];
       const errors: { kind: string; message: string }[] = [];
+      // Go through the same cache layer the production code uses so this
+      // endpoint reflects what /api/store-data actually sees.
       try {
-        products = await fetchProducts(link.accountId);
+        products = await getOrFetchRefs<ApiticProduct>(link.accountId, "products", () =>
+          fetchProducts(link.accountId),
+        );
       } catch (err) {
         errors.push({
           kind: "products",
@@ -37,7 +47,11 @@ export async function GET(req: NextRequest) {
         });
       }
       try {
-        categories = await fetchCategories(link.accountId);
+        categories = await getOrFetchRefs<ApiticCategory>(
+          link.accountId,
+          "categories",
+          () => fetchCategories(link.accountId),
+        );
       } catch (err) {
         errors.push({
           kind: "categories",
@@ -45,7 +59,11 @@ export async function GET(req: NextRequest) {
         });
       }
       try {
-        paymentMeans = await fetchPaymentMeans(link.accountId);
+        paymentMeans = await getOrFetchRefs<ApiticPaymentMean>(
+          link.accountId,
+          "payment_means",
+          () => fetchPaymentMeans(link.accountId),
+        );
       } catch (err) {
         errors.push({
           kind: "payment_means",

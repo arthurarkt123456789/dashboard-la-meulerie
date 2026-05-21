@@ -238,10 +238,16 @@ export function sumYoY(
       slice: [],
     };
   const slice = daily.slice(start, start + days);
-  const available = slice.length === days && !slice.some((d) => d.closed);
   const ca = slice.reduce((s, d) => s + d.ca, 0);
   const caHT = slice.reduce((s, d) => s + (d.caHT ?? 0), 0);
   const tx = slice.reduce((s, d) => s + d.tx, 0);
+  // "Available" means the slice has the expected length, no day is flagged
+  // closed, AND there's actually some revenue. The last clause catches the
+  // case where the operator's openedDate override extends history into a
+  // range where APITIC has no real data — every row sums to 0 and comparing
+  // to it would be meaningless.
+  const available =
+    slice.length === days && !slice.some((d) => d.closed) && ca > 0;
   return {
     ca,
     caHT,
