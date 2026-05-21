@@ -30,7 +30,10 @@ type Props = {
 
 function granularityAllowed(period: PeriodSelection): boolean {
   if (period.kind === "month") return true;
-  return period.key === "30d" || period.key === "90d";
+  if (period.kind === "fiscal-year-todate") return true;
+  if (period.kind === "range") return true;
+  if (period.kind === "preset") return period.key === "30d" || period.key === "90d";
+  return false;
 }
 
 export function StoreView({ store, period, today, amountMode }: Props) {
@@ -67,13 +70,19 @@ export function StoreView({ store, period, today, amountMode }: Props) {
   const yoyChartData = useMemo(() => {
     if (!m.yoyAvailable) return null;
     const days = m.days;
-    const start = store.daily.length - days - 365;
+    // Use the same offset as the metrics layer (364 for daily-grain, 365 for
+    // monthly/fiscal-year). Computed from the selection kind.
+    const offset =
+      period.kind === "month" || period.kind === "fiscal-year-todate"
+        ? 365
+        : 364;
+    const start = store.daily.length - days - offset;
     const raw = store.daily.slice(start, start + days).map((d, i) => ({
       date: lineData[i]?.date ?? d.date,
       ca: isHT ? d.caHT ?? 0 : d.ca,
     }));
     return maybeBucket(raw, effectiveGranularity);
-  }, [m.yoyAvailable, m.days, store.daily, lineData, effectiveGranularity, isHT]);
+  }, [m.yoyAvailable, m.days, store.daily, lineData, effectiveGranularity, isHT, period]);
   const openedDate = new Date(store.openedDate + "T00:00:00");
   const monthsOpen = Math.round(
     (today.getTime() - openedDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44),

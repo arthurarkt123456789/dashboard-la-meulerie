@@ -7,7 +7,9 @@ export type PeriodKey = "today" | "7d" | "30d" | "90d";
 
 export type PeriodSelection =
   | { kind: "preset"; key: PeriodKey }
-  | { kind: "month"; year: number; month: number /* 1..12 */ };
+  | { kind: "month"; year: number; month: number /* 1..12 */ }
+  | { kind: "range"; from: string; to: string /* YYYY-MM-DD */ }
+  | { kind: "fiscal-year-todate" /* Oct 1 → today, FY runs Oct-Sep */ };
 
 export type Store = {
   id: string;

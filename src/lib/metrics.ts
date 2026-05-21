@@ -32,7 +32,39 @@ const FR_MONTHS_LONG = [
 
 export function periodLabelFor(selection: PeriodSelection): string {
   if (selection.kind === "preset") return PERIOD_LABELS[selection.key];
-  return `en ${FR_MONTHS_LONG[selection.month - 1]} ${selection.year}`;
+  if (selection.kind === "month") {
+    return `en ${FR_MONTHS_LONG[selection.month - 1]} ${selection.year}`;
+  }
+  if (selection.kind === "range") {
+    const f = formatShortISO(selection.from);
+    const t = formatShortISO(selection.to);
+    return `du ${f} au ${t}`;
+  }
+  // fiscal-year-todate
+  const fy = currentFiscalYearEnd();
+  return `exercice ${fy - 1}–${fy} à date`;
+}
+
+function formatShortISO(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  return `${d.getUTCDate()} ${FR_MONTHS_LONG[d.getUTCMonth()].slice(0, 4)}. ${d.getUTCFullYear()}`;
+}
+
+/**
+ * Fiscal year end (the calendar year in which Sep 30 falls). For a today
+ * between Jan-Sep we're still in FY ending this calendar year. Between Oct-Dec
+ * we're already in next FY.
+ */
+export function currentFiscalYearEnd(now: Date = new Date()): number {
+  const y = now.getUTCFullYear();
+  // Use Europe/Paris month — fiscal start is Oct 1 Paris-local
+  const monthFR = Number(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/Paris",
+      month: "2-digit",
+    }).format(now),
+  );
+  return monthFR >= 10 ? y + 1 : y;
 }
 
 function daysInMonth(year: number, month: number): number {
@@ -63,10 +95,29 @@ export function rangeForSelection(
     const from = subtractDays(todayISO, days - 1);
     return { from, to: todayISO, days };
   }
-  const { year, month } = selection;
-  const from = `${year}-${pad(month)}-01`;
-  const to = `${year}-${pad(month)}-${pad(daysInMonth(year, month))}`;
-  const days = daysInMonth(year, month);
+  if (selection.kind === "month") {
+    const { year, month } = selection;
+    const from = `${year}-${pad(month)}-01`;
+    const to = `${year}-${pad(month)}-${pad(daysInMonth(year, month))}`;
+    const days = daysInMonth(year, month);
+    return { from, to, days };
+  }
+  if (selection.kind === "range") {
+    const { from, to } = selection;
+    const start = new Date(`${from}T00:00:00Z`);
+    const end = new Date(`${to}T00:00:00Z`);
+    const days =
+      Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+    return { from, to, days };
+  }
+  // fiscal-year-todate: Oct 1 of the prior calendar year (relative to FY end)
+  // → today (last available fiscal day, i.e. `todayISO`).
+  const fy = currentFiscalYearEnd(new Date(`${todayISO}T12:00:00Z`));
+  const from = `${fy - 1}-10-01`;
+  const to = todayISO;
+  const start = new Date(`${from}T00:00:00Z`);
+  const end = new Date(`${to}T00:00:00Z`);
+  const days = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
   return { from, to, days };
 }
 
@@ -164,6 +215,7 @@ export function sumPrev(
 export function sumYoY(
   daily: StoreDaily[],
   days: number,
+  offsetDays = 364, // 52 weeks → keeps day-of-week alignment
 ): {
   ca: number;
   caHT: number;
@@ -173,7 +225,7 @@ export function sumYoY(
   available: boolean;
   slice: StoreDaily[];
 } {
-  const offset = 365;
+  const offset = offsetDays;
   const start = daily.length - days - offset;
   if (start < 0)
     return {
@@ -226,9 +278,21 @@ export function periodMetrics(daily: StoreDaily[], period: PeriodKey): StoreMetr
 }
 
 /**
- * Like periodMetrics but for an arbitrary selection (preset OR specific month).
- * P-1 = same-length window ending the day before `from`. N-1 = same window
- * shifted 365 days back.
+ * For a selection, returns the N-1 offset:
+ *  - "month" / "fiscal-year-todate": 365 (calendar-aligned — same month/FY)
+ *  - "preset" / "range": 364 (52 weeks — keeps day-of-week aligned)
+ */
+function yoyOffsetForSelection(selection: PeriodSelection): number {
+  if (selection.kind === "month") return 365;
+  if (selection.kind === "fiscal-year-todate") return 365;
+  return 364;
+}
+
+/**
+ * Like periodMetrics but for an arbitrary selection (preset / month / custom
+ * range / fiscal-year-todate). P-1 = same-length window immediately before.
+ * N-1 = same window one year back, with day-of-week alignment for daily-grain
+ * selections (preset, range) and calendar alignment for monthly/fiscal views.
  */
 export function periodMetricsForSelection(
   daily: StoreDaily[],
@@ -237,12 +301,13 @@ export function periodMetricsForSelection(
   if (selection.kind === "preset") return periodMetrics(daily, selection.key);
   const todayISO = daily[daily.length - 1]?.date ?? new Date().toISOString().slice(0, 10);
   const { from, to, days } = rangeForSelection(selection, todayISO);
+  const yoyOffset = yoyOffsetForSelection(selection);
   const curSlice = sliceByDate(daily, from, to);
   const prevTo = subtractDays(from, 1);
   const prevFrom = subtractDays(from, days);
   const prevSlice = sliceByDate(daily, prevFrom, prevTo);
-  const yoyFrom = subtractDays(from, 365);
-  const yoyTo = subtractDays(to, 365);
+  const yoyFrom = subtractDays(from, yoyOffset);
+  const yoyTo = subtractDays(to, yoyOffset);
   const yoySlice = sliceByDate(daily, yoyFrom, yoyTo);
   const yoyAvailable =
     yoySlice.length === days && !yoySlice.some((d) => d.closed);
@@ -326,9 +391,11 @@ export function consolidatedPeriodMetricsForSelection(
     : 0;
 
   // Périmètre constant: a store qualifies if its N-1 slice for the same
-  // calendar window had complete data (no `closed` day).
-  const yoyFrom = subtractDays(from, 365);
-  const yoyTo = subtractDays(to, 365);
+  // window had complete data (no `closed` day). Offset matches the per-store
+  // metric (52 weeks for daily-grain selections, 365 for monthly/FY).
+  const yoyOffset = yoyOffsetForSelection(selection);
+  const yoyFrom = subtractDays(from, yoyOffset);
+  const yoyTo = subtractDays(to, yoyOffset);
   const eligible = perStore.filter(({ daily }) => {
     const s = sliceByDate(daily, yoyFrom, yoyTo);
     return s.length === days && !s.some((d) => d.closed);

@@ -41,11 +41,13 @@ export function formatDateLabel(iso: string, period: PeriodKey | PeriodSelection
       ? period.key
       : period.kind === "month"
         ? "month"
-        : "30d";
+        : period.kind === "fiscal-year-todate"
+          ? "90d" // ~year-long → use compact dd/mm
+          : "range"; // generic range — default below
   if (key === "today" || key === "7d") {
     return FR_DAYS_SHORT[d.getDay()] + " " + d.getDate();
   }
-  if (key === "30d" || key === "month") {
+  if (key === "30d" || key === "month" || key === "range") {
     return d.getDate() + " " + FR_MONTHS[d.getMonth()];
   }
   return d.getDate() + "/" + (d.getMonth() + 1);

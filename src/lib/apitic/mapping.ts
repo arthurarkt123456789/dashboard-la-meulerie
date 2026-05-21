@@ -9,6 +9,7 @@ import type { Segment, Store } from "./types";
 
 type StoreMeta = Omit<Store, never> & {
   envVar: string;
+  openedEnvVar: string;
 };
 
 export const STORE_META: StoreMeta[] = [
@@ -21,6 +22,7 @@ export const STORE_META: StoreMeta[] = [
     opened: "2019",
     openedDate: "2019-03-15",
     envVar: "APITIC_ACCOUNT_DAVSO",
+    openedEnvVar: "APITIC_OPENED_DAVSO",
   },
   {
     id: "endoume",
@@ -31,6 +33,7 @@ export const STORE_META: StoreMeta[] = [
     opened: "2021",
     openedDate: "2021-09-01",
     envVar: "APITIC_ACCOUNT_ENDOUME",
+    openedEnvVar: "APITIC_OPENED_ENDOUME",
   },
   {
     id: "malmousque",
@@ -41,6 +44,7 @@ export const STORE_META: StoreMeta[] = [
     opened: "2023",
     openedDate: "2023-06-10",
     envVar: "APITIC_ACCOUNT_MALMOUSQUE",
+    openedEnvVar: "APITIC_OPENED_MALMOUSQUE",
   },
   {
     id: "republique",
@@ -51,8 +55,20 @@ export const STORE_META: StoreMeta[] = [
     opened: "nov. 2025",
     openedDate: "2025-11-15",
     envVar: "APITIC_ACCOUNT_REPUBLIQUE",
+    openedEnvVar: "APITIC_OPENED_REPUBLIQUE",
   },
 ];
+
+/** Operator-supplied override of the store opening date (YYYY-MM-DD). */
+export function getOpenedOverride(storeId: string): string | null {
+  const meta = STORE_META.find((s) => s.id === storeId);
+  if (!meta) return null;
+  const raw = process.env[meta.openedEnvVar];
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null;
+  return trimmed;
+}
 
 export type StoreLink = {
   storeId: string;

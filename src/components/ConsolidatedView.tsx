@@ -41,7 +41,10 @@ const SERIES_COLORS = [
 
 function granularityAllowed(period: PeriodSelection): boolean {
   if (period.kind === "month") return true;
-  return period.key === "30d" || period.key === "90d";
+  if (period.kind === "fiscal-year-todate") return true;
+  if (period.kind === "range") return true;
+  if (period.kind === "preset") return period.key === "30d" || period.key === "90d";
+  return false;
 }
 
 type Props = {

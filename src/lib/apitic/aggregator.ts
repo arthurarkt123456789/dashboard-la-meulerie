@@ -13,7 +13,11 @@ import {
   fetchProducts,
   fetchSalesForDate,
 } from "./endpoints";
-import { buildSegmentMapper, getConfiguredStoreLinks } from "./mapping";
+import {
+  buildSegmentMapper,
+  getConfiguredStoreLinks,
+  getOpenedOverride,
+} from "./mapping";
 import type {
   PaymentMethod,
   PaymentSplit,
@@ -453,8 +457,11 @@ async function aggregateOneStore(
     );
   }
 
-  // 2b. Detect actual opening date from the data: first day with any sales.
-  // Falls back to the storeMeta hint if APITIC returned nothing at all.
+  // 2b. Determine the effective opening date.
+  // 1) Operator env override wins (APITIC_OPENED_<STOREID>) for stores
+  //    whose APITIC history is younger than the physical opening.
+  // 2) Otherwise detect from data: first day with any sales.
+  // 3) Otherwise fall back to the static hint in STORE_META.
   let firstSaleDate: string | null = null;
   for (const date of dates) {
     if ((salesByDate.get(date) ?? []).length > 0) {
@@ -462,7 +469,9 @@ async function aggregateOneStore(
       break;
     }
   }
-  const effectiveOpenedDate = firstSaleDate ?? storeMeta.openedDate;
+  const override = getOpenedOverride(storeMeta.id);
+  const effectiveOpenedDate =
+    override ?? firstSaleDate ?? storeMeta.openedDate;
   const openedTs = new Date(`${effectiveOpenedDate}T00:00:00Z`).getTime();
 
   // 3. Build StoreDaily[] — mark anything before the first sale as `closed`.
@@ -507,11 +516,13 @@ async function aggregateOneStore(
   );
   const payments = buildPayments(salesByDate, today, 30, paymentLookup);
 
-  const openedLabel = firstSaleDate
+  const openedLabel = (override ?? firstSaleDate)
     ? new Intl.DateTimeFormat("fr-FR", {
         month: "short",
         year: "numeric",
-      }).format(new Date(`${firstSaleDate}T12:00:00Z`))
+      }).format(
+        new Date(`${(override ?? firstSaleDate) as string}T12:00:00Z`),
+      )
     : storeMeta.opened;
 
   return {
