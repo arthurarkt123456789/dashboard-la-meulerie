@@ -121,11 +121,18 @@ function SegmentRow({
             fontFamily: "var(--font-display)",
             fontWeight: 600,
             fontSize: 18,
-            color: "var(--fg-primary)",
+            color: b.value > 0 ? "var(--fg-primary)" : "var(--fg-tertiary)",
             letterSpacing: "-0.01em",
           }}
         >
-          {fmtEur2(b.value)} <span style={{ fontSize: 12, color: "var(--fg-secondary)" }}>{suffix}</span>
+          {b.value > 0 ? (
+            <>
+              {fmtEur2(b.value)}{" "}
+              <span style={{ fontSize: 12, color: "var(--fg-secondary)" }}>{suffix}</span>
+            </>
+          ) : (
+            "—"
+          )}
         </span>
         {typeof b.delta === "number" && isFinite(b.delta) && b.delta !== 0 && (
           <span
