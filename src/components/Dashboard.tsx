@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { PeriodKey } from "@/lib/apitic/types";
+import type { PeriodSelection } from "@/lib/apitic/types";
 import { useStoreData, useStores, useToday } from "@/lib/queries";
 import { Header } from "./Header";
 import { ConsolidatedView } from "./ConsolidatedView";
@@ -11,7 +11,10 @@ import { SegmentFilterProvider } from "./SegmentFilter";
 type Props = { tab: string };
 
 export function Dashboard({ tab }: Props) {
-  const [period, setPeriod] = useState<PeriodKey>("7d");
+  const [period, setPeriod] = useState<PeriodSelection>({
+    kind: "preset",
+    key: "7d",
+  });
   const stores = useStores();
   const storeData = useStoreData();
   const today = useToday();

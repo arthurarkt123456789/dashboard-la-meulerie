@@ -1,6 +1,6 @@
 // Ported from charts.jsx formatters. French locale, tabular nums everywhere.
 
-import type { PeriodKey } from "./apitic/types";
+import type { PeriodKey, PeriodSelection } from "./apitic/types";
 
 const FR = "fr-FR";
 
@@ -33,12 +33,19 @@ const FR_MONTHS = [
 ];
 const FR_DAYS_SHORT = ["dim", "lun", "mar", "mer", "jeu", "ven", "sam"];
 
-export function formatDateLabel(iso: string, period: PeriodKey): string {
+export function formatDateLabel(iso: string, period: PeriodKey | PeriodSelection): string {
   const d = new Date(iso + "T00:00:00");
-  if (period === "today" || period === "7d") {
+  const key = typeof period === "string"
+    ? period
+    : period.kind === "preset"
+      ? period.key
+      : period.kind === "month"
+        ? "month"
+        : "30d";
+  if (key === "today" || key === "7d") {
     return FR_DAYS_SHORT[d.getDay()] + " " + d.getDate();
   }
-  if (period === "30d") {
+  if (key === "30d" || key === "month") {
     return d.getDate() + " " + FR_MONTHS[d.getMonth()];
   }
   return d.getDate() + "/" + (d.getMonth() + 1);

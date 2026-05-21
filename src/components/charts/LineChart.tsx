@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { fmtEURshort, formatDateLabel, formatDateLong } from "@/lib/format";
-import type { PeriodKey } from "@/lib/apitic/types";
+import type { PeriodKey, PeriodSelection } from "@/lib/apitic/types";
 
 export type LineSeries = {
   key: string;
@@ -23,7 +23,7 @@ type Props = {
   series?: LineSeries[];
   yoyData?: YoyPoint[] | null;
   height?: number;
-  period?: PeriodKey;
+  period?: PeriodKey | PeriodSelection;
   showLegend?: boolean;
   yFormat?: (n: number) => string;
   highlightLast?: boolean;

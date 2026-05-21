@@ -1,12 +1,12 @@
 "use client";
 
 import { fmtEUR, fmtEURshort, fmtNum } from "@/lib/format";
-import type { PeriodKey, Product } from "@/lib/apitic/types";
+import type { PeriodSelection, Product } from "@/lib/apitic/types";
 import type { SegmentFilterValue } from "./SegmentFilter";
 
 type Props = {
   products: Product[];
-  period: PeriodKey;
+  period: PeriodSelection;
   segmentFilter: SegmentFilterValue;
   limit?: number;
 };
@@ -25,12 +25,14 @@ export function TopProducts({
   if (list.length === 0) {
     return <div className="lm-empty">Aucun produit sur cette période.</div>;
   }
+  const presetKey =
+    period.kind === "preset" ? period.key : "30d"; // month → use 30d aggregates
   const revenueKey: "revenue7d" | "revenue30d" =
-    period === "30d" || period === "90d" ? "revenue30d" : "revenue7d";
+    presetKey === "30d" || presetKey === "90d" ? "revenue30d" : "revenue7d";
   const unitsKey: "unitsToday" | "units7d" | "units30d" =
-    period === "today"
+    presetKey === "today"
       ? "unitsToday"
-      : period === "30d" || period === "90d"
+      : presetKey === "30d" || presetKey === "90d"
         ? "units30d"
         : "units7d";
   const max = Math.max(...list.map((p) => p[revenueKey])) || 1;

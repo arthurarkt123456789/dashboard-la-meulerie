@@ -1,14 +1,15 @@
 "use client";
 
 import { useMemo } from "react";
-import type { PeriodKey, StoreData } from "@/lib/apitic/types";
+import type { PeriodSelection, StoreData } from "@/lib/apitic/types";
 import {
-  PERIOD_LABELS,
   consolidateDaily,
   consolidatePayments,
   consolidateProducts,
-  consolidatedPeriodMetrics,
-  periodMetrics,
+  consolidatedPeriodMetricsForSelection,
+  periodLabelFor,
+  periodMetricsForSelection,
+  rangeForSelection,
 } from "@/lib/metrics";
 import {
   fmtEUR,
@@ -18,6 +19,7 @@ import {
 } from "@/lib/format";
 import { Card } from "./Card";
 import { KPICard } from "./KPICard";
+import { BasketBreakdown } from "./BasketBreakdown";
 import { ScopeNote } from "./ScopeNote";
 import { LineChart, type LineSeries } from "./charts/LineChart";
 import { HBarChart } from "./charts/HBarChart";
@@ -36,7 +38,7 @@ const SERIES_COLORS = [
 
 type Props = {
   stores: StoreData[];
-  period: PeriodKey;
+  period: PeriodSelection;
 };
 
 export function ConsolidatedView({ stores, period }: Props) {
@@ -50,7 +52,7 @@ export function ConsolidatedView({ stores, period }: Props) {
     const consolidatedPayments = consolidatePayments(
       stores.map((s) => ({ daily: s.daily, payments: s.payments })),
     );
-    const m = consolidatedPeriodMetrics(
+    const m = consolidatedPeriodMetricsForSelection(
       consolidatedDaily,
       stores.map((s) => ({ store: s, daily: s.daily })),
       period,
@@ -64,7 +66,7 @@ export function ConsolidatedView({ stores, period }: Props) {
   const storeMetrics = useMemo(() => {
     return stores
       .map((s) => {
-        const ms = periodMetrics(s.daily, period);
+        const ms = periodMetricsForSelection(s.daily, period);
         return {
           label: s.name,
           value: ms.ca,
@@ -85,26 +87,34 @@ export function ConsolidatedView({ stores, period }: Props) {
   }));
 
   const lineData = useMemo(() => {
-    const days = m.days;
-    const slice = consolidatedDaily.slice(-days);
-    return slice.map((d, i) => {
-      const row: { date: string; partial?: boolean; [k: string]: string | number | boolean | null | undefined } = {
+    const todayISO =
+      consolidatedDaily[consolidatedDaily.length - 1]?.date ?? "";
+    const { from, to } = rangeForSelection(period, todayISO);
+    const slice = consolidatedDaily.filter(
+      (d) => d.date >= from && d.date <= to,
+    );
+    return slice.map((d) => {
+      const row: {
+        date: string;
+        partial?: boolean;
+        [k: string]: string | number | boolean | null | undefined;
+      } = {
         date: d.date,
         partial: d.partial,
       };
       for (const s of stores) {
-        const day = s.daily[s.daily.length - days + i];
+        const day = s.daily.find((dd) => dd.date === d.date);
         row[s.id] = day && !day.closed ? day.ca : null;
       }
       return row;
     });
-  }, [stores, consolidatedDaily, m.days]);
+  }, [stores, consolidatedDaily, period]);
 
   const yoyNote = m.yoyAvailable
     ? `vs N-1 · périmètre ${m.scopeStores}/${m.totalStores}`
     : "N-1 indisponible";
 
-  const periodLabel = PERIOD_LABELS[period];
+  const periodLabel = periodLabelFor(period);
 
   return (
     <div className="lm-grid">
@@ -128,7 +138,7 @@ export function ConsolidatedView({ stores, period }: Props) {
           spark={sparkValues}
           sparkColor="var(--color-coral)"
           accent
-          partial={period === "today"}
+          partial={period.kind === "preset" && period.key === "today"}
         />
         <KPICard
           label="Transactions"
@@ -138,20 +148,13 @@ export function ConsolidatedView({ stores, period }: Props) {
           yoyAvailable={m.yoyAvailable}
           yoyNote={yoyNote}
           spark={consolidatedDaily.slice(-14).map((d) => d.tx)}
-          partial={period === "today"}
+          partial={period.kind === "preset" && period.key === "today"}
         />
-        <KPICard
-          label="Panier moyen"
-          value={m.avgTicket.toFixed(2).replace(".", ",")}
-          suffix="€"
-          delta={m.ticketDelta}
-          yoyDelta={m.yoyAvailable ? m.yoyTicketDelta : undefined}
-          yoyAvailable={m.yoyAvailable}
-          yoyNote={yoyNote}
-          spark={consolidatedDaily
-            .slice(-14)
-            .map((d) => (d.tx ? d.ca / d.tx : 0))}
-          partial={period === "today"}
+        <BasketBreakdown
+          global={{ value: m.avgTicket, delta: m.ticketDelta }}
+          fromagerie={{ value: m.avgTicketFromagerie, delta: m.ticketFromagerieDelta }}
+          snacking={{ value: m.avgTicketSnacking, delta: m.ticketSnackingDelta }}
+          partial={period.kind === "preset" && period.key === "today"}
         />
         <KPICard
           label="Magasins actifs"

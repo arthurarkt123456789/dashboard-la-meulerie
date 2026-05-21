@@ -96,16 +96,27 @@ function rollupDay(
   let ca = 0;
   let fromagerieCA = 0;
   let snackingCA = 0;
+  let fromagerieTx = 0;
+  let snackingTx = 0;
   for (const sale of sales) {
+    let saleHasFromagerie = false;
+    let saleHasSnacking = false;
     for (const line of sale.lines ?? []) {
       if (line.line_type !== "sale") continue;
       const net = line.ati_price - line.discount_ati_price;
       ca += net;
       const product = productLookup.get(line.product_id);
       const seg = product ? segmentOf(product.categoryId) : "Snacking";
-      if (seg === "Fromagerie") fromagerieCA += net;
-      else snackingCA += net;
+      if (seg === "Fromagerie") {
+        fromagerieCA += net;
+        saleHasFromagerie = true;
+      } else {
+        snackingCA += net;
+        saleHasSnacking = true;
+      }
     }
+    if (saleHasFromagerie) fromagerieTx++;
+    if (saleHasSnacking) snackingTx++;
   }
   const tx = sales.length;
   return {
@@ -115,6 +126,8 @@ function rollupDay(
     avgTicket: tx ? ca / tx : 0,
     fromagerieCA: Math.round(fromagerieCA),
     snackingCA: Math.round(snackingCA),
+    fromagerieTx,
+    snackingTx,
   };
 }
 

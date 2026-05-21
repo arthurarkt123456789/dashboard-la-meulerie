@@ -5,6 +5,10 @@ export type Segment = "Fromagerie" | "Snacking";
 
 export type PeriodKey = "today" | "7d" | "30d" | "90d";
 
+export type PeriodSelection =
+  | { kind: "preset"; key: PeriodKey }
+  | { kind: "month"; year: number; month: number /* 1..12 */ };
+
 export type Store = {
   id: string;
   name: string;
@@ -24,6 +28,10 @@ export type StoreDaily = {
   avgTicket: number;
   fromagerieCA: number;
   snackingCA: number;
+  /** Tickets with at least one Fromagerie line. Mixed tickets count in both. */
+  fromagerieTx?: number;
+  /** Tickets with at least one Snacking line. Mixed tickets count in both. */
+  snackingTx?: number;
   closed?: boolean;    // day before store opened
   partial?: boolean;   // day in progress
 };

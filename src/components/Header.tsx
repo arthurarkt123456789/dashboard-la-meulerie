@@ -1,15 +1,15 @@
 "use client";
 
 import { useMemo } from "react";
-import type { PeriodKey, Store } from "@/lib/apitic/types";
+import type { PeriodSelection, Store } from "@/lib/apitic/types";
 import { PeriodToggle } from "./PeriodToggle";
 import { Tabs } from "./Tabs";
 
 type Props = {
   stores: Store[];
   activeTab: string;
-  period: PeriodKey;
-  onPeriod: (p: PeriodKey) => void;
+  period: PeriodSelection;
+  onPeriod: (p: PeriodSelection) => void;
   todayIso: string | null;
 };
 

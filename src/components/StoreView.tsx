@@ -1,11 +1,16 @@
 "use client";
 
 import { useMemo } from "react";
-import type { PeriodKey, StoreData } from "@/lib/apitic/types";
-import { PERIOD_LABELS, periodMetrics } from "@/lib/metrics";
+import type { PeriodSelection, StoreData } from "@/lib/apitic/types";
+import {
+  periodLabelFor,
+  periodMetricsForSelection,
+  rangeForSelection,
+} from "@/lib/metrics";
 import { fmtEUR, fmtNum } from "@/lib/format";
 import { Card } from "./Card";
 import { KPICard } from "./KPICard";
+import { BasketBreakdown } from "./BasketBreakdown";
 import { LineChart } from "./charts/LineChart";
 import { HourlyBars } from "./charts/HourlyBars";
 import { TopProducts } from "./TopProducts";
@@ -15,18 +20,25 @@ import { SegmentFilterInline, useSegmentFilter } from "./SegmentFilter";
 
 type Props = {
   store: StoreData;
-  period: PeriodKey;
+  period: PeriodSelection;
   today: Date;
 };
 
 export function StoreView({ store, period, today }: Props) {
   const [segmentFilter] = useSegmentFilter();
 
-  const m = useMemo(() => periodMetrics(store.daily, period), [store.daily, period]);
+  const m = useMemo(
+    () => periodMetricsForSelection(store.daily, period),
+    [store.daily, period],
+  );
   const sparkValues = store.daily.slice(-14).map((d) => d.ca);
-  const periodLabel = PERIOD_LABELS[period];
+  const periodLabel = periodLabelFor(period);
 
-  const lineData = store.daily.slice(-m.days);
+  const lineData = useMemo(() => {
+    const todayISO = store.daily[store.daily.length - 1]?.date ?? "";
+    const { from, to } = rangeForSelection(period, todayISO);
+    return store.daily.filter((d) => d.date >= from && d.date <= to);
+  }, [store.daily, period]);
   const todayCA = store.daily[store.daily.length - 1]?.ca ?? 0;
 
   const openedDate = new Date(store.openedDate + "T00:00:00");
@@ -103,7 +115,7 @@ export function StoreView({ store, period, today }: Props) {
           spark={sparkValues}
           sparkColor="var(--color-coral)"
           accent
-          partial={period === "today"}
+          partial={period.kind === "preset" && period.key === "today"}
         />
         <KPICard
           label="Transactions"
@@ -113,18 +125,13 @@ export function StoreView({ store, period, today }: Props) {
           yoyAvailable={m.yoyAvailable}
           yoyNote={yoyNote}
           spark={store.daily.slice(-14).map((d) => d.tx)}
-          partial={period === "today"}
+          partial={period.kind === "preset" && period.key === "today"}
         />
-        <KPICard
-          label="Panier moyen"
-          value={m.avgTicket.toFixed(2).replace(".", ",")}
-          suffix="€"
-          delta={m.ticketDelta}
-          yoyDelta={m.yoyAvailable ? m.yoyTicketDelta : undefined}
-          yoyAvailable={m.yoyAvailable}
-          yoyNote={yoyNote}
-          spark={store.daily.slice(-14).map((d) => (d.tx ? d.ca / d.tx : 0))}
-          partial={period === "today"}
+        <BasketBreakdown
+          global={{ value: m.avgTicket, delta: m.ticketDelta }}
+          fromagerie={{ value: m.avgTicketFromagerie, delta: m.ticketFromagerieDelta }}
+          snacking={{ value: m.avgTicketSnacking, delta: m.ticketSnackingDelta }}
+          partial={period.kind === "preset" && period.key === "today"}
         />
         <KPICard
           label="CA aujourd'hui"
