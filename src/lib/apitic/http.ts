@@ -1,23 +1,18 @@
 import "server-only";
-import { Agent, setGlobalDispatcher } from "undici";
+import { Agent, fetch as undiciFetch } from "undici";
 import type { ApiticTokenResponse } from "./raw-types";
 
-// APITIC's sales endpoint occasionally takes 20–60s to respond for the
-// busier accounts. Override Node's default 10s undici timeouts so those
-// requests can complete instead of throwing ConnectTimeoutError.
-let dispatcherInstalled = false;
-function installDispatcher() {
-  if (dispatcherInstalled) return;
-  dispatcherInstalled = true;
-  setGlobalDispatcher(
-    new Agent({
-      connect: { timeout: 60_000 },        // 60s TCP connect
-      headersTimeout: 120_000,             // 120s to receive response headers
-      bodyTimeout: 120_000,                // 120s body
-      keepAliveTimeout: 30_000,
-    }),
-  );
-}
+// APITIC's busier accounts (Malmousque, République) regularly take 20–60s
+// to establish a connection. Node's global fetch (also undici under the
+// hood) uses a 10s default connect timeout that Next.js's fetch wrapper
+// doesn't let us override globally. Use undici's fetch directly with our
+// own Agent so the dispatcher actually applies.
+const apiticAgent = new Agent({
+  connect: { timeout: 60_000 },
+  headersTimeout: 120_000,
+  bodyTimeout: 120_000,
+  keepAliveTimeout: 30_000,
+});
 
 // ────────────────────────────────────────────────────────────────────────
 // Configuration
@@ -106,12 +101,12 @@ let cachedToken: TokenState | null = null;
 let inflightToken: Promise<TokenState> | null = null;
 
 async function fetchToken(): Promise<TokenState> {
-  installDispatcher();
   const { baseUrl, email, password } = getConfig();
-  const res = await fetch(`${baseUrl}/token`, {
+  const res = await undiciFetch(`${baseUrl}/token`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
+    dispatcher: apiticAgent,
   });
   if (!res.ok) {
     const body = await res.text().catch(() => null);
@@ -199,7 +194,6 @@ export async function apiticFetch(
   path: string,
   opts: FetchOpts = {},
 ): Promise<unknown> {
-  installDispatcher();
   const ignoreBlackout = opts.ignoreBlackout ?? false;
   const maxAttempts = opts.maxAttempts ?? 3;
 
@@ -215,8 +209,9 @@ export async function apiticFetch(
     let lastError: unknown = null;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       const token = await getToken();
-      const res = await fetch(`${baseUrl}${path}`, {
+      const res = await undiciFetch(`${baseUrl}${path}`, {
         headers: { Authorization: `Bearer ${token}` },
+        dispatcher: apiticAgent,
       });
       if (res.ok) {
         return await res.json();
