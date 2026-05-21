@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { fmtEURshort, formatDateLabel, formatDateLong } from "@/lib/format";
 import type { PeriodKey, PeriodSelection } from "@/lib/apitic/types";
+import type { Granularity } from "@/lib/bucketing";
 
 export type LineSeries = {
   key: string;
@@ -24,6 +25,7 @@ type Props = {
   yoyData?: YoyPoint[] | null;
   height?: number;
   period?: PeriodKey | PeriodSelection;
+  granularity?: Granularity;
   showLegend?: boolean;
   yFormat?: (n: number) => string;
   highlightLast?: boolean;
@@ -35,6 +37,7 @@ export function LineChart({
   yoyData = null,
   height = 280,
   period = "7d",
+  granularity = "day",
   showLegend = false,
   yFormat = fmtEURshort,
   highlightLast = true,
@@ -272,6 +275,7 @@ export function LineChart({
           innerW={innerW}
           padLeft={PAD.left}
           yFormat={yFormat}
+          granularity={granularity}
         />
       )}
 
@@ -318,6 +322,7 @@ function Tooltip({
   innerW,
   padLeft,
   yFormat,
+  granularity,
 }: {
   data: LinePoint[];
   series: LineSeries[];
@@ -327,6 +332,7 @@ function Tooltip({
   innerW: number;
   padLeft: number;
   yFormat: (n: number) => string;
+  granularity: Granularity;
 }) {
   const left = Math.min(
     w - 200,
@@ -351,6 +357,7 @@ function Tooltip({
   return (
     <div style={tooltipStyle}>
       <div style={{ opacity: 0.7, marginBottom: 4, fontSize: 11 }}>
+        {granularity === "week" ? "Semaine du " : ""}
         {formatDateLong(point.date)}
         {point.partial && (
           <span style={{ color: "var(--color-coral)", marginLeft: 6 }}>

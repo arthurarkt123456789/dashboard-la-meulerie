@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { PeriodSelection, StoreData } from "@/lib/apitic/types";
+import { maybeBucket, type Granularity } from "@/lib/bucketing";
+import { GranularityToggle } from "./GranularityToggle";
 import {
   periodLabelFor,
   periodMetricsForSelection,
@@ -24,8 +26,16 @@ type Props = {
   today: Date;
 };
 
+function granularityAllowed(period: PeriodSelection): boolean {
+  if (period.kind === "month") return true;
+  return period.key === "30d" || period.key === "90d";
+}
+
 export function StoreView({ store, period, today }: Props) {
   const [segmentFilter] = useSegmentFilter();
+  const allowWeekly = granularityAllowed(period);
+  const [granularity, setGranularity] = useState<Granularity>("day");
+  const effectiveGranularity: Granularity = allowWeekly ? granularity : "day";
 
   const m = useMemo(
     () => periodMetricsForSelection(store.daily, period),
@@ -39,6 +49,21 @@ export function StoreView({ store, period, today }: Props) {
     const { from, to } = rangeForSelection(period, todayISO);
     return store.daily.filter((d) => d.date >= from && d.date <= to);
   }, [store.daily, period]);
+
+  const chartData = useMemo(
+    () => maybeBucket(lineData, effectiveGranularity),
+    [lineData, effectiveGranularity],
+  );
+  const yoyChartData = useMemo(() => {
+    if (!m.yoyAvailable) return null;
+    const days = m.days;
+    const start = store.daily.length - days - 365;
+    const raw = store.daily.slice(start, start + days).map((d, i) => ({
+      date: lineData[i]?.date ?? d.date,
+      ca: d.ca,
+    }));
+    return maybeBucket(raw, effectiveGranularity);
+  }, [m.yoyAvailable, m.days, store.daily, lineData, effectiveGranularity]);
   const openedDate = new Date(store.openedDate + "T00:00:00");
   const monthsOpen = Math.round(
     (today.getTime() - openedDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44),
@@ -51,17 +76,6 @@ export function StoreView({ store, period, today }: Props) {
   const yoyNote = m.yoyAvailable
     ? "vs N-1"
     : `N-1 indisponible · ouvert depuis ${monthsOpen} mois`;
-
-  const yoyOverlay = m.yoyAvailable
-    ? (() => {
-        const days = m.days;
-        const start = store.daily.length - days - 365;
-        return store.daily.slice(start, start + days).map((d, i) => ({
-          date: lineData[i]?.date ?? d.date,
-          ca: d.ca,
-        }));
-      })()
-    : null;
 
   const peakHour = store.hourly.reduce(
     (a, b) => (b.ca > a.ca ? b : a),
@@ -143,10 +157,15 @@ export function StoreView({ store, period, today }: Props) {
         subtitle={
           periodLabel + (m.yoyAvailable ? " · N-1 en pointillé" : "")
         }
+        action={
+          allowWeekly ? (
+            <GranularityToggle value={granularity} onChange={setGranularity} />
+          ) : undefined
+        }
         span={2}
       >
         <LineChart
-          data={lineData.map((d) => ({ ...d }))}
+          data={chartData}
           series={[
             {
               key: "ca",
@@ -154,9 +173,10 @@ export function StoreView({ store, period, today }: Props) {
               color: "var(--color-coral)",
             },
           ]}
-          yoyData={yoyOverlay}
+          yoyData={yoyChartData}
           height={280}
           period={period}
+          granularity={effectiveGranularity}
         />
       </Card>
 

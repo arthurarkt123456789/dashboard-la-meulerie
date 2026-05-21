@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { maybeBucket, type Granularity } from "@/lib/bucketing";
+import { GranularityToggle } from "./GranularityToggle";
 import type { PeriodSelection, StoreData } from "@/lib/apitic/types";
 import {
   consolidateDaily,
@@ -36,6 +38,11 @@ const SERIES_COLORS = [
   "#A8A8A6",
 ];
 
+function granularityAllowed(period: PeriodSelection): boolean {
+  if (period.kind === "month") return true;
+  return period.key === "30d" || period.key === "90d";
+}
+
 type Props = {
   stores: StoreData[];
   period: PeriodSelection;
@@ -43,6 +50,9 @@ type Props = {
 
 export function ConsolidatedView({ stores, period }: Props) {
   const [segmentFilter] = useSegmentFilter();
+  const allowWeekly = granularityAllowed(period);
+  const [granularity, setGranularity] = useState<Granularity>("day");
+  const effectiveGranularity: Granularity = allowWeekly ? granularity : "day";
 
   const view = useMemo(() => {
     const consolidatedDaily = consolidateDaily(stores.map((s) => s.daily));
@@ -110,6 +120,11 @@ export function ConsolidatedView({ stores, period }: Props) {
     });
   }, [stores, consolidatedDaily, period]);
 
+  const chartData = useMemo(
+    () => maybeBucket(lineData, effectiveGranularity),
+    [lineData, effectiveGranularity],
+  );
+
   const yoyNote = m.yoyAvailable
     ? `vs N-1 · périmètre ${m.scopeStores}/${m.totalStores}`
     : "N-1 indisponible";
@@ -164,14 +179,22 @@ export function ConsolidatedView({ stores, period }: Props) {
       <Card
         title="Évolution du chiffre d'affaires"
         subtitle={`Par magasin · ${periodLabel}`}
-        action={<LegendInline series={lineSeries} />}
+        action={
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            {allowWeekly && (
+              <GranularityToggle value={granularity} onChange={setGranularity} />
+            )}
+            <LegendInline series={lineSeries} />
+          </div>
+        }
         span={2}
       >
         <LineChart
-          data={lineData}
+          data={chartData}
           series={lineSeries}
           height={300}
           period={period}
+          granularity={effectiveGranularity}
         />
       </Card>
 
