@@ -1,5 +1,23 @@
 import "server-only";
+import { Agent, setGlobalDispatcher } from "undici";
 import type { ApiticTokenResponse } from "./raw-types";
+
+// APITIC's sales endpoint occasionally takes 20–60s to respond for the
+// busier accounts. Override Node's default 10s undici timeouts so those
+// requests can complete instead of throwing ConnectTimeoutError.
+let dispatcherInstalled = false;
+function installDispatcher() {
+  if (dispatcherInstalled) return;
+  dispatcherInstalled = true;
+  setGlobalDispatcher(
+    new Agent({
+      connect: { timeout: 60_000 },        // 60s TCP connect
+      headersTimeout: 120_000,             // 120s to receive response headers
+      bodyTimeout: 120_000,                // 120s body
+      keepAliveTimeout: 30_000,
+    }),
+  );
+}
 
 // ────────────────────────────────────────────────────────────────────────
 // Configuration
@@ -88,6 +106,7 @@ let cachedToken: TokenState | null = null;
 let inflightToken: Promise<TokenState> | null = null;
 
 async function fetchToken(): Promise<TokenState> {
+  installDispatcher();
   const { baseUrl, email, password } = getConfig();
   const res = await fetch(`${baseUrl}/token`, {
     method: "POST",
@@ -180,6 +199,7 @@ export async function apiticFetch(
   path: string,
   opts: FetchOpts = {},
 ): Promise<unknown> {
+  installDispatcher();
   const ignoreBlackout = opts.ignoreBlackout ?? false;
   const maxAttempts = opts.maxAttempts ?? 3;
 
