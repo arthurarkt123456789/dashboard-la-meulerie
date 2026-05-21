@@ -240,7 +240,11 @@ export async function listCachedDates(
 // ────────────────────────────────────────────────────────────────────────
 
 type RefKind = "products" | "categories" | "payment_means";
-const REF_TTL_MS = 24 * 60 * 60 * 1000;
+// Reference data is essentially immutable (products/categories edited
+// occasionally, but their IDs are stable). Cache for a week so we rarely
+// re-fetch — and crucially, never expire mid-blackout when APITIC is
+// completely unreachable (even /token is 503).
+const REF_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export async function readRefs<T>(
   accountId: string,
