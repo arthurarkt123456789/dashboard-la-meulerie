@@ -19,6 +19,8 @@ import {
   getOpenedOverride,
 } from "./mapping";
 import type {
+  FormuleKind,
+  FormuleStats,
   PaymentMethod,
   PaymentSplit,
   Product as InternalProduct,
@@ -285,6 +287,89 @@ function buildTopProducts(
 }
 
 // ────────────────────────────────────────────────────────────────────────
+// "Formules lunch" detection — flag products whose name matches
+//   /formule.*grilled.*cheese/i  → grilled_cheese
+//   /formule.*sandwich/i         → sandwich
+// Aggregates revenue + units per formule over a window so we can show the
+// formule penetration as a share of the snacking pie.
+// ────────────────────────────────────────────────────────────────────────
+
+const FORMULE_PATTERNS: { kind: FormuleKind; re: RegExp }[] = [
+  { kind: "grilled_cheese", re: /formule.*grilled.*cheese/i },
+  { kind: "sandwich", re: /formule.*sandwich/i },
+];
+
+function classifyFormule(name: string): FormuleKind | null {
+  for (const { kind, re } of FORMULE_PATTERNS) {
+    if (re.test(name)) return kind;
+  }
+  return null;
+}
+
+function buildFormuleStats(
+  salesByDate: Map<string, ApiticSale[]>,
+  endDateExclusive: string,
+  daysBack: number,
+  productLookup: ProductLookup,
+  daily: StoreDaily[],
+): FormuleStats {
+  const fromDate = subtractDays(endDateExclusive, daysBack);
+  // Resolve product_id → formule kind once.
+  const productFormule = new Map<number, FormuleKind>();
+  for (const [id, info] of productLookup) {
+    const k = classifyFormule(info.name);
+    if (k) productFormule.set(id, k);
+  }
+
+  const byKind: FormuleStats["byKind"] = {
+    grilled_cheese: { units: 0, ca: 0, caHT: 0 },
+    sandwich: { units: 0, ca: 0, caHT: 0 },
+  };
+
+  // Numerator: walk the sales in the window, sum formule units & CA.
+  for (const [date, sales] of salesByDate) {
+    if (date < fromDate || date >= endDateExclusive) continue;
+    for (const sale of sales) {
+      for (const line of sale.lines ?? []) {
+        if (line.line_type !== "sale") continue;
+        const formule = productFormule.get(line.product_id);
+        if (!formule) continue;
+        byKind[formule].units += line.quantity;
+        byKind[formule].ca += line.ati_price;
+        byKind[formule].caHT += line.price_excl_tax;
+      }
+    }
+  }
+
+  // Denominators: take from the rolled-up daily series (consistent with the
+  // segment routing the rest of the dashboard uses).
+  const windowDaily = daily.filter(
+    (d) => d.date >= fromDate && d.date < endDateExclusive,
+  );
+  const snackingCA = windowDaily.reduce((s, d) => s + d.snackingCA, 0);
+  const snackingCAHT = windowDaily.reduce(
+    (s, d) => s + (d.snackingCAHT ?? 0),
+    0,
+  );
+  const snackingTx = windowDaily.reduce(
+    (s, d) => s + (d.snackingTx ?? 0),
+    0,
+  );
+
+  const lastDate =
+    windowDaily.length > 0 ? windowDaily[windowDaily.length - 1].date : "";
+
+  return {
+    endDate: lastDate,
+    days: daysBack,
+    byKind,
+    snackingCA,
+    snackingCAHT,
+    snackingTx,
+  };
+}
+
+// ────────────────────────────────────────────────────────────────────────
 // Payment split aggregated over a window of recent days (since APITIC
 // doesn't expose today's tickets we can't build a live "today" donut).
 // ────────────────────────────────────────────────────────────────────────
@@ -516,6 +601,15 @@ async function aggregateOneStore(
   );
   const payments = buildPayments(salesByDate, today, 30, paymentLookup);
 
+  // Formules lunch — same 30-day window as payments/intraday for consistency.
+  const formules = buildFormuleStats(
+    salesByDate,
+    today,
+    30,
+    productLookup,
+    daily,
+  );
+
   const openedLabel = (override ?? firstSaleDate)
     ? new Intl.DateTimeFormat("fr-FR", {
         month: "short",
@@ -537,6 +631,7 @@ async function aggregateOneStore(
     hourly,
     topProducts,
     payments,
+    formules,
   };
 }
 

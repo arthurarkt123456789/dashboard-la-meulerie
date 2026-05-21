@@ -305,6 +305,17 @@ function build() {
       hourly: generateHourly(seed),
       topProducts: generateTopProducts(seed),
       payments: generatePayments(seed),
+      formules: {
+        endDate: today.toISOString().slice(0, 10),
+        days: 30,
+        byKind: {
+          grilled_cheese: { units: 0, ca: 0, caHT: 0 },
+          sandwich: { units: 0, ca: 0, caHT: 0 },
+        },
+        snackingCA: 0,
+        snackingCAHT: 0,
+        snackingTx: 0,
+      },
     };
   }
   cached = { stores, data, today };

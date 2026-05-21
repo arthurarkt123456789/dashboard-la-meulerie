@@ -73,9 +73,25 @@ export type PaymentSplit = {
   amountHT?: number;   // € HT (scaled using day's overall HT/TTC ratio)
 };
 
+export type FormuleKind = "grilled_cheese" | "sandwich";
+
+export type FormuleStats = {
+  /** ISO date this window ends on (inclusive). */
+  endDate: string;
+  /** Number of days aggregated. */
+  days: number;
+  /** Per-formule totals over the last `days` closed days. */
+  byKind: Record<FormuleKind, { units: number; ca: number; caHT: number }>;
+  /** Snacking totals over the same window (for the share denominators). */
+  snackingCA: number;
+  snackingCAHT: number;
+  snackingTx: number;
+};
+
 export type StoreData = Store & {
   daily: StoreDaily[];
   hourly: StoreHourly[];
   topProducts: Product[];
   payments: PaymentSplit[];
+  formules: FormuleStats;
 };

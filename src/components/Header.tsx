@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { PeriodSelection, Store } from "@/lib/apitic/types";
 import { PeriodToggle } from "./PeriodToggle";
 import { Tabs } from "./Tabs";
@@ -25,6 +26,19 @@ export function Header({
   onAmountMode,
   todayIso,
 }: Props) {
+  const queryClient = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await queryClient.invalidateQueries();
+    } finally {
+      // brief visual feedback then back to normal
+      setTimeout(() => setRefreshing(false), 400);
+    }
+  }
+
   const { dateStr, lastDayStr } = useMemo(() => {
     if (!todayIso) return { dateStr: "—", lastDayStr: "—" };
     const today = new Date(todayIso);
@@ -80,7 +94,18 @@ export function Header({
               <span className="lm-status-dot" /> APITIC · données arrêtées au {lastDayStr}
             </div>
           </div>
-          <button className="lm-icon-btn" title="Rafraîchir" aria-label="Rafraîchir">
+          <button
+            className="lm-icon-btn"
+            title="Rafraîchir les données"
+            aria-label="Rafraîchir"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            style={
+              refreshing
+                ? { transform: "rotate(360deg)", transition: "transform 400ms ease" }
+                : undefined
+            }
+          >
             <svg
               viewBox="0 0 16 16"
               width="14"
@@ -91,22 +116,6 @@ export function Header({
             >
               <path
                 d="M2 8a6 6 0 0 1 10.5-4M14 8a6 6 0 0 1-10.5 4M12.5 4V1.5M12.5 4H10M3.5 12v2.5M3.5 12H6"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
-          <button className="lm-icon-btn" title="Exporter" aria-label="Exporter">
-            <svg
-              viewBox="0 0 16 16"
-              width="14"
-              height="14"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.4"
-            >
-              <path
-                d="M8 2v8M8 10l3-3M8 10 5 7M2.5 11.5v1A1.5 1.5 0 0 0 4 14h8a1.5 1.5 0 0 0 1.5-1.5v-1"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />

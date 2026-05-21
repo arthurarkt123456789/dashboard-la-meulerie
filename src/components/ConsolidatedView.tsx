@@ -4,10 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { maybeBucket, type Granularity } from "@/lib/bucketing";
 import { GranularityToggle } from "./GranularityToggle";
 import { N1Toggle } from "./N1Toggle";
+import { SegmentEvolution } from "./SegmentEvolution";
+import { FormulesCard } from "./FormulesCard";
 import type { AmountMode } from "./AmountModeToggle";
 import type { PeriodSelection, StoreData } from "@/lib/apitic/types";
 import {
   consolidateDaily,
+  consolidateFormules,
   consolidatePayments,
   consolidateProducts,
   consolidatedPeriodMetricsForSelection,
@@ -97,15 +100,30 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
     const consolidatedPayments = consolidatePayments(
       stores.map((s) => ({ daily: s.daily, payments: s.payments })),
     );
+    const consolidatedFormules = consolidateFormules(
+      stores.map((s) => s.formules),
+    );
     const m = consolidatedPeriodMetricsForSelection(
       consolidatedDaily,
       stores.map((s) => ({ store: s, daily: s.daily })),
       period,
     );
-    return { consolidatedDaily, consolidatedProducts, consolidatedPayments, m };
+    return {
+      consolidatedDaily,
+      consolidatedProducts,
+      consolidatedPayments,
+      consolidatedFormules,
+      m,
+    };
   }, [stores, period]);
 
-  const { consolidatedDaily, consolidatedProducts, consolidatedPayments, m } = view;
+  const {
+    consolidatedDaily,
+    consolidatedProducts,
+    consolidatedPayments,
+    consolidatedFormules,
+    m,
+  } = view;
   const sparkValues = consolidatedDaily
     .slice(-14)
     .map((d) => (isHT ? d.caHT ?? 0 : d.ca));
@@ -387,6 +405,17 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
         />
       </Card>
 
+      <SegmentEvolution
+        daily={consolidatedDaily}
+        period={period}
+        amountMode={amountMode}
+        allowWeekly={allowWeekly}
+        allowMonth={allowMonth}
+        granularity={effectiveGranularity}
+        onGranularity={setGranularity}
+        yoyAvailable={m.yoyAvailable}
+      />
+
       <Card
         title="Top produits"
         subtitle={`Classement par CA ${isHT ? "HT" : "TTC"} · ${periodLabel}`}
@@ -406,6 +435,13 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
         subtitle={`30 derniers jours · tous magasins · ${isHT ? "HT" : "TTC"}`}
       >
         <PaymentsCard payments={consolidatedPayments} amountMode={amountMode} />
+      </Card>
+
+      <Card
+        title="Formules lunch"
+        subtitle="30 derniers jours · part du CA et tickets snacking"
+      >
+        <FormulesCard formules={consolidatedFormules} amountMode={amountMode} />
       </Card>
     </div>
   );

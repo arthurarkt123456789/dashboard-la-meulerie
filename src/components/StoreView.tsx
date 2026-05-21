@@ -5,6 +5,8 @@ import type { PeriodSelection, StoreData } from "@/lib/apitic/types";
 import { maybeBucket, type Granularity } from "@/lib/bucketing";
 import { GranularityToggle } from "./GranularityToggle";
 import { N1Toggle } from "./N1Toggle";
+import { SegmentEvolution } from "./SegmentEvolution";
+import { FormulesCard } from "./FormulesCard";
 import type { AmountMode } from "./AmountModeToggle";
 import {
   periodLabelFor,
@@ -307,6 +309,17 @@ export function StoreView({ store, period, today, amountMode }: Props) {
         />
       </Card>
 
+      <SegmentEvolution
+        daily={store.daily}
+        period={period}
+        amountMode={amountMode}
+        allowWeekly={allowWeekly}
+        allowMonth={allowMonth}
+        granularity={effectiveGranularity}
+        onGranularity={setGranularity}
+        yoyAvailable={m.yoyAvailable}
+      />
+
       <Card
         title="Top produits"
         subtitle={`Classement ${isHT ? "HT" : "TTC"} · ${periodLabel}`}
@@ -326,6 +339,13 @@ export function StoreView({ store, period, today, amountMode }: Props) {
         subtitle={`30 derniers jours · ${isHT ? "HT" : "TTC"}`}
       >
         <PaymentsCard payments={store.payments} amountMode={amountMode} />
+      </Card>
+
+      <Card
+        title="Formules lunch"
+        subtitle="30 derniers jours · part du CA et tickets snacking"
+      >
+        <FormulesCard formules={store.formules} amountMode={amountMode} />
       </Card>
     </div>
   );

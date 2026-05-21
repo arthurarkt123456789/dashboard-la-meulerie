@@ -3,6 +3,7 @@
 // consolidatedPeriodMetrics, ported with TypeScript types and no side effects.
 
 import type {
+  FormuleStats,
   PaymentSplit,
   PeriodKey,
   PeriodSelection,
@@ -663,6 +664,45 @@ export function consolidateProducts(perStore: Product[][]): Product[] {
     }
   }
   return Array.from(map.values()).sort((a, b) => b.revenue30d - a.revenue30d);
+}
+
+export function consolidateFormules(perStore: FormuleStats[]): FormuleStats {
+  if (perStore.length === 0) {
+    return {
+      endDate: "",
+      days: 30,
+      byKind: {
+        grilled_cheese: { units: 0, ca: 0, caHT: 0 },
+        sandwich: { units: 0, ca: 0, caHT: 0 },
+      },
+      snackingCA: 0,
+      snackingCAHT: 0,
+      snackingTx: 0,
+    };
+  }
+  const out: FormuleStats = {
+    endDate: perStore[0].endDate,
+    days: perStore[0].days,
+    byKind: {
+      grilled_cheese: { units: 0, ca: 0, caHT: 0 },
+      sandwich: { units: 0, ca: 0, caHT: 0 },
+    },
+    snackingCA: 0,
+    snackingCAHT: 0,
+    snackingTx: 0,
+  };
+  for (const s of perStore) {
+    if (s.endDate > out.endDate) out.endDate = s.endDate;
+    for (const k of ["grilled_cheese", "sandwich"] as const) {
+      out.byKind[k].units += s.byKind[k].units;
+      out.byKind[k].ca += s.byKind[k].ca;
+      out.byKind[k].caHT += s.byKind[k].caHT;
+    }
+    out.snackingCA += s.snackingCA;
+    out.snackingCAHT += s.snackingCAHT;
+    out.snackingTx += s.snackingTx;
+  }
+  return out;
 }
 
 export function consolidatePayments(
