@@ -59,15 +59,19 @@ const BLACKOUTS: { start: number; end: number; label: string }[] = [
 
 /** Returns the blackout label if we're currently in one, null otherwise. */
 export function currentBlackout(now: Date = new Date()): string | null {
-  // APITIC's doc says "CET". Treat that literally as UTC+1 (no DST). Using
-  // Europe/Paris would shift the window by an hour in summer (CEST) and
-  // unnecessarily block requests APITIC would actually accept.
-  const CET_OFFSET_MIN = 60;
-  const utcMin = now.getUTCHours() * 60 + now.getUTCMinutes();
-  const minOfDay = (utcMin + CET_OFFSET_MIN) % (24 * 60);
-  const hit = BLACKOUTS.find(
-    (b) => minOfDay >= b.start && minOfDay < b.end,
-  );
+  // The doc says "CET" but APITIC's actual blackouts track Paris wall-clock
+  // time (CEST in summer). Observed empirically: 503 on /token at 11:53 Paris
+  // CEST in May, i.e. inside the lunch window if interpreted as Paris time.
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Paris",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(now);
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+  const minOfDay = hour * 60 + minute;
+  const hit = BLACKOUTS.find((b) => minOfDay >= b.start && minOfDay < b.end);
   return hit ? hit.label : null;
 }
 
