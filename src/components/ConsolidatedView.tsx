@@ -210,6 +210,7 @@ export function ConsolidatedView({ stores, period }: Props) {
           }))}
         />
         <div
+          className="lm-store-mini-grid"
           style={{
             marginTop: 20,
             borderTop: "1px solid var(--border-light)",

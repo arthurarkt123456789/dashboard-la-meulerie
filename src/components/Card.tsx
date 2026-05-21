@@ -18,7 +18,11 @@ export function Card({
   span,
 }: Props) {
   return (
-    <div className="lm-card" style={span ? { gridColumn: `span ${span}` } : undefined}>
+    <div
+      className="lm-card"
+      data-span={span}
+      style={span ? { gridColumn: `span ${span}` } : undefined}
+    >
       {(title || action) && (
         <div className="lm-card-head">
           <div>

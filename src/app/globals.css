@@ -668,12 +668,98 @@ button { font-family: inherit; cursor: pointer; }
 @media (max-width: 1100px) {
   .lm-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .lm-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* Wide cards span both available columns. */
+  .lm-card[data-span] { grid-column: 1 / -1 !important; }
 }
+
+/* Tablet / small laptop */
+@media (max-width: 900px) {
+  .lm-main { padding: 20px 20px 40px; }
+  .lm-card-head { padding: 14px 16px 10px; }
+  .lm-card-body.padded { padding: 16px; }
+  /* Card head wraps its action chip onto a new row when needed. */
+  .lm-card-head { flex-wrap: wrap; }
+}
+
+/* Mobile portrait */
 @media (max-width: 720px) {
-  .lm-grid { grid-template-columns: 1fr; }
-  .lm-kpis { grid-template-columns: 1fr 1fr; }
-  .lm-main { padding: 16px; }
-  .lm-header-top, .lm-header-bottom { padding-left: 16px; padding-right: 16px; }
-  .lm-header-bottom { flex-direction: column; align-items: flex-start; gap: 0; }
-  .lm-tabs { overflow-x: auto; width: 100%; }
+  .lm-grid { grid-template-columns: 1fr; gap: 12px; }
+  .lm-kpis { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .lm-main { padding: 12px 12px 32px; }
+  .lm-footer { padding: 16px 12px 20px; flex-direction: column; gap: 6px; text-align: center; }
+
+  /* Header */
+  .lm-header-top, .lm-header-bottom { padding: 12px 12px 10px; }
+  .lm-header-top { flex-wrap: wrap; gap: 12px; }
+  .lm-header-meta { gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .lm-date-block { display: none; }
+  .lm-header-meta .lm-icon-btn { display: none; }
+  .lm-header-bottom {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    padding-bottom: 4px;
+  }
+  .lm-tabs { overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch; }
+  .lm-tab { padding: 10px 4px; margin-right: 16px; font-size: 13px; flex-shrink: 0; }
+  .lm-segmented {
+    overflow-x: auto;
+    max-width: 100%;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+  .lm-seg-btn { flex-shrink: 0; padding: 6px 10px; font-size: 12px; }
+
+  /* Span 2/3 cards collapse to single column */
+  .lm-card[data-span] { grid-column: 1 / -1 !important; }
+  .lm-kpis { grid-column: 1 / -1; }
+
+  /* KPI cards */
+  .lm-kpi { padding: 14px 14px 12px; }
+  .lm-kpi-value { font-size: 28px; }
+  .lm-kpi-spark svg { width: 64px !important; height: 24px !important; }
+
+  /* Card head: title/action stack when narrow */
+  .lm-card-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 14px 14px 10px;
+  }
+  .lm-card-body.padded { padding: 14px; }
+  .lm-card-title { font-size: 16px; }
+
+  /* Store header */
+  .lm-store-head { flex-direction: column; align-items: stretch; padding: 16px; gap: 10px; }
+  .lm-store-title { font-size: 22px; }
+  .lm-store-meta { font-size: 11px; gap: 6px; }
+
+  /* HBar chart row: label shrinks, value reflow */
+  .lm-hbar-row { grid-template-columns: 88px 1fr 88px !important; gap: 10px !important; }
+
+  /* Top products table: hide category column, tighten */
+  .lm-products-head,
+  .lm-product-row {
+    grid-template-columns: 24px 1.4fr 0.6fr 1fr;
+    gap: 10px;
+    font-size: 12px;
+  }
+  .lm-products-head > div:nth-child(3),
+  .lm-product-row > .lm-product-cat { display: none; }
+  .lm-product-meta { font-size: 10px; }
+
+  /* Payments donut + legend → stack */
+  .lm-payments { flex-direction: column; align-items: flex-start !important; gap: 16px !important; }
+  .lm-payments > svg { align-self: center; }
+
+  /* Per-store mini grid in consolidated view: 2 × 2 instead of 4 × 1 */
+  .lm-store-mini-grid { grid-template-columns: repeat(2, 1fr) !important; }
+}
+
+/* Mobile narrow */
+@media (max-width: 480px) {
+  .lm-kpis { grid-template-columns: 1fr; }
+  .lm-kpi-value { font-size: 26px; }
+  .lm-brand-line { font-size: 16px; }
+  .lm-avatar { width: 28px; height: 28px; font-size: 10px; }
 }

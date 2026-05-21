@@ -13,7 +13,7 @@ const COLORS = [
 
 export function PaymentsCard({ payments }: { payments: PaymentSplit[] }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
+    <div className="lm-payments" style={{ display: "flex", alignItems: "center", gap: 32 }}>
       <Donut data={payments} size={160} thickness={22} colors={COLORS} />
       <div
         style={{

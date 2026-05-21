@@ -32,6 +32,7 @@ export function HBarChart({
         return (
           <div
             key={r.label}
+            className="lm-hbar-row"
             style={{
               display: "grid",
               gridTemplateColumns: "120px 1fr 110px",
