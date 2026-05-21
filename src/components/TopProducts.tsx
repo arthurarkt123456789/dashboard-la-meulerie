@@ -17,14 +17,6 @@ export function TopProducts({
   segmentFilter,
   limit = 10,
 }: Props) {
-  let list = products;
-  if (segmentFilter !== "all") {
-    list = list.filter((p) => p.segment === segmentFilter);
-  }
-  list = list.slice(0, limit);
-  if (list.length === 0) {
-    return <div className="lm-empty">Aucun produit sur cette période.</div>;
-  }
   const presetKey =
     period.kind === "preset" ? period.key : "30d"; // month → use 30d aggregates
   const revenueKey: "revenue7d" | "revenue30d" =
@@ -35,6 +27,18 @@ export function TopProducts({
       : presetKey === "30d" || presetKey === "90d"
         ? "units30d"
         : "units7d";
+
+  let list = products;
+  if (segmentFilter !== "all") {
+    list = list.filter((p) => p.segment === segmentFilter);
+  }
+  // Re-sort by the same revenue key we'll display — otherwise the top N
+  // returned by the aggregator (sorted by revenue30d) doesn't match the
+  // ranking the user sees when looking at the 7-day column.
+  list = [...list].sort((a, b) => b[revenueKey] - a[revenueKey]).slice(0, limit);
+  if (list.length === 0) {
+    return <div className="lm-empty">Aucun produit sur cette période.</div>;
+  }
   const max = Math.max(...list.map((p) => p[revenueKey])) || 1;
 
   return (
