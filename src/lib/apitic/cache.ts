@@ -37,8 +37,23 @@ function todayInParis(): string {
 
 type CacheRow = {
   fetched_at: Date;
-  sales: ApiticSale[];
+  sales: ApiticSale[] | string;
 };
+
+// postgres lib doesn't auto-parse jsonb when `prepare: false` is set (which
+// we need for pgbouncer transaction pooler compatibility). So jsonb values
+// arrive as strings. Parse defensively.
+function parseSales(raw: ApiticSale[] | string | null | undefined): ApiticSale[] {
+  if (!raw) return [];
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw) as ApiticSale[];
+    } catch {
+      return [];
+    }
+  }
+  return raw;
+}
 
 // ────────────────────────────────────────────────────────────────────────
 // Postgres backend
@@ -62,7 +77,7 @@ async function readPg(
   if (isToday && Date.now() - new Date(row.fetched_at).getTime() > TODAY_TTL_MS) {
     return null;
   }
-  return row.sales;
+  return parseSales(row.sales);
 }
 
 async function writePg(
@@ -240,12 +255,12 @@ export async function readSalesCacheBatch(
   }
   await ready();
   const sql = getSql();
-  const rows = await sql<{ date: string; sales: ApiticSale[] }[]>`
+  const rows = await sql<{ date: string; sales: ApiticSale[] | string }[]>`
     select to_char(date, 'YYYY-MM-DD') as date, sales
     from apitic_sales_cache
     where account_id = ${accountId}
       and date = any(${dates}::date[])
   `;
-  for (const row of rows) result.set(row.date, row.sales);
+  for (const row of rows) result.set(row.date, parseSales(row.sales));
   return result;
 }
