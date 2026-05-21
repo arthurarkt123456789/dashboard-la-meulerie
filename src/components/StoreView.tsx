@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { PeriodSelection, StoreData } from "@/lib/apitic/types";
 import { maybeBucket, type Granularity } from "@/lib/bucketing";
 import { GranularityToggle } from "./GranularityToggle";
@@ -37,11 +37,34 @@ function granularityAllowed(period: PeriodSelection): boolean {
   return false;
 }
 
+function monthGranularityAllowed(period: PeriodSelection): boolean {
+  if (period.kind === "fiscal-year-todate") return true;
+  if (period.kind === "preset") return period.key === "90d";
+  if (period.kind === "range") return true;
+  return false;
+}
+
+function defaultGranularity(period: PeriodSelection): Granularity {
+  if (period.kind === "fiscal-year-todate") return "month";
+  if (period.kind === "preset" && period.key === "90d") return "week";
+  return "day";
+}
+
 export function StoreView({ store, period, today, amountMode }: Props) {
   const [segmentFilter] = useSegmentFilter();
   const allowWeekly = granularityAllowed(period);
-  const [granularity, setGranularity] = useState<Granularity>("day");
-  const effectiveGranularity: Granularity = allowWeekly ? granularity : "day";
+  const allowMonth = monthGranularityAllowed(period);
+  const [granularity, setGranularity] = useState<Granularity>(
+    defaultGranularity(period),
+  );
+  useEffect(() => {
+    setGranularity(defaultGranularity(period));
+  }, [period]);
+  const effectiveGranularity: Granularity = allowWeekly
+    ? granularity === "month" && !allowMonth
+      ? "week"
+      : granularity
+    : "day";
   const isHT = amountMode === "HT";
   const [showN1, setShowN1] = useState(true);
 
@@ -191,7 +214,11 @@ export function StoreView({ store, period, today, amountMode }: Props) {
         action={
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             {allowWeekly && (
-              <GranularityToggle value={granularity} onChange={setGranularity} />
+              <GranularityToggle
+                value={granularity}
+                onChange={setGranularity}
+                allowMonth={allowMonth}
+              />
             )}
             <N1Toggle
               value={showN1}

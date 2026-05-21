@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { maybeBucket, type Granularity } from "@/lib/bucketing";
 import { GranularityToggle } from "./GranularityToggle";
 import { N1Toggle } from "./N1Toggle";
@@ -48,6 +48,20 @@ function granularityAllowed(period: PeriodSelection): boolean {
   return false;
 }
 
+function monthGranularityAllowed(period: PeriodSelection): boolean {
+  // Month bucketing only makes sense when the period spans >~60 days.
+  if (period.kind === "fiscal-year-todate") return true;
+  if (period.kind === "preset") return period.key === "90d";
+  if (period.kind === "range") return true;
+  return false;
+}
+
+function defaultGranularity(period: PeriodSelection): Granularity {
+  if (period.kind === "fiscal-year-todate") return "month";
+  if (period.kind === "preset" && period.key === "90d") return "week";
+  return "day";
+}
+
 type Props = {
   stores: StoreData[];
   period: PeriodSelection;
@@ -57,8 +71,21 @@ type Props = {
 export function ConsolidatedView({ stores, period, amountMode }: Props) {
   const [segmentFilter] = useSegmentFilter();
   const allowWeekly = granularityAllowed(period);
-  const [granularity, setGranularity] = useState<Granularity>("day");
-  const effectiveGranularity: Granularity = allowWeekly ? granularity : "day";
+  const allowMonth = monthGranularityAllowed(period);
+  const [granularity, setGranularity] = useState<Granularity>(
+    defaultGranularity(period),
+  );
+  // Re-snap granularity when the period changes (e.g. switching to Exercice).
+  useEffect(() => {
+    setGranularity(defaultGranularity(period));
+  }, [period]);
+  // If the user changes to a period where their granularity isn't allowed,
+  // fall back to "day".
+  const effectiveGranularity: Granularity = allowWeekly
+    ? granularity === "month" && !allowMonth
+      ? "week"
+      : granularity
+    : "day";
   const isHT = amountMode === "HT";
   const [showN1, setShowN1] = useState(false);
 
@@ -235,7 +262,11 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
         action={
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             {allowWeekly && (
-              <GranularityToggle value={granularity} onChange={setGranularity} />
+              <GranularityToggle
+                value={granularity}
+                onChange={setGranularity}
+                allowMonth={allowMonth}
+              />
             )}
             <N1Toggle value={showN1} onChange={setShowN1} />
             <LegendInline series={lineSeries.filter((s) => !s.dashed)} />

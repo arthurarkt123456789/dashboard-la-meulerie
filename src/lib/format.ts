@@ -1,6 +1,7 @@
 // Ported from charts.jsx formatters. French locale, tabular nums everywhere.
 
 import type { PeriodKey, PeriodSelection } from "./apitic/types";
+import type { Granularity } from "./bucketing";
 
 const FR = "fr-FR";
 
@@ -33,7 +34,18 @@ const FR_MONTHS = [
 ];
 const FR_DAYS_SHORT = ["dim", "lun", "mar", "mer", "jeu", "ven", "sam"];
 
-export function formatDateLabel(iso: string, period: PeriodKey | PeriodSelection): string {
+export function formatMonthLabel(iso: string): string {
+  const d = new Date(iso + "T00:00:00");
+  const yy = String(d.getFullYear()).slice(2);
+  return `${FR_MONTHS[d.getMonth()]} ${yy}`;
+}
+
+export function formatDateLabel(
+  iso: string,
+  period: PeriodKey | PeriodSelection,
+  granularity?: Granularity,
+): string {
+  if (granularity === "month") return formatMonthLabel(iso);
   const d = new Date(iso + "T00:00:00");
   const key = typeof period === "string"
     ? period

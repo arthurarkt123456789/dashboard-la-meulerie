@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
-import { fmtEURshort, formatDateLabel, formatDateLong } from "@/lib/format";
+import {
+  fmtEURshort,
+  formatDateLabel,
+  formatDateLong,
+  formatMonthLabel,
+} from "@/lib/format";
 import type { PeriodKey, PeriodSelection } from "@/lib/apitic/types";
 import type { Granularity } from "@/lib/bucketing";
 
@@ -224,7 +229,7 @@ export function LineChart({
               fill="var(--fg-tertiary)"
               style={{ fontFamily: "var(--font-body)" }}
             >
-              {formatDateLabel(d.date, period)}
+              {formatDateLabel(d.date, period, granularity)}
             </text>
           );
         })}
@@ -361,8 +366,10 @@ function Tooltip({
   return (
     <div style={tooltipStyle}>
       <div style={{ opacity: 0.7, marginBottom: 4, fontSize: 11 }}>
-        {granularity === "week" ? "Semaine du " : ""}
-        {formatDateLong(point.date)}
+        {granularity === "month"
+          ? formatMonthLabel(point.date)
+          : (granularity === "week" ? "Semaine du " : "") +
+            formatDateLong(point.date)}
         {point.partial && (
           <span style={{ color: "var(--color-coral)", marginLeft: 6 }}>
             · en cours
