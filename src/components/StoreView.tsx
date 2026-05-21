@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { PeriodSelection, StoreData } from "@/lib/apitic/types";
 import { maybeBucket, type Granularity } from "@/lib/bucketing";
 import { GranularityToggle } from "./GranularityToggle";
+import { N1Toggle } from "./N1Toggle";
 import type { AmountMode } from "./AmountModeToggle";
 import {
   periodLabelFor,
@@ -42,6 +43,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
   const [granularity, setGranularity] = useState<Granularity>("day");
   const effectiveGranularity: Granularity = allowWeekly ? granularity : "day";
   const isHT = amountMode === "HT";
+  const [showN1, setShowN1] = useState(true);
 
   const m = useMemo(
     () => periodMetricsForSelection(store.daily, period),
@@ -183,12 +185,20 @@ export function StoreView({ store, period, today, amountMode }: Props) {
       <Card
         title="Évolution du chiffre d'affaires"
         subtitle={
-          periodLabel + (m.yoyAvailable ? " · N-1 en pointillé" : "")
+          periodLabel +
+          (m.yoyAvailable && showN1 ? " · N-1 en pointillé" : "")
         }
         action={
-          allowWeekly ? (
-            <GranularityToggle value={granularity} onChange={setGranularity} />
-          ) : undefined
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            {allowWeekly && (
+              <GranularityToggle value={granularity} onChange={setGranularity} />
+            )}
+            <N1Toggle
+              value={showN1}
+              onChange={setShowN1}
+              disabled={!m.yoyAvailable}
+            />
+          </div>
         }
         span={2}
       >
@@ -201,7 +211,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
               color: "var(--color-coral)",
             },
           ]}
-          yoyData={yoyChartData}
+          yoyData={showN1 ? yoyChartData : null}
           height={280}
           period={period}
           granularity={effectiveGranularity}

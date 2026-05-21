@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { maybeBucket, type Granularity } from "@/lib/bucketing";
 import { GranularityToggle } from "./GranularityToggle";
+import { N1Toggle } from "./N1Toggle";
 import type { AmountMode } from "./AmountModeToggle";
 import type { PeriodSelection, StoreData } from "@/lib/apitic/types";
 import {
@@ -59,6 +60,7 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
   const [granularity, setGranularity] = useState<Granularity>("day");
   const effectiveGranularity: Granularity = allowWeekly ? granularity : "day";
   const isHT = amountMode === "HT";
+  const [showN1, setShowN1] = useState(false);
 
   const view = useMemo(() => {
     const consolidatedDaily = consolidateDaily(stores.map((s) => s.daily));
@@ -100,11 +102,24 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
       .sort((a, b) => b.value - a.value);
   }, [stores, period, isHT]);
 
-  const lineSeries: LineSeries[] = stores.map((s, i) => ({
-    key: s.id,
-    label: s.name,
-    color: SERIES_COLORS[i] ?? "var(--fg-secondary)",
-  }));
+  const yoyOffsetDays =
+    period.kind === "month" || period.kind === "fiscal-year-todate" ? 365 : 364;
+
+  const lineSeries: LineSeries[] = useMemo(() => {
+    const base: LineSeries[] = stores.map((s, i) => ({
+      key: s.id,
+      label: s.name,
+      color: SERIES_COLORS[i] ?? "var(--fg-secondary)",
+    }));
+    if (!showN1) return base;
+    const dashed: LineSeries[] = stores.map((s, i) => ({
+      key: s.id + "__yoy",
+      label: s.name + " N-1",
+      color: SERIES_COLORS[i] ?? "var(--fg-secondary)",
+      dashed: true,
+    }));
+    return [...base, ...dashed];
+  }, [stores, showN1]);
 
   const lineData = useMemo(() => {
     const todayISO =
@@ -113,6 +128,13 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
     const slice = consolidatedDaily.filter(
       (d) => d.date >= from && d.date <= to,
     );
+
+    function subtractDaysISO(iso: string, days: number): string {
+      const dd = new Date(`${iso}T00:00:00Z`);
+      dd.setUTCDate(dd.getUTCDate() - days);
+      return dd.toISOString().slice(0, 10);
+    }
+
     return slice.map((d) => {
       const row: {
         date: string;
@@ -129,10 +151,20 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
         } else {
           row[s.id] = isHT ? (day.caHT ?? 0) : day.ca;
         }
+        if (showN1) {
+          const yoyDate = subtractDaysISO(d.date, yoyOffsetDays);
+          const yoyDay = s.daily.find((dd) => dd.date === yoyDate);
+          row[s.id + "__yoy"] =
+            yoyDay && !yoyDay.closed
+              ? isHT
+                ? yoyDay.caHT ?? 0
+                : yoyDay.ca
+              : null;
+        }
       }
       return row;
     });
-  }, [stores, consolidatedDaily, period, isHT]);
+  }, [stores, consolidatedDaily, period, isHT, showN1, yoyOffsetDays]);
 
   const chartData = useMemo(
     () => maybeBucket(lineData, effectiveGranularity),
@@ -205,7 +237,8 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
             {allowWeekly && (
               <GranularityToggle value={granularity} onChange={setGranularity} />
             )}
-            <LegendInline series={lineSeries} />
+            <N1Toggle value={showN1} onChange={setShowN1} />
+            <LegendInline series={lineSeries.filter((s) => !s.dashed)} />
           </div>
         }
         span={2}

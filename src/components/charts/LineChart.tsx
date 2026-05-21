@@ -9,6 +9,8 @@ export type LineSeries = {
   key: string;
   label: string;
   color: string;
+  /** Render the line dashed with reduced opacity. Used for N-1 overlays. */
+  dashed?: boolean;
 };
 
 export type LinePoint = {
@@ -166,14 +168,15 @@ export function LineChart({
             lastPt = [x, y];
           });
           if (!firstPt || !lastPt) return null;
+          const isDashed = s.dashed === true;
           const areaPath =
-            series.length === 1
+            series.length === 1 && !isDashed
               ? linePath +
                 ` L ${lastPt[0]} ${yAt(0)} L ${firstPt[0]} ${yAt(0)} Z`
               : null;
           const gradId = `${gradIdBase}-s${sIdx}`;
           return (
-            <g key={s.key}>
+            <g key={s.key} opacity={isDashed ? 0.7 : 1}>
               {areaPath && (
                 <>
                   <defs>
@@ -189,11 +192,12 @@ export function LineChart({
                 d={linePath}
                 fill="none"
                 stroke={s.color}
-                strokeWidth="1.75"
+                strokeWidth={isDashed ? "1.25" : "1.75"}
                 strokeLinejoin="round"
                 strokeLinecap="round"
+                strokeDasharray={isDashed ? "4 3" : undefined}
               />
-              {highlightLast && (
+              {highlightLast && !isDashed && (
                 <circle
                   cx={lastPt[0]}
                   cy={lastPt[1]}

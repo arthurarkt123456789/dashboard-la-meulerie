@@ -15,14 +15,21 @@ export function LegendInline({ series }: { series: LineSeries[] }) {
       {series.map((s) => (
         <div
           key={s.key}
-          style={{ display: "flex", alignItems: "center", gap: 6 }}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            opacity: s.dashed ? 0.75 : 1,
+          }}
         >
           <span
             style={{
-              width: 10,
+              width: 14,
               height: 2,
-              background: s.color,
               display: "inline-block",
+              background: s.dashed
+                ? `repeating-linear-gradient(to right, ${s.color} 0 3px, transparent 3px 6px)`
+                : s.color,
             }}
           />
           {s.label}
