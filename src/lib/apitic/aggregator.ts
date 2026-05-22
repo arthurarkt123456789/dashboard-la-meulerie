@@ -556,10 +556,10 @@ async function aggregateOneStore(
   }
 
   // 2b. Determine the effective opening date.
-  // 1) Operator env override wins (APITIC_OPENED_<STOREID>) for stores
-  //    whose APITIC history is younger than the physical opening.
-  // 2) Otherwise detect from data: first day with any sales.
-  // 3) Otherwise fall back to the static hint in STORE_META.
+  // 1) Operator env override wins (APITIC_OPENED_<STOREID>).
+  // 2) Otherwise use storeMeta.openedDate as the floor. firstSaleDate from
+  //    cache can only push the date earlier (incomplete cache shouldn't make
+  //    a store appear newer than it really is).
   let firstSaleDate: string | null = null;
   for (const date of dates) {
     if ((salesByDate.get(date) ?? []).length > 0) {
@@ -569,7 +569,10 @@ async function aggregateOneStore(
   }
   const override = getOpenedOverride(storeMeta.id);
   const effectiveOpenedDate =
-    override ?? firstSaleDate ?? storeMeta.openedDate;
+    override ??
+    (firstSaleDate && firstSaleDate < storeMeta.openedDate
+      ? firstSaleDate
+      : storeMeta.openedDate);
   const openedTs = new Date(`${effectiveOpenedDate}T00:00:00Z`).getTime();
 
   // 3. Build StoreDaily[] — mark anything before the first sale as `closed`.
