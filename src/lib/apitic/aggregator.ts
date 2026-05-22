@@ -626,12 +626,13 @@ async function aggregateOneStore(
     daily,
   );
 
-  const openedLabel = (override ?? firstSaleDate)
-    ? new Intl.DateTimeFormat("fr-FR", {
-        month: "short",
-        year: "numeric",
-      }).format(
-        new Date(`${(override ?? firstSaleDate) as string}T12:00:00Z`),
+  // Use env override if set; otherwise trust storeMeta.opened (the operator
+  // knows the real date). firstSaleDate from cache is unreliable when the
+  // bootstrap is incomplete — it would show the first *cached* day, not the
+  // actual opening day.
+  const openedLabel = override
+    ? new Intl.DateTimeFormat("fr-FR", { month: "short", year: "numeric" }).format(
+        new Date(`${override}T12:00:00Z`),
       )
     : storeMeta.opened;
 
