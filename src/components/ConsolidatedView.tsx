@@ -37,10 +37,10 @@ import { LegendInline } from "./LegendInline";
 import { SegmentFilterInline, useSegmentFilter } from "./SegmentFilter";
 
 const SERIES_COLORS = [
-  "var(--color-coral)",
-  "var(--color-dark)",
-  "#666660",
-  "#A8A8A6",
+  "var(--color-coral)", // Davso       — coral brand
+  "#2563EB",           // Endoume      — bleu
+  "#059669",           // Malmousque   — vert
+  "#9333EA",           // République   — violet
 ];
 
 function granularityAllowed(period: PeriodSelection): boolean {
