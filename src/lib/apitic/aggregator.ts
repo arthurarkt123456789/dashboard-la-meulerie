@@ -288,15 +288,15 @@ function buildTopProducts(
 
 // ────────────────────────────────────────────────────────────────────────
 // "Formules lunch" detection — flag products whose name matches
-//   /formule.*grilled.*cheese/i  → grilled_cheese
-//   /formule.*sandwich/i         → sandwich
+//   /menu.*grilled/i  → grilled  (Menu Grilled)
+//   /menu.*baguette/i → baguette (Menu Baguette)
 // Aggregates revenue + units per formule over a window so we can show the
 // formule penetration as a share of the snacking pie.
 // ────────────────────────────────────────────────────────────────────────
 
 const FORMULE_PATTERNS: { kind: FormuleKind; re: RegExp }[] = [
-  { kind: "grilled_cheese", re: /formule.*grilled.*cheese/i },
-  { kind: "sandwich", re: /formule.*sandwich/i },
+  { kind: "grilled", re: /menu.*grilled/i },
+  { kind: "baguette", re: /menu.*baguette/i },
 ];
 
 function classifyFormule(name: string): FormuleKind | null {
@@ -322,8 +322,8 @@ function buildFormuleStats(
   }
 
   const byKind: FormuleStats["byKind"] = {
-    grilled_cheese: { units: 0, ca: 0, caHT: 0 },
-    sandwich: { units: 0, ca: 0, caHT: 0 },
+    grilled: { units: 0, ca: 0, caHT: 0 },
+    baguette: { units: 0, ca: 0, caHT: 0 },
   };
 
   // Numerator: walk the sales in the window, sum formule units & CA.
@@ -523,8 +523,19 @@ async function aggregateOneStore(
   for (const [date, sales] of cacheBatch) salesByDate.set(date, sales);
 
   if (mode.kind === "read") {
-    // Nothing to refresh — APITIC has no live "today" endpoint and yesterday
-    // is immutable once the fiscal day has closed.
+    // Auto-fetch any missing date in the last 30 days. The bootstrap warms
+    // older history; new days (= "yesterday" each morning, plus anything
+    // that failed during a previous blackout) are picked up here. We cap at
+    // 30 days so the request doesn't accidentally hammer APITIC if the
+    // cache was wiped.
+    const tailWindowDays = 30;
+    const tailFromDate = subtractDays(lastDay, tailWindowDays - 1);
+    const missingTail = dates.filter(
+      (d) => d >= tailFromDate && !salesByDate.has(d),
+    );
+    if (missingTail.length > 0) {
+      await Promise.all(missingTail.map((d) => fetchOne(d)));
+    }
     for (const date of dates) {
       if (!salesByDate.has(date)) salesByDate.set(date, []);
     }

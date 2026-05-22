@@ -7,20 +7,20 @@ type Props = {
   amountMode: AmountMode;
 };
 
-const LABELS: Record<"grilled_cheese" | "sandwich", { name: string; color: string }> = {
-  grilled_cheese: { name: "Formule grilled cheese", color: "var(--color-coral)" },
-  sandwich: { name: "Formule sandwich", color: "var(--color-dark)" },
+const LABELS: Record<"grilled" | "baguette", { name: string; color: string }> = {
+  grilled: { name: "Menu Grilled", color: "var(--color-coral)" },
+  baguette: { name: "Menu Baguette", color: "var(--color-dark)" },
 };
 
 export function FormulesCard({ formules, amountMode }: Props) {
   const isHT = amountMode === "HT";
   const snackingCA = isHT ? formules.snackingCAHT : formules.snackingCA;
   const snackingTx = formules.snackingTx;
-  const totalFormulesCA = (["grilled_cheese", "sandwich"] as const).reduce(
+  const totalFormulesCA = (["grilled", "baguette"] as const).reduce(
     (s, k) => s + (isHT ? formules.byKind[k].caHT : formules.byKind[k].ca),
     0,
   );
-  const totalFormulesUnits = (["grilled_cheese", "sandwich"] as const).reduce(
+  const totalFormulesUnits = (["grilled", "baguette"] as const).reduce(
     (s, k) => s + formules.byKind[k].units,
     0,
   );
@@ -33,14 +33,14 @@ export function FormulesCard({ formules, amountMode }: Props) {
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {noFormulesDetected ? (
         <div className="lm-empty" style={{ padding: "12px 0" }}>
-          Aucun produit n'a été détecté comme formule lunch sur les{" "}
-          {formules.days} derniers jours. Vérifie que tes produits formules
-          contiennent &quot;Formule&quot; + &quot;grilled cheese&quot; ou
-          &quot;sandwich&quot; dans leur nom APITIC.
+          Aucun produit n'a été détecté comme menu lunch sur les{" "}
+          {formules.days} derniers jours. Vérifie que tes produits contiennent
+          &quot;Menu Grilled&quot; ou &quot;Menu Baguette&quot; dans leur nom
+          APITIC.
         </div>
       ) : (
         <>
-          {(["grilled_cheese", "sandwich"] as const).map((kind) => {
+          {(["grilled", "baguette"] as const).map((kind) => {
             const v = formules.byKind[kind];
             const ca = isHT ? v.caHT : v.ca;
             const shareCA = snackingCA > 0 ? ca / snackingCA : 0;

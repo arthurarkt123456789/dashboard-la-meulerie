@@ -309,8 +309,8 @@ function build() {
         endDate: today.toISOString().slice(0, 10),
         days: 30,
         byKind: {
-          grilled_cheese: { units: 0, ca: 0, caHT: 0 },
-          sandwich: { units: 0, ca: 0, caHT: 0 },
+          grilled: { units: 0, ca: 0, caHT: 0 },
+          baguette: { units: 0, ca: 0, caHT: 0 },
         },
         snackingCA: 0,
         snackingCAHT: 0,

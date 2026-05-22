@@ -672,8 +672,8 @@ export function consolidateFormules(perStore: FormuleStats[]): FormuleStats {
       endDate: "",
       days: 30,
       byKind: {
-        grilled_cheese: { units: 0, ca: 0, caHT: 0 },
-        sandwich: { units: 0, ca: 0, caHT: 0 },
+        grilled: { units: 0, ca: 0, caHT: 0 },
+        baguette: { units: 0, ca: 0, caHT: 0 },
       },
       snackingCA: 0,
       snackingCAHT: 0,
@@ -684,8 +684,8 @@ export function consolidateFormules(perStore: FormuleStats[]): FormuleStats {
     endDate: perStore[0].endDate,
     days: perStore[0].days,
     byKind: {
-      grilled_cheese: { units: 0, ca: 0, caHT: 0 },
-      sandwich: { units: 0, ca: 0, caHT: 0 },
+      grilled: { units: 0, ca: 0, caHT: 0 },
+      baguette: { units: 0, ca: 0, caHT: 0 },
     },
     snackingCA: 0,
     snackingCAHT: 0,
@@ -693,7 +693,7 @@ export function consolidateFormules(perStore: FormuleStats[]): FormuleStats {
   };
   for (const s of perStore) {
     if (s.endDate > out.endDate) out.endDate = s.endDate;
-    for (const k of ["grilled_cheese", "sandwich"] as const) {
+    for (const k of ["grilled", "baguette"] as const) {
       out.byKind[k].units += s.byKind[k].units;
       out.byKind[k].ca += s.byKind[k].ca;
       out.byKind[k].caHT += s.byKind[k].caHT;

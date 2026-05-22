@@ -73,7 +73,7 @@ export type PaymentSplit = {
   amountHT?: number;   // € HT (scaled using day's overall HT/TTC ratio)
 };
 
-export type FormuleKind = "grilled_cheese" | "sandwich";
+export type FormuleKind = "grilled" | "baguette";
 
 export type FormuleStats = {
   /** ISO date this window ends on (inclusive). */
