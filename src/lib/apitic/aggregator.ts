@@ -377,8 +377,8 @@ function buildFormuleStats(
 // ────────────────────────────────────────────────────────────────────────
 
 const PAYMENT_KEYWORDS: { method: PaymentMethod; keywords: string[] }[] = [
-  { method: "Sans contact", keywords: ["sans contact", "contactless", "nfc"] },
-  { method: "Tickets resto", keywords: ["ticket", "resto", "swile", "edenred", "tr"] },
+  { method: "Virement", keywords: ["virement", "vir "] },
+  { method: "Tickets resto", keywords: ["ticket", "resto", "swile", "edenred"] },
   { method: "Espèces", keywords: ["espèce", "espece", "cash", "liquide"] },
   { method: "Carte bancaire", keywords: ["carte", "cb", "bancaire", "card"] },
 ];
@@ -399,7 +399,7 @@ function buildPayments(
 ): PaymentSplit[] {
   const totals: Record<PaymentMethod, number> = {
     "Carte bancaire": 0,
-    "Sans contact": 0,
+    "Virement": 0,
     "Espèces": 0,
     "Tickets resto": 0,
   };
@@ -426,13 +426,13 @@ function buildPayments(
   const htRatio = totalTTC > 0 ? totalHT / totalTTC : 1;
   const total =
     totals["Carte bancaire"] +
-    totals["Sans contact"] +
+    totals["Virement"] +
     totals["Espèces"] +
     totals["Tickets resto"];
   const list: PaymentSplit[] = (
     [
       "Carte bancaire",
-      "Sans contact",
+      "Virement",
       "Espèces",
       "Tickets resto",
     ] as PaymentMethod[]

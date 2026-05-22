@@ -271,12 +271,12 @@ function generatePayments(store: StoreSeed): PaymentSplit[] {
   const remainder = 1 - cb;
   const ticketsRestoShare = store.snackingShare * 0.35;
   const tr = remainder * ticketsRestoShare;
-  const especes = remainder * (1 - ticketsRestoShare) * 0.65;
-  const sansContact = remainder * (1 - ticketsRestoShare) * 0.35;
-  const total = cb + tr + especes + sansContact;
+  const especes = remainder * (1 - ticketsRestoShare) * 0.8;
+  const virement = remainder * (1 - ticketsRestoShare) * 0.2;
+  const total = cb + tr + especes + virement;
   return [
     { method: "Carte bancaire", share: cb / total },
-    { method: "Sans contact", share: sansContact / total },
+    { method: "Virement", share: virement / total },
     { method: "Espèces", share: especes / total },
     { method: "Tickets resto", share: tr / total },
   ];

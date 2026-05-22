@@ -64,7 +64,7 @@ export type Product = {
   revenue30dHT: number;
 };
 
-export type PaymentMethod = "Carte bancaire" | "Sans contact" | "Espèces" | "Tickets resto";
+export type PaymentMethod = "Carte bancaire" | "Virement" | "Espèces" | "Tickets resto";
 
 export type PaymentSplit = {
   method: PaymentMethod;
