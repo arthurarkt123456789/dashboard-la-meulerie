@@ -23,6 +23,7 @@ import { TopProducts } from "./TopProducts";
 import { PaymentsCard } from "./PaymentsCard";
 import { SegmentSplit } from "./SegmentSplit";
 import { SegmentFilterInline, useSegmentFilter } from "./SegmentFilter";
+import { BootstrapButton } from "./BootstrapButton";
 
 type Props = {
   store: StoreData;
@@ -119,9 +120,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
       ? `Ouvert depuis ${monthsOpen} mois`
       : `Ouvert depuis ${store.opened}`;
 
-  const yoyNote = m.yoyAvailable
-    ? "vs N-1"
-    : `N-1 indisponible · ouvert depuis ${monthsOpen} mois`;
+  const yoyNote = m.yoyAvailable ? "vs N-1" : "N-1 indisponible";
 
   const peakHour = store.hourly.reduce(
     (a, b) => (b.ca > a.ca ? b : a),
@@ -146,11 +145,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
             {!m.yoyAvailable && (
               <>
                 <span className="lm-dot">·</span>
-                <span
-                  style={{ color: "var(--color-coral)", fontWeight: 500 }}
-                >
-                  Hors comparaison N-1
-                </span>
+                <BootstrapButton storeId={store.id} />
               </>
             )}
           </div>
