@@ -88,7 +88,9 @@ function subtractDays(date: string, days: number): string {
 // Sales → per-day rollup
 // ────────────────────────────────────────────────────────────────────────
 
-const HISTORY_DAYS = Number(process.env.APITIC_HISTORY_DAYS || "540");
+// 3 years by default — wide enough to cover one full year of N-1 plus
+// a year-over-year overlay margin. Operator can override via env if needed.
+const HISTORY_DAYS = Number(process.env.APITIC_HISTORY_DAYS || "1095");
 
 type ProductLookup = Map<number, { name: string; categoryId: number; price: number }>;
 type CategoryLookup = Map<number, { name: string }>;
