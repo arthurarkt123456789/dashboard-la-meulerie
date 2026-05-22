@@ -156,7 +156,10 @@ function parseApiticDate(s: string): number {
 // and rely on retry-on-429 for bursts.
 // ────────────────────────────────────────────────────────────────────────
 
-const MAX_CONCURRENT = 8;
+// Keep concurrency low: APITIC throttles (or times out) when too many
+// parallel requests hit the same account. Single-day fetches are reliable;
+// 8 simultaneous ones are not. Override via APITIC_MAX_CONCURRENT if needed.
+const MAX_CONCURRENT = Number(process.env.APITIC_MAX_CONCURRENT || "3");
 let inflight = 0;
 const queue: (() => void)[] = [];
 

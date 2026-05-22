@@ -16,7 +16,9 @@
 
 const url = process.env.DASHBOARD_URL?.replace(/\/+$/, "");
 const token = process.env.ADMIN_TOKEN;
-const chunkDays = Number(process.env.CHUNK_DAYS || "30");
+// 10-day chunks: at MAX_CONCURRENT=3, worst case is ~4 batches×60s = 240s,
+// well inside the 300s server timeout. Use CHUNK_DAYS env to override.
+const chunkDays = Number(process.env.CHUNK_DAYS || "10");
 const historyDays = Number(process.env.HISTORY_DAYS || "540");
 const only = process.env.ONLY_STORE || null;
 
