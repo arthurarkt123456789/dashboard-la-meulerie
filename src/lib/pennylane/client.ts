@@ -58,16 +58,24 @@ export async function fetchTrialBalance(
       const body = await res.text().catch(() => "");
       throw new Error(`Pennylane trial_balance ${res.status}: ${body}`);
     }
-    const json = await res.json() as {
-      trial_balance?: {
-        ledger_account_number?: string;
-        ledger_account_name?: string;
-        debit?: string | number;
-        credit?: string | number;
-      }[];
-      meta?: { next_cursor?: string };
-    };
-    for (const row of json.trial_balance ?? []) {
+    const json = await res.json() as Record<string, unknown>;
+    // Log raw response structure once to help diagnose field-name issues
+    if (!cursor) {
+      const sample = (json.trial_balance as unknown[] | undefined)?.[0];
+      console.log(
+        `[Pennylane] trial_balance ${periodStart}→${periodEnd}:`,
+        `${(json.trial_balance as unknown[] | undefined)?.length ?? 0} lines,`,
+        "top-level keys:", Object.keys(json).join(", "),
+        sample ? `| first line keys: ${Object.keys(sample as object).join(", ")}` : "| empty",
+      );
+    }
+    const rows = (json.trial_balance as {
+      ledger_account_number?: string;
+      ledger_account_name?: string;
+      debit?: string | number;
+      credit?: string | number;
+    }[] | undefined) ?? [];
+    for (const row of rows) {
       // Handle both string ("1234.56") and numeric (1234.56) formats
       const debit = typeof row.debit === "string" ? parseFloat(row.debit) || 0 : (row.debit ?? 0);
       const credit = typeof row.credit === "string" ? parseFloat(row.credit) || 0 : (row.credit ?? 0);
@@ -79,7 +87,7 @@ export async function fetchTrialBalance(
         balance: debit - credit,
       });
     }
-    cursor = json.meta?.next_cursor ?? null;
+    cursor = (json.meta as { next_cursor?: string } | undefined)?.next_cursor ?? null;
   } while (cursor);
 
   return lines;
