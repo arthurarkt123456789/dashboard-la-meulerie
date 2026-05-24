@@ -126,6 +126,7 @@ function MonthTable({ months, selectedKeys }: { months: EnrichedMonth[]; selecte
             {pts.map((m) => (
               <td key={m.month} style={{ ...tdBase, color: "var(--fg-primary)" }}>
                 {fmtK(m.coutMatiere)} €
+                {m.ca > 0 && <div style={{ fontSize: 11, color: "var(--fg-tertiary)", fontWeight: 400 }}>{((m.coutMatiere / m.ca) * 100).toFixed(1)}%</div>}
               </td>
             ))}
           </tr>
@@ -139,6 +140,7 @@ function MonthTable({ months, selectedKeys }: { months: EnrichedMonth[]; selecte
                 color: m.msIsEstimated ? "var(--status-warning)" : "var(--fg-primary)",
               }}>
                 {m.msIsEstimated ? "~" : ""}{fmtK(m.effectiveMS)} €
+                {m.ca > 0 && <div style={{ fontSize: 11, color: m.msIsEstimated ? "var(--status-warning)" : "var(--fg-tertiary)", fontWeight: 400 }}>{((m.effectiveMS / m.ca) * 100).toFixed(1)}%</div>}
               </td>
             ))}
           </tr>
@@ -149,6 +151,7 @@ function MonthTable({ months, selectedKeys }: { months: EnrichedMonth[]; selecte
             {pts.map((m) => (
               <td key={m.month} style={{ ...tdBase, color: "var(--fg-primary)" }}>
                 {fmtK(m.chargesExploitation)} €
+                {m.ca > 0 && <div style={{ fontSize: 11, color: "var(--fg-tertiary)", fontWeight: 400 }}>{((m.chargesExploitation / m.ca) * 100).toFixed(1)}%</div>}
               </td>
             ))}
           </tr>
@@ -168,13 +171,13 @@ function MonthTable({ months, selectedKeys }: { months: EnrichedMonth[]; selecte
                   ? "var(--status-success)"
                   : "var(--color-coral)";
                 return (
-                  <td key={m.month} style={{
-                    ...tdBase,
-                    fontWeight: 600,
-                    color,
-                    borderTop: "2px solid var(--border-medium)",
-                  }}>
-                    {m.ca === 0 ? "—" : `${m.ebitdaIsEstimated ? "~" : ""}${fmtK(m.ebitda)} €`}
+                  <td key={m.month} style={{ ...tdBase, fontWeight: 600, color, borderTop: "2px solid var(--border-medium)" }}>
+                    {m.ca === 0 ? "—" : (
+                      <>
+                        {m.ebitdaIsEstimated ? "~" : ""}{fmtK(m.ebitda)} €
+                        <div style={{ fontSize: 11, fontWeight: 400 }}>{m.ebitdaPct.toFixed(1)}%</div>
+                      </>
+                    )}
                   </td>
                 );
               })}
@@ -200,6 +203,7 @@ function PLDetail({ agg }: { agg: Agg }) {
     label: string; sub?: string; val: number; estimated?: boolean;
     bold?: boolean; separator?: boolean; color?: string;
   }) {
+    const pct = hasCA && val !== 0 ? ((val / agg.ca) * 100).toFixed(1) + "%" : null;
     return (
       <div style={{
         display: "flex",
@@ -219,17 +223,24 @@ function PLDetail({ agg }: { agg: Agg }) {
           {sub && <span style={{ fontSize: 10, opacity: 0.6, marginLeft: 4 }}>{sub}</span>}
           {estimated && <span style={{ fontSize: 10, marginLeft: 4, color: "var(--status-warning)" }}> est.</span>}
         </span>
-        <span style={{
-          fontFamily: "var(--font-display)",
-          fontSize: bold ? 16 : 13,
-          fontWeight: bold ? 700 : 500,
-          fontVariantNumeric: "tabular-nums",
-          color: color ?? (estimated ? "var(--status-warning)" : "var(--fg-primary)"),
-        }}>
-          {estimated ? "~ " : ""}{fmtEUR(val)}
-          {hasCA && bold && val !== 0 && (
-            <span style={{ fontSize: 11, fontWeight: 400, color: "var(--fg-tertiary)", marginLeft: 6 }}>
-              {((val / agg.ca) * 100).toFixed(1)}%
+        <span style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+          {pct && !bold && (
+            <span style={{ fontSize: 11, color: "var(--fg-tertiary)", fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums" }}>
+              {pct}
+            </span>
+          )}
+          <span style={{
+            fontFamily: "var(--font-display)",
+            fontSize: bold ? 16 : 13,
+            fontWeight: bold ? 700 : 500,
+            fontVariantNumeric: "tabular-nums",
+            color: color ?? (estimated ? "var(--status-warning)" : "var(--fg-primary)"),
+          }}>
+            {estimated ? "~ " : ""}{fmtEUR(val)}
+          </span>
+          {pct && bold && (
+            <span style={{ fontSize: 11, fontWeight: 400, color: "var(--fg-tertiary)", fontVariantNumeric: "tabular-nums" }}>
+              {pct}
             </span>
           )}
         </span>
@@ -358,12 +369,12 @@ export function FinancialBlock({ storeId, daily, period }: Props) {
     return { label, ca, coutMatiere, effectiveMS, msIsEstimated, chargesExploitation, remboursementCapital, interetsEmprunt, ebitda, ebitdaIsEstimated: msIsEstimated, netDispo, ebitdaPct: ca > 0 ? (ebitda / ca) * 100 : 0, netDispoPct: ca > 0 ? (netDispo / ca) * 100 : 0 };
   }, [months, selectedKeys]);
 
-  // LineChart data: one point per month with data
+  // LineChart data: % of CA per month (only months where CA is known)
   const chartData = useMemo(() =>
-    months.filter((m) => m.hasData).map((m) => ({
+    months.filter((m) => m.hasData && m.ca > 0).map((m) => ({
       date: m.month + "-01",
-      coutMatiere: m.coutMatiere,
-      masseSalariale: m.effectiveMS,
+      coutMatiere: Math.round((m.coutMatiere / m.ca) * 1000) / 10,
+      masseSalariale: Math.round((m.effectiveMS / m.ca) * 1000) / 10,
     })),
   [months]);
 
@@ -413,7 +424,7 @@ export function FinancialBlock({ storeId, daily, period }: Props) {
           height={200}
           granularity="month"
           showLegend
-          yFormat={fmtEURshort}
+          yFormat={(n) => n.toFixed(1) + "%"}
         />
         <div style={{ padding: "0 20px 20px" }}>
           <MonthTable months={months} selectedKeys={selectedKeys} />
