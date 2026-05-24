@@ -32,33 +32,28 @@ export async function GET(req: NextRequest) {
     try {
       const lines = await fetchTrialBalance(config.token, start, end);
       const costs = aggregateFromLines(lines);
+      const diag = (lines as unknown as { _diag?: object })._diag as Record<string, unknown> | undefined;
       months.push({
         month,
         ...costs,
-        // In debug mode: include raw lines for the most recent month only
-        ...(debug && month === periods.at(-1)?.month
+        // Always include lightweight diagnostic for the most recent month
+        // so field-name / structure issues are visible in the API response.
+        ...(month === periods.at(-1)?.month
           ? {
-              _debug: {
-                lineCount: lines.length,
-                firstLineKeys: lines[0] ? Object.keys(lines[0]) : [],
-                sample6x: lines
-                  .filter((l) => l.ledger_account_number.startsWith("6"))
-                  .slice(0, 10)
-                  .map((l) => ({
-                    n: l.ledger_account_number,
-                    name: l.ledger_account_name,
-                    debit: l.debit,
-                    credit: l.credit,
-                    balance: l.balance,
-                  })),
-                sample16x: lines
-                  .filter((l) => l.ledger_account_number.startsWith("16"))
-                  .slice(0, 5)
-                  .map((l) => ({
-                    n: l.ledger_account_number,
-                    debit: l.debit,
-                    credit: l.credit,
-                  })),
+              _diag: {
+                ...(diag ?? {}),
+                sample6x: (debug
+                  ? lines
+                      .filter((l) => l.ledger_account_number.startsWith("6"))
+                      .slice(0, 15)
+                      .map((l) => ({
+                        n: l.ledger_account_number,
+                        name: l.ledger_account_name,
+                        debit: l.debit,
+                        credit: l.credit,
+                        balance: l.balance,
+                      }))
+                  : undefined),
               },
             }
           : {}),

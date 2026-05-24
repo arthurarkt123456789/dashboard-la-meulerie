@@ -59,29 +59,50 @@ export async function fetchTrialBalance(
       throw new Error(`Pennylane trial_balance ${res.status}: ${body}`);
     }
     const json = await res.json() as Record<string, unknown>;
-    // Log raw response structure once to help diagnose field-name issues
+
+    // Pennylane may wrap the array under different keys depending on API version.
+    // Try all known structures in order of likelihood.
+    const rawRows: unknown[] =
+      (Array.isArray(json.trial_balance) ? json.trial_balance : null) ??
+      (Array.isArray((json as Record<string, Record<string, unknown>>).data?.trial_balance)
+        ? (json as Record<string, Record<string, unknown[]>>).data.trial_balance
+        : null) ??
+      (Array.isArray(json.data) ? (json.data as unknown[]) : null) ??
+      (Array.isArray(json.entries) ? (json.entries as unknown[]) : null) ??
+      [];
+
+    // Expose top-level keys in a header so callers can diagnose structure issues.
     if (!cursor) {
-      const sample = (json.trial_balance as unknown[] | undefined)?.[0];
+      const firstRowKeys = rawRows[0] ? Object.keys(rawRows[0] as object) : [];
       console.log(
         `[Pennylane] trial_balance ${periodStart}→${periodEnd}:`,
-        `${(json.trial_balance as unknown[] | undefined)?.length ?? 0} lines,`,
-        "top-level keys:", Object.keys(json).join(", "),
-        sample ? `| first line keys: ${Object.keys(sample as object).join(", ")}` : "| empty",
+        `${rawRows.length} rows, topKeys=[${Object.keys(json).join(",")}]`,
+        rawRows.length ? `firstRowKeys=[${firstRowKeys.join(",")}]` : "",
       );
+      // Attach diagnostic info to the lines array so callers can surface it.
+      (lines as unknown as { _diag?: object })._diag = {
+        topKeys: Object.keys(json),
+        rowCount: rawRows.length,
+        firstRowKeys,
+      };
     }
-    const rows = (json.trial_balance as {
-      ledger_account_number?: string;
-      ledger_account_name?: string;
-      debit?: string | number;
-      credit?: string | number;
-    }[] | undefined) ?? [];
-    for (const row of rows) {
-      // Handle both string ("1234.56") and numeric (1234.56) formats
-      const debit = typeof row.debit === "string" ? parseFloat(row.debit) || 0 : (row.debit ?? 0);
-      const credit = typeof row.credit === "string" ? parseFloat(row.credit) || 0 : (row.credit ?? 0);
+
+    for (const raw of rawRows) {
+      const row = raw as Record<string, unknown>;
+      // Field names vary across Pennylane API versions — try all known aliases.
+      const accountNumber = String(
+        row.ledger_account_number ?? row.account_number ?? row.number ?? "",
+      );
+      const accountName = String(
+        row.ledger_account_name ?? row.account_name ?? row.name ?? "",
+      );
+      const toNum = (v: unknown) =>
+        typeof v === "number" ? v : parseFloat(String(v ?? "0")) || 0;
+      const debit = toNum(row.debit ?? row.debit_amount ?? row.debit_sum);
+      const credit = toNum(row.credit ?? row.credit_amount ?? row.credit_sum);
       lines.push({
-        ledger_account_number: row.ledger_account_number ?? "",
-        ledger_account_name: row.ledger_account_name ?? "",
+        ledger_account_number: accountNumber,
+        ledger_account_name: accountName,
         debit,
         credit,
         balance: debit - credit,
