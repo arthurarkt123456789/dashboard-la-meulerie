@@ -24,6 +24,7 @@ import { PaymentsCard } from "./PaymentsCard";
 import { SegmentSplit } from "./SegmentSplit";
 import { SegmentFilterInline, useSegmentFilter } from "./SegmentFilter";
 import { BootstrapButton } from "./BootstrapButton";
+import { FinancialBlock } from "./FinancialBlock";
 
 type Props = {
   store: StoreData;
@@ -391,6 +392,10 @@ export function StoreView({ store, period, today, amountMode }: Props) {
       >
         <FormulesCard formules={periodFormules} amountMode={amountMode} />
       </Card>
+
+      {store.id === "davso" && (
+        <FinancialBlock storeId={store.id} period={period} caTTC={m.ca} />
+      )}
     </div>
   );
 }
