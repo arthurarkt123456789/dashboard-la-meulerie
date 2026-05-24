@@ -8,7 +8,10 @@ export async function GET() {
     const data = await getAllStoreData();
     return NextResponse.json(data, {
       headers: {
-        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+        // private: CDN/proxy must not cache this — the refresh button would
+        // get a stale CDN response otherwise. TanStack Query handles its own
+        // 60s client-side staleTime; no server-side shared cache needed.
+        "Cache-Control": "private, no-cache",
       },
     });
   } catch (err) {
