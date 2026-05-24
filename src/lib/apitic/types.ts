@@ -16,7 +16,6 @@ export type Store = {
   name: string;
   fullName: string;
   address: string;
-  manager: string;
   /** Human label, e.g. "2019" or "nov. 2025" */
   opened: string;
   /** ISO YYYY-MM-DD, used for YoY comparability */
@@ -40,6 +39,18 @@ export type StoreDaily = {
   snackingTx?: number;
   closed?: boolean;    // day before store opened
   partial?: boolean;   // day in progress
+  // Per-day formule breakdown — allows period-aware computation in the UI.
+  grilledUnits?: number;
+  grilledCA?: number;
+  grilledCAHT?: number;
+  baguetteUnits?: number;
+  baguetteCA?: number;
+  baguetteCAHT?: number;
+  // Per-day payment amounts (€ TTC) — same purpose.
+  cbAmount?: number;
+  virementAmount?: number;
+  especesAmount?: number;
+  ticketsRestoAmount?: number;
 };
 
 export type StoreHourly = {

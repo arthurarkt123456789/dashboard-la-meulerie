@@ -575,7 +575,9 @@ async function aggregateOneStore(
       : storeMeta.openedDate);
   const openedTs = new Date(`${effectiveOpenedDate}T00:00:00Z`).getTime();
 
-  // 3. Build StoreDaily[] — mark anything before the first sale as `closed`.
+  // 3. Build StoreDaily[] — mark anything before the first sale as `closed`,
+  //    and enrich each open day with per-day formule + payment breakdown so
+  //    the UI can aggregate them over any selected period without a server round-trip.
   const daily: StoreDaily[] = dates.map((date) => {
     const dTs = new Date(`${date}T00:00:00Z`).getTime();
     if (dTs < openedTs) {
@@ -594,13 +596,50 @@ async function aggregateOneStore(
       };
     }
     const sales = salesByDate.get(date) ?? [];
-    return rollupDay(
+    const base = rollupDay(
       sales,
       date,
       productLookup,
       (id) => segmentOf(id, categoryLookup.get(id)?.name),
       segmentMapper.defaultSegment,
     );
+
+    // Per-day formule and payment breakdown for period-aware UI aggregation.
+    let grilledUnits = 0, grilledCA = 0, grilledCAHT = 0;
+    let baguetteUnits = 0, baguetteCA = 0, baguetteCAHT = 0;
+    let cbAmount = 0, virementAmount = 0, especesAmount = 0, ticketsRestoAmount = 0;
+    for (const sale of sales) {
+      for (const line of sale.lines ?? []) {
+        if (line.line_type !== "sale") continue;
+        const product = productLookup.get(line.product_id);
+        if (!product) continue;
+        const k = classifyFormule(product.name);
+        if (k === "grilled") { grilledUnits += line.quantity; grilledCA += line.ati_price; grilledCAHT += line.price_excl_tax; }
+        else if (k === "baguette") { baguetteUnits += line.quantity; baguetteCA += line.ati_price; baguetteCAHT += line.price_excl_tax; }
+      }
+      for (const p of sale.payments ?? []) {
+        const name = paymentLookup.get(p.payment_mean_id)?.name ?? "";
+        const method = classifyPayment(name);
+        if (method === "Carte bancaire") cbAmount += p.amount;
+        else if (method === "Virement") virementAmount += p.amount;
+        else if (method === "Espèces") especesAmount += p.amount;
+        else if (method === "Tickets resto") ticketsRestoAmount += p.amount;
+      }
+    }
+
+    return {
+      ...base,
+      grilledUnits,
+      grilledCA: Math.round(grilledCA),
+      grilledCAHT: Math.round(grilledCAHT * 100) / 100,
+      baguetteUnits,
+      baguetteCA: Math.round(baguetteCA),
+      baguetteCAHT: Math.round(baguetteCAHT * 100) / 100,
+      cbAmount: Math.round(cbAmount * 100) / 100,
+      virementAmount: Math.round(virementAmount * 100) / 100,
+      especesAmount: Math.round(especesAmount * 100) / 100,
+      ticketsRestoAmount: Math.round(ticketsRestoAmount * 100) / 100,
+    };
   });
 
   // 4. Intraday profile averaged over the last 30 closed days (yesterday and back).
@@ -641,7 +680,6 @@ async function aggregateOneStore(
     name: storeMeta.name,
     fullName: storeMeta.fullName,
     address: storeMeta.address,
-    manager: storeMeta.manager,
     opened: openedLabel,
     openedDate: effectiveOpenedDate,
     daily,
@@ -662,7 +700,6 @@ export function listConfiguredStores(): Store[] {
     name: meta.name,
     fullName: meta.fullName,
     address: meta.address,
-    manager: meta.manager,
     opened: meta.opened,
     openedDate: meta.openedDate,
   }));

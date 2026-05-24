@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { PeriodSelection, StoreData } from "@/lib/apitic/types";
+import type { FormuleStats, PaymentMethod, PaymentSplit, PeriodSelection, StoreData } from "@/lib/apitic/types";
 import { maybeBucket, type Granularity } from "@/lib/bucketing";
 import { GranularityToggle } from "./GranularityToggle";
 import { N1Toggle } from "./N1Toggle";
@@ -111,6 +111,57 @@ export function StoreView({ store, period, today, amountMode }: Props) {
     }));
     return maybeBucket(raw, effectiveGranularity);
   }, [m.yoyAvailable, m.days, store.daily, lineData, effectiveGranularity, isHT, period]);
+  // Formule and payment stats computed from the period's daily slice so they
+  // react to the date selector instead of always showing "30 derniers jours".
+  const periodFormules = useMemo<FormuleStats>(() => {
+    const todayISO = store.daily[store.daily.length - 1]?.date ?? "";
+    const { from, to } = rangeForSelection(period, todayISO);
+    const slice = store.daily.filter((d) => d.date >= from && d.date <= to && !d.closed);
+    return {
+      endDate: slice[slice.length - 1]?.date ?? "",
+      days: slice.length,
+      byKind: {
+        grilled: {
+          units: slice.reduce((s, d) => s + (d.grilledUnits ?? 0), 0),
+          ca: slice.reduce((s, d) => s + (d.grilledCA ?? 0), 0),
+          caHT: slice.reduce((s, d) => s + (d.grilledCAHT ?? 0), 0),
+        },
+        baguette: {
+          units: slice.reduce((s, d) => s + (d.baguetteUnits ?? 0), 0),
+          ca: slice.reduce((s, d) => s + (d.baguetteCA ?? 0), 0),
+          caHT: slice.reduce((s, d) => s + (d.baguetteCAHT ?? 0), 0),
+        },
+      },
+      snackingCA: slice.reduce((s, d) => s + d.snackingCA, 0),
+      snackingCAHT: slice.reduce((s, d) => s + (d.snackingCAHT ?? 0), 0),
+      snackingTx: slice.reduce((s, d) => s + (d.snackingTx ?? 0), 0),
+    };
+  }, [store.daily, period]);
+
+  const periodPayments = useMemo<PaymentSplit[]>(() => {
+    const todayISO = store.daily[store.daily.length - 1]?.date ?? "";
+    const { from, to } = rangeForSelection(period, todayISO);
+    const slice = store.daily.filter((d) => d.date >= from && d.date <= to && !d.closed);
+    const totalTTC = slice.reduce((s, d) => s + d.ca, 0);
+    const totalHT = slice.reduce((s, d) => s + (d.caHT ?? 0), 0);
+    const htRatio = totalTTC > 0 ? totalHT / totalTTC : 1;
+    const amounts: Record<PaymentMethod, number> = {
+      "Carte bancaire": slice.reduce((s, d) => s + (d.cbAmount ?? 0), 0),
+      "Virement": slice.reduce((s, d) => s + (d.virementAmount ?? 0), 0),
+      "Espèces": slice.reduce((s, d) => s + (d.especesAmount ?? 0), 0),
+      "Tickets resto": slice.reduce((s, d) => s + (d.ticketsRestoAmount ?? 0), 0),
+    };
+    const total = Object.values(amounts).reduce((s, v) => s + v, 0);
+    return (["Carte bancaire", "Virement", "Espèces", "Tickets resto"] as PaymentMethod[]).map(
+      (method) => ({
+        method,
+        share: total > 0 ? amounts[method] / total : 0,
+        amount: amounts[method],
+        amountHT: amounts[method] * htRatio,
+      }),
+    );
+  }, [store.daily, period]);
+
   const openedDate = new Date(store.openedDate + "T00:00:00");
   const monthsOpen = Math.round(
     (today.getTime() - openedDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44),
@@ -138,8 +189,6 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           <h2 className="lm-store-title">{store.fullName}</h2>
           <div className="lm-store-meta">
             <span>{store.address}</span>
-            <span className="lm-dot">·</span>
-            <span>Responsable : {store.manager}</span>
             <span className="lm-dot">·</span>
             <span>{openSinceLabel}</span>
             {!m.yoyAvailable && (
@@ -331,16 +380,16 @@ export function StoreView({ store, period, today, amountMode }: Props) {
 
       <Card
         title="Moyens de paiement"
-        subtitle={`30 derniers jours · ${isHT ? "HT" : "TTC"}`}
+        subtitle={`${periodLabel} · ${isHT ? "HT" : "TTC"}`}
       >
-        <PaymentsCard payments={store.payments} amountMode={amountMode} />
+        <PaymentsCard payments={periodPayments} amountMode={amountMode} />
       </Card>
 
       <Card
         title="Formules lunch"
-        subtitle="30 derniers jours · part du CA et tickets snacking"
+        subtitle={`${periodLabel} · part du CA et tickets snacking`}
       >
-        <FormulesCard formules={store.formules} amountMode={amountMode} />
+        <FormulesCard formules={periodFormules} amountMode={amountMode} />
       </Card>
     </div>
   );

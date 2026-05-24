@@ -7,7 +7,7 @@ import type { Segment, Store } from "./types";
 // running /api/admin/discover.
 // ────────────────────────────────────────────────────────────────────────
 
-type StoreMeta = Omit<Store, never> & {
+type StoreMeta = Store & {
   envVar: string;
   openedEnvVar: string;
 };
@@ -18,7 +18,6 @@ export const STORE_META: StoreMeta[] = [
     name: "Davso",
     fullName: "La Meulerie Davso",
     address: "12 rue Francis Davso, 13001 Marseille",
-    manager: "Camille Vidal",
     opened: "2019",
     openedDate: "2019-03-15",
     envVar: "APITIC_ACCOUNT_DAVSO",
@@ -29,7 +28,6 @@ export const STORE_META: StoreMeta[] = [
     name: "Endoume",
     fullName: "La Meulerie Endoume",
     address: "8 rue d'Endoume, 13007 Marseille",
-    manager: "Léa Bertin",
     opened: "2021",
     openedDate: "2021-09-01",
     envVar: "APITIC_ACCOUNT_ENDOUME",
@@ -40,7 +38,6 @@ export const STORE_META: StoreMeta[] = [
     name: "Malmousque",
     fullName: "La Meulerie Malmousque",
     address: "3 traverse Malmousque, 13007 Marseille",
-    manager: "Théo Salvini",
     opened: "2023",
     openedDate: "2023-06-10",
     envVar: "APITIC_ACCOUNT_MALMOUSQUE",
@@ -51,7 +48,6 @@ export const STORE_META: StoreMeta[] = [
     name: "République",
     fullName: "La Meulerie République",
     address: "45 rue de la République, 13002 Marseille",
-    manager: "Yanis Moreau",
     opened: "2021",
     openedDate: "2021-01-01",
     envVar: "APITIC_ACCOUNT_REPUBLIQUE",

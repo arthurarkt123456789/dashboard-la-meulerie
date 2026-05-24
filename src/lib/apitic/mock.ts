@@ -39,7 +39,6 @@ const STORE_SEEDS: StoreSeed[] = [
     name: "Davso",
     fullName: "La Meulerie Davso",
     address: "12 rue Francis Davso, 13001 Marseille",
-    manager: "Camille Vidal",
     opened: "2019",
     openedDate: "2019-03-15",
     seed: 11,
@@ -55,7 +54,6 @@ const STORE_SEEDS: StoreSeed[] = [
     name: "Endoume",
     fullName: "La Meulerie Endoume",
     address: "8 rue d'Endoume, 13007 Marseille",
-    manager: "Léa Bertin",
     opened: "2021",
     openedDate: "2021-09-01",
     seed: 22,
@@ -71,7 +69,6 @@ const STORE_SEEDS: StoreSeed[] = [
     name: "Malmousque",
     fullName: "La Meulerie Malmousque",
     address: "3 traverse Malmousque, 13007 Marseille",
-    manager: "Théo Salvini",
     opened: "2023",
     openedDate: "2023-06-10",
     seed: 33,
@@ -87,8 +84,7 @@ const STORE_SEEDS: StoreSeed[] = [
     name: "République",
     fullName: "La Meulerie République",
     address: "45 rue de la République, 13002 Marseille",
-    manager: "Yanis Moreau",
-    opened: "nov. 2025",
+    opened: "2021",
     openedDate: "2025-11-15",
     seed: 44,
     baseCA: 3420,
@@ -192,6 +188,17 @@ function generateDaily(store: StoreSeed, today: Date): StoreDaily[] {
     const fromagerieCA = Math.round(ca * (1 - store.snackingShare) * (0.92 + rng() * 0.16));
     const snackingCA = Math.round(ca * store.snackingShare * (0.92 + rng() * 0.16));
     const caHT = ca / 1.1; // approx 10% VAT for the mock
+    // Approximate formule share: ~25% of snacking is Menu Grilled, ~15% Menu Baguette
+    const grilledCA = Math.round(snackingCA * 0.25 * (0.85 + rng() * 0.3));
+    const baguetteCA = Math.round(snackingCA * 0.15 * (0.85 + rng() * 0.3));
+    const avgFmPrice = 9.5;
+    const grilledUnits = Math.round(grilledCA / avgFmPrice);
+    const baguetteUnits = Math.round(baguetteCA / avgFmPrice);
+    // Approximate payment split: CB ~65%, Espèces ~20%, TR ~12%, Virement ~3%
+    const cbAmount = Math.round(ca * 0.65 * 100) / 100;
+    const especesAmount = Math.round(ca * 0.20 * 100) / 100;
+    const ticketsRestoAmount = Math.round(ca * 0.12 * 100) / 100;
+    const virementAmount = Math.round(ca * 0.03 * 100) / 100;
     series.push({
       date: iso,
       ca: Math.round(ca),
@@ -203,6 +210,16 @@ function generateDaily(store: StoreSeed, today: Date): StoreDaily[] {
       fromagerieCAHT: Math.round((fromagerieCA / 1.1) * 100) / 100,
       snackingCA,
       snackingCAHT: Math.round((snackingCA / 1.1) * 100) / 100,
+      grilledUnits,
+      grilledCA,
+      grilledCAHT: Math.round((grilledCA / 1.1) * 100) / 100,
+      baguetteUnits,
+      baguetteCA,
+      baguetteCAHT: Math.round((baguetteCA / 1.1) * 100) / 100,
+      cbAmount,
+      especesAmount,
+      ticketsRestoAmount,
+      virementAmount,
     });
   }
   // partial day for today
