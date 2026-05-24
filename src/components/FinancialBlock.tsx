@@ -13,6 +13,11 @@ type CostMonth = {
   remboursementCapital: number;
   interetsEmprunt: number;
   error?: string;
+  _diag?: {
+    topKeys?: string[];
+    rowCount?: number;
+    firstRowKeys?: string[];
+  };
 };
 
 type MonthlyResponse = { months: CostMonth[] };
@@ -349,12 +354,36 @@ export function FinancialBlock({ storeId, daily }: Props) {
           {/* Trend chart */}
           <TrendChart months={months} />
 
-          {!months.some((m) => m.hasData) && (
-            <div style={{ color: fgMuted, fontSize: 12 }}>
-              Aucune donnée comptable disponible dans Pennylane pour les 12 derniers mois.
-              Vérifiez que les écritures sont saisies (comptes 6x).
-            </div>
-          )}
+          {!months.some((m) => m.hasData) && (() => {
+            const diag = months.at(-1)?._diag;
+            return (
+              <div style={{ fontSize: 12, lineHeight: 1.6 }}>
+                <div style={{ color: "rgba(255,255,255,0.7)", marginBottom: 6 }}>
+                  Aucune donnée comptable trouvée dans Pennylane pour les 12 derniers mois.
+                </div>
+                {diag && (
+                  <div style={{
+                    fontFamily: "monospace", fontSize: 11,
+                    color: "rgba(255,255,255,0.4)",
+                    background: "rgba(255,255,255,0.04)",
+                    padding: "8px 10px", borderRadius: 6,
+                  }}>
+                    <div>Réponse Pennylane · {diag.rowCount ?? "?"} ligne(s)</div>
+                    {diag.topKeys && <div>Clés reçues : {diag.topKeys.join(", ") || "aucune"}</div>}
+                    {diag.firstRowKeys && diag.firstRowKeys.length > 0 && (
+                      <div>Champs d&apos;une ligne : {diag.firstRowKeys.join(", ")}</div>
+                    )}
+                    {diag.rowCount === 0 && (
+                      <div style={{ marginTop: 4, color: "rgba(255,255,255,0.55)" }}>
+                        → Aucune écriture saisie pour cette période dans Pennylane,
+                        ou le plan ne donne pas accès à trial_balance.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Latest month breakdown */}
           {latest && (
