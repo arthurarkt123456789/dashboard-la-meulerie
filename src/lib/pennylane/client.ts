@@ -34,11 +34,16 @@ function inRange(account: string, prefix: string): boolean {
 
 // ─── API fetch ───────────────────────────────────────────────────────────────
 
+export type FetchResult = {
+  lines: TrialBalanceLine[];
+  diag: { topKeys: string[]; rowCount: number; firstRowKeys: string[] };
+};
+
 export async function fetchTrialBalance(
   token: string,
   periodStart: string,
   periodEnd: string,
-): Promise<TrialBalanceLine[]> {
+): Promise<FetchResult> {
   const params = new URLSearchParams({
     period_start: periodStart,
     period_end: periodEnd,
@@ -47,6 +52,7 @@ export async function fetchTrialBalance(
 
   const lines: TrialBalanceLine[] = [];
   let cursor: string | null = null;
+  let diag = { topKeys: [] as string[], rowCount: 0, firstRowKeys: [] as string[] };
 
   do {
     if (cursor) params.set("cursor", cursor);
@@ -60,8 +66,7 @@ export async function fetchTrialBalance(
     }
     const json = await res.json() as Record<string, unknown>;
 
-    // Pennylane may wrap the array under different keys depending on API version.
-    // Try all known structures in order of likelihood.
+    // Try all known response structures across Pennylane API versions.
     const rawRows: unknown[] =
       (Array.isArray(json.trial_balance) ? json.trial_balance : null) ??
       (Array.isArray((json as Record<string, Record<string, unknown>>).data?.trial_balance)
@@ -71,25 +76,21 @@ export async function fetchTrialBalance(
       (Array.isArray(json.entries) ? (json.entries as unknown[]) : null) ??
       [];
 
-    // Expose top-level keys in a header so callers can diagnose structure issues.
     if (!cursor) {
-      const firstRowKeys = rawRows[0] ? Object.keys(rawRows[0] as object) : [];
-      console.log(
-        `[Pennylane] trial_balance ${periodStart}→${periodEnd}:`,
-        `${rawRows.length} rows, topKeys=[${Object.keys(json).join(",")}]`,
-        rawRows.length ? `firstRowKeys=[${firstRowKeys.join(",")}]` : "",
-      );
-      // Attach diagnostic info to the lines array so callers can surface it.
-      (lines as unknown as { _diag?: object })._diag = {
+      diag = {
         topKeys: Object.keys(json),
         rowCount: rawRows.length,
-        firstRowKeys,
+        firstRowKeys: rawRows[0] ? Object.keys(rawRows[0] as object) : [],
       };
+      console.log(
+        `[Pennylane] ${periodStart}→${periodEnd}:`,
+        `${rawRows.length} rows, keys=[${diag.topKeys.join(",")}]`,
+        rawRows.length ? `rowKeys=[${diag.firstRowKeys.join(",")}]` : "(empty)",
+      );
     }
 
     for (const raw of rawRows) {
       const row = raw as Record<string, unknown>;
-      // Field names vary across Pennylane API versions — try all known aliases.
       const accountNumber = String(
         row.ledger_account_number ?? row.account_number ?? row.number ?? "",
       );
@@ -100,18 +101,12 @@ export async function fetchTrialBalance(
         typeof v === "number" ? v : parseFloat(String(v ?? "0")) || 0;
       const debit = toNum(row.debit ?? row.debit_amount ?? row.debit_sum);
       const credit = toNum(row.credit ?? row.credit_amount ?? row.credit_sum);
-      lines.push({
-        ledger_account_number: accountNumber,
-        ledger_account_name: accountName,
-        debit,
-        credit,
-        balance: debit - credit,
-      });
+      lines.push({ ledger_account_number: accountNumber, ledger_account_name: accountName, debit, credit, balance: debit - credit });
     }
     cursor = (json.meta as { next_cursor?: string } | undefined)?.next_cursor ?? null;
   } while (cursor);
 
-  return lines;
+  return { lines, diag };
 }
 
 // ─── Aggregation ─────────────────────────────────────────────────────────────
@@ -169,7 +164,7 @@ export async function getFinancialData(
   const config = getPennylaneConfig(storeId);
   if (!config) throw new Error(`No Pennylane config for store: ${storeId}`);
 
-  const lines = await fetchTrialBalance(config.token, periodStart, periodEnd);
+  const { lines } = await fetchTrialBalance(config.token, periodStart, periodEnd);
   const costs = aggregateFromLines(lines);
 
   const ebitda = ca - costs.coutMatiere - costs.masseSalariale - costs.chargesExploitation;
