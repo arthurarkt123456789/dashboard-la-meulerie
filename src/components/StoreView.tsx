@@ -394,7 +394,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
       </Card>
 
       {store.id === "davso" && (
-        <FinancialBlock storeId={store.id} daily={store.daily} />
+        <FinancialBlock storeId={store.id} daily={store.daily} period={period} />
       )}
     </div>
   );

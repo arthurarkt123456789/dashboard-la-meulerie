@@ -1,14 +1,22 @@
 import "server-only";
+import {
+  lastClosedMonth as _lastClosedMonth,
+  firstDayOfMonth as _firstDayOfMonth,
+  lastDayOfMonth as _lastDayOfMonth,
+  getPastMonths as _getPastMonths,
+  periodToFinancialRange as _periodToFinancialRange,
+} from "./periods";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Pennylane API client — Trial Balance
-//
-// Env vars (one set per store that has Pennylane enabled):
-//   PENNYLANE_TOKEN_DAVSO      — developer token (trial_balance:readonly scope)
-//   PENNYLANE_COMPANY_DAVSO    — numeric company ID visible in the URL
 // ─────────────────────────────────────────────────────────────────────────────
 
 const BASE = "https://app.pennylane.com/api/external/v2";
+
+// Re-export period helpers so server routes can import from a single place.
+export const lastClosedMonth = _lastClosedMonth;
+export const getPastMonths = _getPastMonths;
+export const periodToFinancialRange = _periodToFinancialRange;
 
 export type TrialBalanceLine = {
   ledger_account_number: string;
@@ -184,89 +192,3 @@ export async function getFinancialData(
   };
 }
 
-// ─── Period helpers ───────────────────────────────────────────────────────────
-
-function lastDayOfMonth(year: number, month: number): string {
-  return new Date(year, month, 0).toISOString().slice(0, 10);
-}
-
-function firstDayOfMonth(year: number, month: number): string {
-  return `${year}-${String(month).padStart(2, "0")}-01`;
-}
-
-export function lastClosedMonth(): { start: string; end: string } {
-  const now = new Date();
-  const parisStr = new Intl.DateTimeFormat("fr-CA", {
-    timeZone: "Europe/Paris",
-    year: "numeric",
-    month: "2-digit",
-  }).format(now);
-  const [y, m] = parisStr.split("-").map(Number);
-  const month = m === 1 ? 12 : m - 1;
-  const year = m === 1 ? y - 1 : y;
-  return {
-    start: firstDayOfMonth(year, month),
-    end: lastDayOfMonth(year, month),
-  };
-}
-
-/** Returns the last N closed months in chronological order (oldest first). */
-export function getPastMonths(n: number): Array<{ month: string; start: string; end: string }> {
-  const lcm = lastClosedMonth();
-  const [lcmYear, lcmMonth] = lcm.start.split("-").map(Number);
-  const result = [];
-  for (let i = n - 1; i >= 0; i--) {
-    let m = lcmMonth - i;
-    let y = lcmYear;
-    while (m <= 0) { m += 12; y--; }
-    const start = firstDayOfMonth(y, m);
-    const end = lastDayOfMonth(y, m);
-    result.push({ month: start.slice(0, 7), start, end });
-  }
-  return result;
-}
-
-export function periodToFinancialRange(
-  period: { kind: string; key?: string; year?: number; month?: number; from?: string; to?: string },
-): { start: string; end: string; label: string; fallback: boolean } {
-  if (period.kind === "preset" && period.key === "7d") {
-    return { ...lastClosedMonth(), label: "dernier mois clôturé", fallback: true };
-  }
-
-  if (period.kind === "month" && period.year && period.month) {
-    const now = new Date();
-    const isCurrent = period.year === now.getFullYear() && period.month === now.getMonth() + 1;
-    if (isCurrent) {
-      return { ...lastClosedMonth(), label: "dernier mois clôturé", fallback: true };
-    }
-    const start = firstDayOfMonth(period.year, period.month);
-    const end = lastDayOfMonth(period.year, period.month);
-    const label = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" })
-      .format(new Date(start));
-    return { start, end, label, fallback: false };
-  }
-
-  if (period.kind === "preset") {
-    const months = period.key === "90d" ? 3 : 1;
-    const lcm = lastClosedMonth();
-    const [y, m] = lcm.start.split("-").map(Number);
-    const fromMonth = m - months + 1 <= 0 ? m - months + 1 + 12 : m - months + 1;
-    const fromYear = m - months + 1 <= 0 ? y - 1 : y;
-    const start = firstDayOfMonth(fromYear, fromMonth);
-    const label = months === 1 ? "dernier mois clôturé" : `${months} derniers mois clôturés`;
-    return { start, end: lcm.end, label, fallback: false };
-  }
-
-  if (period.kind === "range" && period.from && period.to) {
-    return { start: period.from, end: period.to, label: "période sélectionnée", fallback: false };
-  }
-
-  if (period.kind === "fiscal-year-todate") {
-    const lcm = lastClosedMonth();
-    const [y] = lcm.end.split("-").map(Number);
-    const fyStart = lcm.end >= `${y}-10-01` ? `${y}-10-01` : `${y - 1}-10-01`;
-    return { start: fyStart, end: lcm.end, label: "exercice en cours (mois clôturés)", fallback: false };
-  }
-
-  return { ...lastClosedMonth(), label: "dernier mois clôturé", fallback: true };
-}
