@@ -41,7 +41,6 @@ export type FetchResult = {
 
 export async function fetchTrialBalance(
   token: string,
-  companyId: string,
   periodStart: string,
   periodEnd: string,
 ): Promise<FetchResult> {
@@ -57,7 +56,7 @@ export async function fetchTrialBalance(
 
   do {
     if (cursor) params.set("cursor", cursor);
-    const res = await fetch(`${BASE}/companies/${companyId}/trial_balance?${params}`, {
+    const res = await fetch(`${BASE}/trial_balance?${params}`, {
       headers: { Authorization: `Bearer ${token}` },
       next: { revalidate: 0 },
     });
@@ -67,14 +66,15 @@ export async function fetchTrialBalance(
     }
     const json = await res.json() as Record<string, unknown>;
 
-    // Try all known response structures across Pennylane API versions.
+    // v2 2026 API returns { items: [...], has_more, next_cursor }
+    // older versions returned { trial_balance: [...] }
     const rawRows: unknown[] =
+      (Array.isArray(json.items) ? json.items : null) ??
       (Array.isArray(json.trial_balance) ? json.trial_balance : null) ??
       (Array.isArray((json as Record<string, Record<string, unknown>>).data?.trial_balance)
         ? (json as Record<string, Record<string, unknown[]>>).data.trial_balance
         : null) ??
       (Array.isArray(json.data) ? (json.data as unknown[]) : null) ??
-      (Array.isArray(json.entries) ? (json.entries as unknown[]) : null) ??
       [];
 
     if (!cursor) {
@@ -96,15 +96,19 @@ export async function fetchTrialBalance(
         row.ledger_account_number ?? row.account_number ?? row.number ?? "",
       );
       const accountName = String(
-        row.ledger_account_name ?? row.account_name ?? row.name ?? "",
+        row.ledger_account_name ?? row.account_name ?? row.label ?? row.name ?? "",
       );
       const toNum = (v: unknown) =>
         typeof v === "number" ? v : parseFloat(String(v ?? "0")) || 0;
-      const debit = toNum(row.debit ?? row.debit_amount ?? row.debit_sum);
-      const credit = toNum(row.credit ?? row.credit_amount ?? row.credit_sum);
+      const debit = toNum(row.debit ?? row.debit_amount ?? row.debit_sum ?? row.debits);
+      const credit = toNum(row.credit ?? row.credit_amount ?? row.credit_sum ?? row.credits);
       lines.push({ ledger_account_number: accountNumber, ledger_account_name: accountName, debit, credit, balance: debit - credit });
     }
-    cursor = (json.meta as { next_cursor?: string } | undefined)?.next_cursor ?? null;
+    // v2 2026: has_more + next_cursor at root level; older: meta.next_cursor
+    const hasMeta = json.meta as { next_cursor?: string } | undefined;
+    cursor = json.has_more === false
+      ? null
+      : (json.next_cursor as string | undefined) ?? hasMeta?.next_cursor ?? null;
   } while (cursor);
 
   return { lines, diag };
@@ -165,7 +169,7 @@ export async function getFinancialData(
   const config = getPennylaneConfig(storeId);
   if (!config) throw new Error(`No Pennylane config for store: ${storeId}`);
 
-  const { lines } = await fetchTrialBalance(config.token, config.companyId, periodStart, periodEnd);
+  const { lines } = await fetchTrialBalance(config.token, periodStart, periodEnd);
   const costs = aggregateFromLines(lines);
 
   const ebitda = ca - costs.coutMatiere - costs.masseSalariale - costs.chargesExploitation;

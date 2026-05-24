@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
   }
 
   const params = new URLSearchParams({ period_start: start, period_end: end, limit: "200" });
-  const res = await fetch(`${BASE}/companies/${config.companyId}/trial_balance?${params}`, {
+  const res = await fetch(`${BASE}/trial_balance?${params}`, {
     headers: { Authorization: `Bearer ${config.token}` },
   });
 
