@@ -5,7 +5,7 @@ import { SESSION_COOKIE_NAME, verifySession } from "@/lib/dashboard-auth";
 //  - /login (and its POST endpoint)
 //  - /api/admin/* (those have their own ADMIN_TOKEN auth)
 //  - Next.js internals + favicon
-const PUBLIC_PREFIXES = ["/login", "/api/login", "/api/admin/"];
+const PUBLIC_PREFIXES = ["/login", "/api/login", "/api/admin/", "/api/cron/"];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
