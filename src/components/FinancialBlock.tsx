@@ -281,8 +281,8 @@ export function FinancialBlock({ storeId, daily }: Props) {
     });
   }, [data, monthlyCA]);
 
-  // Latest month that has both CA and accounting data
-  const latest = months.filter((m) => m.hasData && m.ca > 0).at(-1);
+  // Latest month with accounting data (CA from APITIC is a bonus for EBITDA)
+  const latest = months.filter((m) => m.hasData).at(-1);
 
   const fgMuted = "rgba(255,255,255,0.5)";
   const fgMain = "#f0f4f8";
@@ -402,18 +402,13 @@ export function FinancialBlock({ storeId, daily }: Props) {
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px 40px" }}>
-                {/* Left: P&L cascade */}
+                {/* Left: coûts */}
                 <div>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: fgMain,
-                      marginBottom: 12,
-                    }}
-                  >
-                    CA · {fmtEUR(latest.ca)}
-                  </div>
+                  {latest.ca > 0 && (
+                    <div style={{ fontSize: 12, fontWeight: 600, color: fgMain, marginBottom: 12 }}>
+                      CA · {fmtEUR(latest.ca)}
+                    </div>
+                  )}
 
                   {(
                     [
@@ -423,25 +418,12 @@ export function FinancialBlock({ storeId, daily }: Props) {
                     ] as const
                   ).map(({ label, val, color, sub }) => (
                     <div key={label} style={{ marginBottom: 10 }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "baseline",
-                        }}
-                      >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                         <span style={{ fontSize: 12, color: fgMuted }}>
                           {label}{" "}
                           <span style={{ fontSize: 10, opacity: 0.6 }}>{sub}</span>
                         </span>
-                        <span
-                          style={{
-                            fontFamily: "var(--font-display)",
-                            fontSize: 13,
-                            fontVariantNumeric: "tabular-nums",
-                            color: fgMain,
-                          }}
-                        >
+                        <span style={{ fontFamily: "var(--font-display)", fontSize: 13, fontVariantNumeric: "tabular-nums", color: fgMain }}>
                           {fmtEUR(val)}
                         </span>
                       </div>
@@ -449,101 +431,92 @@ export function FinancialBlock({ storeId, daily }: Props) {
                     </div>
                   ))}
 
-                  <Sep />
-
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: fgMain }}>EBITDA</span>
-                    <div>
-                      <span
-                        style={{
-                          fontFamily: "var(--font-display)",
-                          fontSize: 16,
-                          fontWeight: 700,
-                          fontVariantNumeric: "tabular-nums",
-                          color: latest.ebitda >= 0 ? accent : danger,
-                        }}
-                      >
-                        {fmtEUR(latest.ebitda)}
-                      </span>
-                      <span style={{ fontSize: 11, color: fgMuted, marginLeft: 6 }}>
-                        {latest.ebitdaPct.toFixed(1)}%
-                      </span>
-                    </div>
-                  </div>
+                  {latest.ca > 0 && (
+                    <>
+                      <Sep />
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: fgMain }}>EBITDA</span>
+                        <div>
+                          <span style={{ fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: latest.ebitda >= 0 ? accent : danger }}>
+                            {fmtEUR(latest.ebitda)}
+                          </span>
+                          <span style={{ fontSize: 11, color: fgMuted, marginLeft: 6 }}>
+                            {latest.ebitdaPct.toFixed(1)}%
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
 
-                {/* Right: debt service → NET DISPO */}
+                {/* Right: dette → NET DISPO (seulement si CA dispo) */}
                 <div>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: fgMain,
-                      marginBottom: 12,
-                    }}
-                  >
-                    EBITDA · {fmtEUR(latest.ebitda)}
-                  </div>
+                  {latest.ca > 0 ? (
+                    <>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: fgMain, marginBottom: 12 }}>
+                        EBITDA · {fmtEUR(latest.ebitda)}
+                      </div>
 
-                  {(
-                    [
-                      { label: "Remb. capital", val: latest.remboursementCapital, sub: "16x" },
-                      { label: "Intérêts d'emprunt", val: latest.interetsEmprunt, sub: "661x" },
-                    ] as const
-                  ).map(({ label, val, sub }) => (
-                    <div
-                      key={label}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "baseline",
-                        marginBottom: 10,
-                      }}
-                    >
-                      <span style={{ fontSize: 12, color: fgMuted }}>
-                        {label}{" "}
-                        <span style={{ fontSize: 10, opacity: 0.6 }}>{sub}</span>
-                      </span>
-                      <span
-                        style={{
-                          fontFamily: "var(--font-display)",
-                          fontSize: 13,
-                          fontVariantNumeric: "tabular-nums",
-                          color: fgMuted,
-                        }}
-                      >
-                        − {fmtEUR(val)}
-                      </span>
-                    </div>
-                  ))}
+                      {(
+                        [
+                          { label: "Remb. capital", val: latest.remboursementCapital, sub: "16x" },
+                          { label: "Intérêts d'emprunt", val: latest.interetsEmprunt, sub: "661x" },
+                        ] as const
+                      ).map(({ label, val, sub }) => (
+                        <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+                          <span style={{ fontSize: 12, color: fgMuted }}>
+                            {label}{" "}
+                            <span style={{ fontSize: 10, opacity: 0.6 }}>{sub}</span>
+                          </span>
+                          <span style={{ fontFamily: "var(--font-display)", fontSize: 13, fontVariantNumeric: "tabular-nums", color: fgMuted }}>
+                            − {fmtEUR(val)}
+                          </span>
+                        </div>
+                      ))}
 
-                  <Sep />
+                      <Sep />
 
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: fgMain }}>NET DISPO</span>
-                    <div>
-                      <span
-                        style={{
-                          fontFamily: "var(--font-display)",
-                          fontSize: 16,
-                          fontWeight: 700,
-                          fontVariantNumeric: "tabular-nums",
-                          color: latest.netDispo >= 0 ? accent : danger,
-                        }}
-                      >
-                        {fmtEUR(latest.netDispo)}
-                      </span>
-                      <span style={{ fontSize: 11, color: fgMuted, marginLeft: 6 }}>
-                        {latest.netDispoPct.toFixed(1)}%
-                      </span>
-                    </div>
-                  </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: fgMain }}>NET DISPO</span>
+                        <div>
+                          <span style={{ fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: latest.netDispo >= 0 ? accent : danger }}>
+                            {fmtEUR(latest.netDispo)}
+                          </span>
+                          <span style={{ fontSize: 11, color: fgMuted, marginLeft: 6 }}>
+                            {latest.netDispoPct.toFixed(1)}%
+                          </span>
+                        </div>
+                      </div>
 
-                  <div style={{ marginTop: 20, fontSize: 11, color: "rgba(255,255,255,0.3)", lineHeight: 1.5 }}>
-                    EBITDA = CA − coût matière − masse salariale − charges
-                    <br />
-                    NET DISPO = EBITDA − remboursement capital − intérêts
-                  </div>
+                      <div style={{ marginTop: 20, fontSize: 11, color: "rgba(255,255,255,0.3)", lineHeight: 1.5 }}>
+                        EBITDA = CA − coût matière − masse salariale − charges
+                        <br />
+                        NET DISPO = EBITDA − remboursement capital − intérêts
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {(
+                        [
+                          { label: "Remb. capital", val: latest.remboursementCapital, sub: "16x" },
+                          { label: "Intérêts d'emprunt", val: latest.interetsEmprunt, sub: "661x" },
+                        ] as const
+                      ).map(({ label, val, sub }) => (
+                        <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+                          <span style={{ fontSize: 12, color: fgMuted }}>
+                            {label}{" "}
+                            <span style={{ fontSize: 10, opacity: 0.6 }}>{sub}</span>
+                          </span>
+                          <span style={{ fontFamily: "var(--font-display)", fontSize: 13, fontVariantNumeric: "tabular-nums", color: fgMuted }}>
+                            {fmtEUR(val)}
+                          </span>
+                        </div>
+                      ))}
+                      <div style={{ marginTop: 12, fontSize: 11, color: "rgba(255,255,255,0.3)" }}>
+                        EBITDA et NET DISPO disponibles dès que le CA APITIC est synchronisé.
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
