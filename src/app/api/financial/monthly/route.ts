@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
 
   for (const { month, start, end } of periods) {
     try {
-      const { lines, diag } = await fetchTrialBalance(config.token, start, end);
+      const { lines, diag } = await fetchTrialBalance(config.token, config.companyId, start, end);
       const costs = aggregateFromLines(lines);
       months.push({
         month,

@@ -41,6 +41,7 @@ export type FetchResult = {
 
 export async function fetchTrialBalance(
   token: string,
+  companyId: string,
   periodStart: string,
   periodEnd: string,
 ): Promise<FetchResult> {
@@ -56,7 +57,7 @@ export async function fetchTrialBalance(
 
   do {
     if (cursor) params.set("cursor", cursor);
-    const res = await fetch(`${BASE}/trial_balance?${params}`, {
+    const res = await fetch(`${BASE}/companies/${companyId}/trial_balance?${params}`, {
       headers: { Authorization: `Bearer ${token}` },
       next: { revalidate: 0 },
     });
@@ -164,7 +165,7 @@ export async function getFinancialData(
   const config = getPennylaneConfig(storeId);
   if (!config) throw new Error(`No Pennylane config for store: ${storeId}`);
 
-  const { lines } = await fetchTrialBalance(config.token, periodStart, periodEnd);
+  const { lines } = await fetchTrialBalance(config.token, config.companyId, periodStart, periodEnd);
   const costs = aggregateFromLines(lines);
 
   const ebitda = ca - costs.coutMatiere - costs.masseSalariale - costs.chargesExploitation;
