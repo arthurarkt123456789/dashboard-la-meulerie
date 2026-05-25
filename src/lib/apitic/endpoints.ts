@@ -120,20 +120,13 @@ export async function fetchCancelledSalesForDate(
       cancelledAmount: Math.round(cancelledAmount * 100) / 100,
       cancelledLines,
     };
-    // Always log so Railway logs show exactly what APITIC returns
-    console.log(
-      `[cancelled] ${accountId} ${date}: json.total=${json.total} data.length=${data.length}` +
-      ` → cancelledTx=${cancelledTx} lines=${cancelledLines} amount=${result.cancelledAmount}`,
-    );
     return result;
   } catch (e) {
     const err = e as { status?: number; message?: string; name?: string };
     const status = err.status ?? 0;
-    // 404 = no cancellations for that date, treat as zeros
     if (status === 404) return { cancelledTx: 0, cancelledAmount: 0, cancelledLines: 0 };
-    // Log unexpected errors so they appear in Railway logs
-    console.error(`[monitoring] ${accountId} ${date}: error ${status} — ${err.message ?? err.name}`);
-    return { cancelledTx: 0, cancelledAmount: 0, cancelledLines: 0 };
+    // 500 = endpoint not enabled for this APITIC account — propagate so caller knows
+    throw e;
   }
 }
 

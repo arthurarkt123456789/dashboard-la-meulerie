@@ -196,9 +196,12 @@ export function MonitoringCharts({
   }, granularity);
 
   const isBlackout = !!data?.blackout;
-  const cancelledUnavailable = isLoading || isError || isBlackout;
-  const cancelledPlaceholder = isBlackout
-    ? `Indisponible · fenêtre APITIC ${data.blackout}`
+  const isApiticError = !!data?.apiticError;
+  const cancelledUnavailable = isLoading || isError || isBlackout || isApiticError;
+  const cancelledPlaceholder = isApiticError
+    ? `Endpoint APITIC non activé (erreur ${data!.apiticError}) — contacter le support APITIC`
+    : isBlackout
+    ? `Indisponible · fenêtre APITIC ${data!.blackout}`
     : isLoading ? "Chargement des annulations…"
     : "Données indisponibles";
 

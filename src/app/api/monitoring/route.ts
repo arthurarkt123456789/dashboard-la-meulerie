@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getConfiguredStoreLinks } from "@/lib/apitic/mapping";
 import { fetchCancelledSalesForDate } from "@/lib/apitic/endpoints";
-import { currentBlackout, apiticFetch } from "@/lib/apitic/http";
+import { currentBlackout } from "@/lib/apitic/http";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -29,6 +29,7 @@ export type MonitoringDayStat = {
 
 export type MonitoringResponse = {
   blackout?: string;
+  apiticError?: number; // HTTP status returned by APITIC (e.g. 500)
   stores: { id: string; daily: MonitoringDayStat[] }[];
 };
 
@@ -58,70 +59,38 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "from and to required" }, { status: 400 });
   }
 
-  // ?debug=1&storeId=davso — probes multiple cancelled-endpoint URL variants
-  // to find which one APITIC accepts for this account.
-  if (url.searchParams.get("debug") === "1") {
-    const storeId = url.searchParams.get("storeId") ?? "davso";
-    const links = getConfiguredStoreLinks();
-    const link = links.find((l) => l.storeId === storeId);
-    if (!link) return NextResponse.json({ error: `Unknown storeId: ${storeId}`, configured: links.map(l => l.storeId) });
-    const date = from;
-    const id = link.accountId;
-
-    async function tryPath(path: string) {
-      try {
-        const raw = await apiticFetch(path, { ignoreBlackout: true, maxAttempts: 1 });
-        const typed = raw as Record<string, unknown>;
-        const data = Array.isArray(typed.data) ? typed.data : [];
-        return { ok: true, total: typed.total, dataLength: data.length, firstItem: data[0] ?? null, raw: typed };
-      } catch (e) {
-        const err = e as { status?: number; message?: string };
-        return { ok: false, status: err.status, error: err.message };
-      }
-    }
-
-    const variants: Record<string, string> = {
-      "with_pagination":   `/accounts/${id}/sales/${date}/cancelled?page=1&size=50`,
-      "no_params":         `/accounts/${id}/sales/${date}/cancelled`,
-      "alt_path_notes":    `/accounts/${id}/notes/cancelled?date=${date}`,
-      "alt_path_logs":     `/accounts/${id}/logs/cancelled?date=${date}`,
-      "sales_status":      `/accounts/${id}/sales?date=${date}&status=cancelled`,
-      "sales_deleted":     `/accounts/${id}/sales?date=${date}&deleted=1`,
-    };
-
-    const results: Record<string, Awaited<ReturnType<typeof tryPath>>> = {};
-    for (const [key, path] of Object.entries(variants)) {
-      results[key] = await tryPath(path);
-    }
-
-    return NextResponse.json({ debug: true, storeId, date, results });
-  }
-
-  // APITIC blocks cancelled-sales endpoint during service hours server-side.
-  // Rather than hammering it and getting 503s, bail early with a signal the
-  // client can use to show a meaningful message.
   const blackout = currentBlackout();
   if (blackout) {
-    console.log(`[monitoring] blackout window ${blackout}, skipping fetch`);
     return NextResponse.json({ blackout, stores: [] } satisfies MonitoringResponse);
   }
 
   const links = getConfiguredStoreLinks();
   const dates = datesInRange(from, to);
-  console.log(`[monitoring] fetching ${dates.length} dates × ${links.length} stores (${from} → ${to})`);
+
+  // Probe one call first to detect APITIC 500 quickly before fetching all dates.
+  if (dates.length > 0 && links.length > 0) {
+    try {
+      await fetchCancelledSalesForDate(links[0].accountId, dates[0]);
+    } catch (e) {
+      const err = e as { status?: number };
+      const status = err.status ?? 0;
+      if (status >= 500) {
+        console.error(`[monitoring] APITIC ${status} on /cancelled — endpoint not available for account ${links[0].accountId}`);
+        return NextResponse.json({ apiticError: status, stores: [] } satisfies MonitoringResponse);
+      }
+    }
+  }
 
   const storeResults = await Promise.all(
     links.map(async (link) => {
-      const daily = await fetchStoreCancelled(link.accountId, dates);
-      return { id: link.storeId, daily };
+      try {
+        const daily = await fetchStoreCancelled(link.accountId, dates);
+        return { id: link.storeId, daily };
+      } catch {
+        return { id: link.storeId, daily: [] };
+      }
     }),
   );
-
-  const totalCancelled = storeResults.reduce(
-    (s, st) => s + st.daily.reduce((ss, d) => ss + d.cancelledTx, 0),
-    0,
-  );
-  console.log(`[monitoring] done — total cancelledTx across all stores/dates: ${totalCancelled}`);
 
   return NextResponse.json({ stores: storeResults } satisfies MonitoringResponse);
 }
