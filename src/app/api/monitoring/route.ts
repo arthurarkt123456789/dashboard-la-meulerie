@@ -23,6 +23,7 @@ export type MonitoringDayStat = {
   date: string;
   cancelledTx: number;
   cancelledAmount: number;
+  cancelledLines: number;
 };
 
 export type MonitoringResponse = {

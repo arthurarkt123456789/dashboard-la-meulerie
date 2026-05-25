@@ -85,11 +85,12 @@ export async function fetchPaymentMeans(
 }
 
 export type CancelledDayStats = {
-  cancelledTx: number;     // count of fully cancelled tickets
-  cancelledAmount: number; // € TTC sum of cancelled lines
+  cancelledTx: number;       // count of fully cancelled tickets
+  cancelledAmount: number;   // € TTC sum of all cancelled lines
+  cancelledLines: number;    // count of individual cancelled product lines
 };
 
-/** Fetches cancelled-sales stats for a single date. Returns zeros on any error. */
+/** Fetches cancelled-sales stats for a single date. Returns zeros on 404, re-throws on other errors. */
 export async function fetchCancelledSalesForDate(
   accountId: string,
   date: string,
@@ -102,15 +103,35 @@ export async function fetchCancelledSalesForDate(
       total?: number;
       data?: { cancelled_lines?: { ati_price?: number }[] }[];
     };
-    const cancelledTx = json.total ?? 0;
-    const cancelledAmount = (json.data ?? []).reduce(
+    const data = json.data ?? [];
+    // total may be absent on some API versions — fall back to data.length
+    const cancelledTx = Math.max(json.total ?? 0, data.length);
+    const cancelledAmount = data.reduce(
       (s, sale) =>
         s + (sale.cancelled_lines ?? []).reduce((ls, l) => ls + (l.ati_price ?? 0), 0),
       0,
     );
-    return { cancelledTx, cancelledAmount: Math.round(cancelledAmount * 100) / 100 };
-  } catch {
-    return { cancelledTx: 0, cancelledAmount: 0 };
+    const cancelledLines = data.reduce(
+      (s, sale) => s + (sale.cancelled_lines ?? []).length,
+      0,
+    );
+    const result = {
+      cancelledTx,
+      cancelledAmount: Math.round(cancelledAmount * 100) / 100,
+      cancelledLines,
+    };
+    if (cancelledTx > 0) {
+      console.log(`[monitoring] ${accountId} ${date}: ${cancelledTx} tickets, ${cancelledLines} lignes, ${result.cancelledAmount} €`);
+    }
+    return result;
+  } catch (e) {
+    const err = e as { status?: number; message?: string; name?: string };
+    const status = err.status ?? 0;
+    // 404 = no cancellations for that date, treat as zeros
+    if (status === 404) return { cancelledTx: 0, cancelledAmount: 0, cancelledLines: 0 };
+    // Log unexpected errors so they appear in Railway logs
+    console.error(`[monitoring] ${accountId} ${date}: error ${status} — ${err.message ?? err.name}`);
+    return { cancelledTx: 0, cancelledAmount: 0, cancelledLines: 0 };
   }
 }
 

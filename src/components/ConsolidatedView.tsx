@@ -445,7 +445,7 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
         <FormulesCard formules={consolidatedFormules} amountMode={amountMode} />
       </Card>
 
-      <MonitoringCharts stores={stores} period={period} />
+      <MonitoringCharts stores={stores} period={period} granularity={effectiveGranularity} />
     </div>
   );
 }
