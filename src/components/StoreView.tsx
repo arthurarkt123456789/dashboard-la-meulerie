@@ -163,15 +163,6 @@ export function StoreView({ store, period, today, amountMode }: Props) {
     );
   }, [store.daily, period]);
 
-  const openedDate = new Date(store.openedDate + "T00:00:00");
-  const monthsOpen = Math.round(
-    (today.getTime() - openedDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44),
-  );
-  const openSinceLabel =
-    monthsOpen < 12
-      ? `Ouvert depuis ${monthsOpen} mois`
-      : `Ouvert depuis ${store.opened}`;
-
   const yoyNote = m.yoyAvailable ? "vs N-1" : "N-1 indisponible";
 
   const peakHour = store.hourly.reduce(
@@ -190,8 +181,6 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           <h2 className="lm-store-title">{store.fullName}</h2>
           <div className="lm-store-meta">
             <span>{store.address}</span>
-            <span className="lm-dot">·</span>
-            <span>{openSinceLabel}</span>
             {!m.yoyAvailable && (
               <>
                 <span className="lm-dot">·</span>
