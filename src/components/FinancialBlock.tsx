@@ -1,9 +1,9 @@
 "use client";
 
+import { useEffect, useRef, useState, useMemo, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
 import type { PeriodSelection, StoreDaily } from "@/lib/apitic/types";
-import { fmtEUR } from "@/lib/format";
+import { fmtEUR, fmtEURshort } from "@/lib/format";
 import { Card } from "./Card";
 import { periodToSelectedMonths, periodToFinancialRange } from "@/lib/pennylane/periods";
 
@@ -25,9 +25,7 @@ type EnrichedMonth = CostMonth & {
   msIsEstimated: boolean;
   ebitda: number;
   ebitdaIsEstimated: boolean;
-  ebitdaPct: number;
   netDispo: number;
-  netDispoPct: number;
   hasData: boolean;
 };
 
@@ -43,27 +41,22 @@ type Agg = {
   ebitda: number;
   ebitdaIsEstimated: boolean;
   netDispo: number;
-  ebitdaPct: number;
-  netDispoPct: number;
 };
 
 type Props = { storeId: string; daily: StoreDaily[]; period: PeriodSelection };
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
 
-const C = {
-  cm:       "#3b82f6",  // bleu  — coût matière
-  ms:       "#8b5cf6",  // violet — masse salariale
-  ch:       "#f97316",  // orange — charges d'exploitation
-  marge:    "#16a34a",  // vert  — marge / EBITDA
-  margeNeg: "#ef4444",  // rouge — EBITDA négatif
-  grid:     "rgba(0,0,0,0.07)",
-  axis:     "#A8A8A6",
+const COLORS = {
+  cm:       "#3b82f6",  // bleu
+  ms:       "#8b5cf6",  // violet
+  ch:       "#f97316",  // orange
+  marge:    "#2D8A4E",  // vert
+  margeNeg: "#FF4433",  // rouge
 };
-
 const TARGETS = { cm: 45, ms: 20, ch: 15 } as const;
 
-// ─── Shared SVG helpers ───────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmtMon(m: string) {
   const [y, mo] = m.split("-").map(Number);
@@ -72,19 +65,76 @@ function fmtMon(m: string) {
     .replace(".", "");
 }
 
-function fmtK(v: number) {
-  return Math.abs(v) >= 1000
-    ? (v / 1000).toFixed(Math.abs(v) >= 10000 ? 0 : 1).replace(".", ",") + "k"
-    : String(Math.round(v));
+function fmtMonLong(m: string) {
+  const [y, mo] = m.split("-").map(Number);
+  return new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(
+    new Date(y, mo - 1),
+  );
 }
 
-// ─── Legend row ───────────────────────────────────────────────────────────────
+function niceMax(raw: number, steps = 4): { max: number; step: number } {
+  if (raw <= 0) return { max: 1000, step: 250 };
+  const roughStep = raw / steps;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(roughStep)));
+  const niceFactor = roughStep / magnitude >= 5 ? 5 : roughStep / magnitude >= 2 ? 2 : 1;
+  const step = niceFactor * magnitude;
+  const max = Math.ceil(raw / step) * step;
+  return { max, step };
+}
+
+// ─── Shared tooltip box ───────────────────────────────────────────────────────
+
+function TooltipBox({ style, children }: { style: CSSProperties; children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        background: "var(--color-dark)",
+        color: "var(--fg-inverted)",
+        padding: "8px 12px",
+        borderRadius: "var(--radius-sm)",
+        fontSize: 12,
+        lineHeight: 1.5,
+        pointerEvents: "none",
+        fontFamily: "var(--font-body)",
+        whiteSpace: "nowrap",
+        boxShadow: "var(--shadow-md)",
+        zIndex: 10,
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function ColorDot({ color }: { color: string }) {
+  return (
+    <span
+      style={{
+        width: 8, height: 8,
+        background: color,
+        display: "inline-block",
+        borderRadius: 1,
+        flexShrink: 0,
+      }}
+    />
+  );
+}
+
+// ─── Legend ───────────────────────────────────────────────────────────────────
 
 function Legend({ items }: { items: { color: string; label: string; dash?: boolean }[] }) {
   return (
     <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 12 }}>
       {items.map(({ color, label, dash }) => (
-        <div key={label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--fg-secondary)", fontFamily: "var(--font-body)" }}>
+        <div
+          key={label}
+          style={{
+            display: "flex", alignItems: "center", gap: 6,
+            fontSize: 12, color: "var(--fg-secondary)", fontFamily: "var(--font-body)",
+          }}
+        >
           <svg width={18} height={12} style={{ flexShrink: 0 }}>
             {dash
               ? <line x1={0} y1={6} x2={18} y2={6} stroke={color} strokeWidth={2} strokeDasharray="5 3" strokeLinecap="round" />
@@ -101,121 +151,264 @@ function Legend({ items }: { items: { color: string; label: string; dash?: boole
 // ─── Chart 1 : Décomposition du CA (stacked bars) ────────────────────────────
 
 function StackedCaChart({ months }: { months: EnrichedMonth[] }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [w, setW] = useState(720);
+  const [hover, setHover] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const e of entries) setW(Math.max(320, e.contentRect.width));
+    });
+    ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, []);
+
   const pts = months.filter((m) => m.hasData);
   if (pts.length === 0) return null;
 
-  const VW = 1000, H = 260, PL = 60, PR = 16, PT = 16, PB = 36;
-  const IW = VW - PL - PR, IH = H - PT - PB;
+  const H = 260;
+  const PAD = { top: 16, right: 16, bottom: 28, left: 60 };
+  const IW = w - PAD.left - PAD.right;
+  const IH = H - PAD.top - PAD.bottom;
   const n = pts.length;
 
-  // Y scale: max of (CA, total costs) across all months, +10% headroom
-  const yMax = Math.max(
+  const rawMax = Math.max(
     ...pts.map((m) => Math.max(m.ca, m.coutMatiere + m.effectiveMS + m.chargesExploitation)),
     1,
-  ) * 1.12;
+  );
+  const { max: yMax, step } = niceMax(rawMax * 1.08);
+  const gridLevels: number[] = [];
+  for (let v = 0; v <= yMax + step * 0.1; v += step) gridLevels.push(v);
 
-  const hOf = (v: number) => (v / yMax) * IH;
-  const yOf = (v: number) => PT + IH - (v / yMax) * IH;
+  const hOf = (v: number) => Math.max((v / yMax) * IH, 0);
+  const yOf = (v: number) => PAD.top + IH - (v / yMax) * IH;
 
   const slotW = IW / n;
-  const barW  = Math.min(slotW * 0.62, 80);
-  const barX  = (i: number) => PL + i * slotW + (slotW - barW) / 2;
+  const barW = Math.min(slotW * 0.65, 72);
+  const barXCenter = (i: number) => PAD.left + i * slotW + slotW / 2;
+  const barXLeft = (i: number) => barXCenter(i) - barW / 2;
 
-  // Y grid
-  const raw = yMax / 4;
-  const step = raw >= 20000 ? 20000 : raw >= 10000 ? 10000 : raw >= 5000 ? 5000 : 2000;
-  const gridLevels: number[] = [];
-  for (let v = 0; v <= yMax; v += step) gridLevels.push(v);
+  function onMouseMove(e: React.MouseEvent<SVGSVGElement>) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const idx = Math.floor((x - PAD.left) / slotW);
+    setHover(idx >= 0 && idx < n ? idx : null);
+  }
 
   return (
-    <svg viewBox={`0 0 ${VW} ${H}`} style={{ width: "100%", display: "block" }} aria-hidden>
-      {/* Grid */}
-      {gridLevels.map((v) => (
-        <g key={v}>
-          <line x1={PL} x2={VW - PR} y1={yOf(v)} y2={yOf(v)}
-            stroke={v === 0 ? "rgba(0,0,0,0.15)" : C.grid}
-            strokeDasharray={v === 0 ? undefined : "3 3"} />
-          <text x={PL - 7} y={yOf(v) + 4} textAnchor="end" fontSize={17}
-            fill={C.axis} fontFamily="monospace">{fmtK(v)}€</text>
-        </g>
-      ))}
-
-      {/* Bars */}
-      {pts.map((m, i) => {
-        const hasCa = m.ca > 0;
-        const x = barX(i);
-        const segments = [
-          { val: m.coutMatiere,        color: C.cm    },
-          { val: m.effectiveMS,        color: C.ms    },
-          { val: m.chargesExploitation, color: C.ch   },
-        ];
-
-        // Stack from bottom up
-        let curY = PT + IH;
-        const rects = segments.map(({ val, color }) => {
-          const h = hOf(val);
-          curY -= h;
-          return (
-            <rect key={color} x={x} y={curY} width={barW} height={Math.max(h, 0)}
-              fill={color} opacity={hasCa ? 0.9 : 0.55} />
-          );
-        });
-
-        // Marge segment (only when CA known)
-        let margeRect = null;
-        if (hasCa) {
-          const marge = m.ca - m.coutMatiere - m.effectiveMS - m.chargesExploitation;
-          const h = Math.abs(hOf(marge));
-          if (marge >= 0) {
-            curY -= h;
-            margeRect = <rect x={x} y={curY} width={barW} height={Math.max(h, 0)} fill={C.marge} />;
-          } else {
-            // Costs exceed CA: red overflow above the stack
-            margeRect = <rect x={x} y={curY - h} width={barW} height={Math.max(h, 0)} fill={C.margeNeg} opacity={0.7} />;
-          }
-        }
-
-        return (
-          <g key={m.month}>
-            {rects}
-            {margeRect}
-            {/* CA marker line */}
-            {hasCa && (
-              <line x1={x} x2={x + barW} y1={yOf(m.ca)} y2={yOf(m.ca)}
-                stroke="#2A2A2A" strokeWidth={1.5} />
-            )}
-            {/* Dashed border when no CA */}
-            {!hasCa && (
-              <rect x={x} y={curY} width={barW} height={PT + IH - curY}
-                fill="none" stroke="#A8A8A6" strokeWidth={1} strokeDasharray="4 3" />
-            )}
-            {/* X label */}
-            <text x={x + barW / 2} y={H - 5} textAnchor="middle" fontSize={18}
-              fill={C.axis} fontFamily="sans-serif">{fmtMon(m.month)}</text>
+    <div ref={containerRef} style={{ width: "100%", position: "relative" }}>
+      <svg
+        width={w} height={H}
+        style={{ display: "block", overflow: "visible" }}
+        onMouseMove={onMouseMove}
+        onMouseLeave={() => setHover(null)}
+      >
+        {/* Grid lines + Y labels */}
+        {gridLevels.map((v) => (
+          <g key={v}>
+            <line
+              x1={PAD.left} x2={w - PAD.right}
+              y1={yOf(v)} y2={yOf(v)}
+              stroke="var(--border-light)"
+              strokeWidth={1}
+              strokeDasharray={v === 0 ? undefined : "2 3"}
+            />
+            <text
+              x={PAD.left - 8} y={yOf(v) + 4}
+              textAnchor="end" fontSize={11}
+              fill="var(--fg-tertiary)"
+              style={{ fontFamily: "var(--font-body)", fontVariantNumeric: "tabular-nums" }}
+            >
+              {fmtEURshort(v)}
+            </text>
           </g>
+        ))}
+
+        {/* Bars */}
+        {pts.map((m, i) => {
+          const x = barXLeft(i);
+          const xc = barXCenter(i);
+          const hasCa = m.ca > 0;
+          const dimmed = hover !== null && hover !== i;
+          const op = dimmed ? 0.35 : 0.9;
+
+          const segments: { val: number; color: string }[] = [
+            { val: m.coutMatiere, color: COLORS.cm },
+            { val: m.effectiveMS, color: COLORS.ms },
+            { val: m.chargesExploitation, color: COLORS.ch },
+          ];
+
+          let curBottom = PAD.top + IH;
+          const rects = segments.map(({ val, color }) => {
+            const h = hOf(val);
+            curBottom -= h;
+            return (
+              <rect key={color} x={x} y={curBottom} width={barW} height={h}
+                fill={color} opacity={op} />
+            );
+          });
+
+          let margeRect = null;
+          if (hasCa) {
+            const marge = m.ebitda;
+            const h = hOf(Math.abs(marge));
+            if (marge >= 0) {
+              curBottom -= h;
+              margeRect = (
+                <rect x={x} y={curBottom} width={barW} height={h}
+                  fill={COLORS.marge} opacity={dimmed ? 0.35 : 1} />
+              );
+            } else {
+              margeRect = (
+                <rect x={x} y={curBottom - h} width={barW} height={h}
+                  fill={COLORS.margeNeg} opacity={dimmed ? 0.25 : 0.75} />
+              );
+            }
+          }
+
+          return (
+            <g key={m.month}>
+              {rects}
+              {margeRect}
+
+              {/* CA marker line */}
+              {hasCa && (
+                <line
+                  x1={x} x2={x + barW}
+                  y1={yOf(m.ca)} y2={yOf(m.ca)}
+                  stroke="var(--fg-primary)" strokeWidth={1.5}
+                  opacity={dimmed ? 0.2 : 0.55}
+                />
+              )}
+
+              {/* No-CA dashed outline */}
+              {!hasCa && (
+                <rect x={x} y={curBottom} width={barW} height={PAD.top + IH - curBottom}
+                  fill="none" stroke="var(--fg-tertiary)" strokeWidth={1}
+                  strokeDasharray="4 3" opacity={0.4} />
+              )}
+
+              {/* X label */}
+              <text
+                x={xc} y={H - 5}
+                textAnchor="middle" fontSize={11}
+                fill="var(--fg-tertiary)"
+                style={{ fontFamily: "var(--font-body)" }}
+              >
+                {fmtMon(m.month)}
+              </text>
+
+              {/* Hover crosshair */}
+              {hover === i && (
+                <line
+                  x1={xc} x2={xc}
+                  y1={PAD.top} y2={PAD.top + IH}
+                  stroke="var(--fg-primary)" strokeWidth={1}
+                  strokeDasharray="2 3" opacity={0.3}
+                />
+              )}
+            </g>
+          );
+        })}
+      </svg>
+
+      {/* Hover tooltip */}
+      {hover !== null && (() => {
+        const m = pts[hover];
+        const xc = barXCenter(hover);
+        const hasCa = m.ca > 0;
+        const pct = (v: number) =>
+          hasCa && m.ca > 0 ? ` · ${((v / m.ca) * 100).toFixed(1).replace(".", ",")}%` : "";
+        const left = xc + 12 + 200 > w ? xc - 12 - 200 : xc + 12;
+        return (
+          <TooltipBox style={{ left, top: 8 }}>
+            <div style={{ opacity: 0.7, marginBottom: 4, fontSize: 11, textTransform: "capitalize" }}>
+              {fmtMonLong(m.month)}
+              {m.msIsEstimated && <span style={{ color: "#fbbf24", marginLeft: 6 }}>· MS estimée</span>}
+            </div>
+            {hasCa && (
+              <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
+                <span style={{ flex: 1, opacity: 0.8 }}>CA</span>
+                <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>
+                  {fmtEURshort(m.ca)}
+                </span>
+              </div>
+            )}
+            {([
+              { label: "Coût matière",   val: m.coutMatiere,        color: COLORS.cm },
+              { label: "Masse salariale", val: m.effectiveMS,        color: COLORS.ms },
+              { label: "Charges",         val: m.chargesExploitation, color: COLORS.ch },
+            ] as { label: string; val: number; color: string }[]).map(({ label, val, color }) => (
+              <div key={label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <ColorDot color={color} />
+                <span style={{ flex: 1 }}>{label}</span>
+                <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                  {fmtEURshort(val)}{pct(val)}
+                </span>
+              </div>
+            ))}
+            {hasCa && (() => {
+              const marge = m.ebitda;
+              const margeColor = marge >= 0 ? "#86efac" : "#fca5a5";
+              return (
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  marginTop: 4, paddingTop: 4,
+                  borderTop: "1px solid rgba(255,255,255,0.12)",
+                }}>
+                  <ColorDot color={marge >= 0 ? COLORS.marge : COLORS.margeNeg} />
+                  <span style={{ flex: 1 }}>Marge</span>
+                  <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600, color: margeColor }}>
+                    {fmtEURshort(marge)}{pct(marge)}
+                  </span>
+                </div>
+              );
+            })()}
+          </TooltipBox>
         );
-      })}
-    </svg>
+      })()}
+    </div>
   );
 }
 
 // ─── Chart 2 : Ratios / CA avec objectifs ─────────────────────────────────────
 
 function RatioChart({ months }: { months: EnrichedMonth[] }) {
-  const pts = months.filter((m) => m.hasData && m.ca > 0);
-  if (pts.length < 2) return (
-    <p style={{ fontSize: 13, color: "var(--fg-tertiary)", fontFamily: "var(--font-body)", padding: "12px 0" }}>
-      CA non disponible — le graphique s'affichera dès la synchronisation APITIC.
-    </p>
-  );
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [w, setW] = useState(720);
+  const [hover, setHover] = useState<number | null>(null);
 
-  const VW = 1000, H = 240, PL = 44, PR = 96, PT = 16, PB = 32;
-  const IW = VW - PL - PR, IH = H - PT - PB;
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const e of entries) setW(Math.max(320, e.contentRect.width));
+    });
+    ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  const pts = months.filter((m) => m.hasData && m.ca > 0);
+
+  if (pts.length < 2) {
+    return (
+      <p style={{ fontSize: 13, color: "var(--fg-tertiary)", fontFamily: "var(--font-body)", padding: "12px 0" }}>
+        Données insuffisantes — le graphique s'affiche à partir de 2 mois avec C.A. connu.
+      </p>
+    );
+  }
+
+  const H = 240;
+  const PAD = { top: 16, right: 108, bottom: 28, left: 48 };
+  const IW = w - PAD.left - PAD.right;
+  const IH = H - PAD.top - PAD.bottom;
   const n = pts.length;
 
-  const Y_MAX = 65;
-  const xOf = (i: number) => PL + (n > 1 ? (i / (n - 1)) * IW : IW / 2);
-  const yOf = (pct: number) => PT + IH - (pct / Y_MAX) * IH;
+  const Y_MAX = 70;
+  const gridLevels = [0, 10, 20, 30, 40, 50, 60];
+
+  const xAt = (i: number) => PAD.left + (n > 1 ? (i / (n - 1)) * IW : IW / 2);
+  const yAt = (pct: number) => PAD.top + IH - (pct / Y_MAX) * IH;
 
   const ratios = pts.map((m) => ({
     month: m.month,
@@ -226,61 +419,161 @@ function RatioChart({ months }: { months: EnrichedMonth[] }) {
   }));
 
   const series = [
-    { key: "cm" as const, color: C.cm,   target: TARGETS.cm, label: "obj. CM"     },
-    { key: "ms" as const, color: C.ms,   target: TARGETS.ms, label: "obj. MS"     },
-    { key: "ch" as const, color: C.ch,   target: TARGETS.ch, label: "obj. Charges" },
+    { key: "cm" as const, color: COLORS.cm,  label: "Coût matière",  target: TARGETS.cm, targetLabel: `obj. matière ${TARGETS.cm}%` },
+    { key: "ms" as const, color: COLORS.ms,  label: "MS",            target: TARGETS.ms, targetLabel: `obj. MS ${TARGETS.ms}%`     },
+    { key: "ch" as const, color: COLORS.ch,  label: "Charges",       target: TARGETS.ch, targetLabel: `obj. charges ${TARGETS.ch}%` },
   ];
 
-  const gridLevels = [0, 10, 20, 30, 40, 50, 60];
-
   const makePath = (key: "cm" | "ms" | "ch") =>
-    ratios.map((d, i) => `${i === 0 ? "M" : "L"}${xOf(i).toFixed(1)},${yOf(d[key]).toFixed(1)}`).join(" ");
+    ratios
+      .map((d, i) => `${i === 0 ? "M" : "L"}${xAt(i).toFixed(1)},${yAt(d[key]).toFixed(1)}`)
+      .join(" ");
+
+  function onMouseMove(e: React.MouseEvent<SVGSVGElement>) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const idx = Math.round(((x - PAD.left) / IW) * (n - 1));
+    setHover(idx >= 0 && idx < n ? idx : null);
+  }
 
   return (
-    <svg viewBox={`0 0 ${VW} ${H}`} style={{ width: "100%", display: "block" }} aria-hidden>
-      {/* Y grid */}
-      {gridLevels.map((v) => (
-        <g key={v}>
-          <line x1={PL} x2={VW - PR + 4} y1={yOf(v)} y2={yOf(v)}
-            stroke={v === 0 ? "rgba(0,0,0,0.15)" : C.grid}
-            strokeDasharray={v === 0 ? undefined : "3 3"} />
-          <text x={PL - 6} y={yOf(v) + 4} textAnchor="end" fontSize={17}
-            fill={C.axis} fontFamily="monospace">{v}%</text>
-        </g>
-      ))}
+    <div ref={containerRef} style={{ width: "100%", position: "relative" }}>
+      <svg
+        width={w} height={H}
+        style={{ display: "block", overflow: "visible" }}
+        onMouseMove={onMouseMove}
+        onMouseLeave={() => setHover(null)}
+      >
+        {/* Y grid */}
+        {gridLevels.map((v) => (
+          <g key={v}>
+            <line
+              x1={PAD.left} x2={w - PAD.right + 4}
+              y1={yAt(v)} y2={yAt(v)}
+              stroke="var(--border-light)"
+              strokeWidth={1}
+              strokeDasharray={v === 0 ? undefined : "2 3"}
+            />
+            <text
+              x={PAD.left - 8} y={yAt(v) + 4}
+              textAnchor="end" fontSize={11}
+              fill="var(--fg-tertiary)"
+              style={{ fontFamily: "var(--font-body)" }}
+            >
+              {v}%
+            </text>
+          </g>
+        ))}
 
-      {/* Target reference lines */}
-      {series.map(({ color, target, label }) => (
-        <g key={label}>
-          <line x1={PL} x2={VW - PR + 4} y1={yOf(target)} y2={yOf(target)}
-            stroke={color} strokeWidth={1.5} strokeDasharray="7 4" opacity={0.45} />
-          <text x={VW - PR + 10} y={yOf(target) + 4} fontSize={16}
-            fill={color} fontFamily="var(--font-body)" opacity={0.75} fontWeight="500">
-            {label} {target}%
-          </text>
-        </g>
-      ))}
+        {/* Target reference lines + labels (right side) */}
+        {series.map(({ color, target, targetLabel }) => (
+          <g key={targetLabel}>
+            <line
+              x1={PAD.left} x2={w - PAD.right + 4}
+              y1={yAt(target)} y2={yAt(target)}
+              stroke={color} strokeWidth={1.5} strokeDasharray="6 4" opacity={0.4}
+            />
+            <text
+              x={w - PAD.right + 10} y={yAt(target) + 4}
+              fontSize={10} fill={color}
+              style={{ fontFamily: "var(--font-body)", fontWeight: 500 }}
+              opacity={0.75}
+            >
+              {targetLabel}
+            </text>
+          </g>
+        ))}
 
-      {/* Actual lines */}
-      {series.map(({ key, color }) => (
-        <path key={key} d={makePath(key)} fill="none"
-          stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
-      ))}
+        {/* Actual lines */}
+        {series.map(({ key, color }) => (
+          <path
+            key={key}
+            d={makePath(key)}
+            fill="none" stroke={color} strokeWidth={1.75}
+            strokeLinecap="round" strokeLinejoin="round"
+          />
+        ))}
 
-      {/* Dots */}
-      {series.map(({ key, color }) =>
-        ratios.map((d, i) => (
-          <circle key={`${key}-${i}`} cx={xOf(i)} cy={yOf(d[key])} r={4.5}
-            fill="white" stroke={color} strokeWidth={2} />
-        ))
-      )}
+        {/* Endpoint dots (always visible, last point) */}
+        {series.map(({ key, color }) => {
+          const last = n - 1;
+          return (
+            <circle
+              key={key}
+              cx={xAt(last)} cy={yAt(ratios[last][key])}
+              r={3.5} fill="white" stroke={color} strokeWidth={1.75}
+            />
+          );
+        })}
 
-      {/* X labels */}
-      {ratios.map((d, i) => (
-        <text key={i} x={xOf(i)} y={H - 5} textAnchor="middle" fontSize={18}
-          fill={C.axis} fontFamily="sans-serif">{fmtMon(d.month)}</text>
-      ))}
-    </svg>
+        {/* Hover: crosshair + dots */}
+        {hover !== null && (
+          <g>
+            <line
+              x1={xAt(hover)} x2={xAt(hover)}
+              y1={PAD.top} y2={PAD.top + IH}
+              stroke="var(--fg-primary)" strokeWidth={1}
+              strokeDasharray="2 3" opacity={0.35}
+            />
+            {series.map(({ key, color }) => (
+              <circle
+                key={key}
+                cx={xAt(hover)} cy={yAt(ratios[hover][key])}
+                r={4} fill="white" stroke={color} strokeWidth={2}
+              />
+            ))}
+          </g>
+        )}
+
+        {/* X labels */}
+        {ratios.map((d, i) => {
+          const every = n > 12 ? Math.ceil(n / 8) : 1;
+          if (i % every !== 0 && i !== n - 1) return null;
+          return (
+            <text
+              key={i}
+              x={xAt(i)} y={H - 5}
+              textAnchor="middle" fontSize={11}
+              fill="var(--fg-tertiary)"
+              style={{ fontFamily: "var(--font-body)" }}
+            >
+              {fmtMon(d.month)}
+            </text>
+          );
+        })}
+      </svg>
+
+      {/* Hover tooltip */}
+      {hover !== null && (() => {
+        const d = ratios[hover];
+        const left = Math.min(w - PAD.right - 10, Math.max(0, xAt(hover) + 12));
+        return (
+          <TooltipBox style={{ left, top: 8 }}>
+            <div style={{ opacity: 0.7, marginBottom: 4, fontSize: 11, textTransform: "capitalize" }}>
+              {fmtMonLong(d.month)}
+              {d.msEst && <span style={{ color: "#fbbf24", marginLeft: 6 }}>· MS estimée</span>}
+            </div>
+            {series.map(({ key, color, label, target }) => {
+              const val = d[key];
+              const delta = val - target;
+              const deltaColor = delta > 3 ? "#fca5a5" : delta < -3 ? "#86efac" : "rgba(255,255,255,0.5)";
+              return (
+                <div key={key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <ColorDot color={color} />
+                  <span style={{ flex: 1 }}>{label}</span>
+                  <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                    {val.toFixed(1).replace(".", ",")}%
+                  </span>
+                  <span style={{ fontSize: 10, color: deltaColor, fontVariantNumeric: "tabular-nums", minWidth: 36, textAlign: "right" }}>
+                    {delta > 0 ? "+" : ""}{delta.toFixed(1).replace(".", ",")}%
+                  </span>
+                </div>
+              );
+            })}
+          </TooltipBox>
+        );
+      })()}
+    </div>
   );
 }
 
@@ -289,40 +582,55 @@ function RatioChart({ months }: { months: EnrichedMonth[] }) {
 function PLDetail({ agg }: { agg: Agg }) {
   const hasCA = agg.ca > 0;
 
-  function Row({ label, sub, val, estimated, bold, separator, color }: {
+  function Row({
+    label, sub, val, estimated, bold, separator, color,
+  }: {
     label: string; sub?: string; val: number; estimated?: boolean;
     bold?: boolean; separator?: boolean; color?: string;
   }) {
     const pct = hasCA && val !== 0 ? ((val / agg.ca) * 100).toFixed(1) + "%" : null;
     return (
-      <div style={{
-        display: "flex", justifyContent: "space-between", alignItems: "baseline",
-        padding: separator ? "10px 0 4px" : "5px 0",
-        borderTop: separator ? "1px solid var(--border-light)" : undefined,
-        marginTop: separator ? 4 : 0,
-      }}>
-        <span style={{
-          fontSize: bold ? 13 : 12, fontWeight: bold ? 600 : 400,
-          color: estimated ? "var(--status-warning)" : "var(--fg-secondary)",
-          fontFamily: "var(--font-body)",
-        }}>
+      <div
+        style={{
+          display: "flex", justifyContent: "space-between", alignItems: "baseline",
+          padding: separator ? "10px 0 4px" : "5px 0",
+          borderTop: separator ? "1px solid var(--border-light)" : undefined,
+          marginTop: separator ? 4 : 0,
+        }}
+      >
+        <span
+          style={{
+            fontSize: bold ? 13 : 12,
+            fontWeight: bold ? 600 : 400,
+            color: estimated ? "var(--status-warning)" : "var(--fg-secondary)",
+            fontFamily: "var(--font-body)",
+          }}
+        >
           {label}
-          {sub && <span style={{ fontSize: 10, opacity: 0.6, marginLeft: 4 }}>{sub}</span>}
-          {estimated && <span style={{ fontSize: 10, marginLeft: 4, color: "var(--status-warning)" }}> est.</span>}
+          {sub && <span style={{ fontSize: 10, opacity: 0.55, marginLeft: 4 }}>{sub}</span>}
+          {estimated && (
+            <span style={{ fontSize: 10, marginLeft: 4, color: "var(--status-warning)" }}>est.</span>
+          )}
         </span>
         <span style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
           {pct && !bold && (
-            <span style={{ fontSize: 11, color: "var(--fg-tertiary)", fontVariantNumeric: "tabular-nums" }}>{pct}</span>
+            <span style={{ fontSize: 11, color: "var(--fg-tertiary)", fontVariantNumeric: "tabular-nums" }}>
+              {pct}
+            </span>
           )}
-          <span style={{
-            fontFamily: "var(--font-display)", fontSize: bold ? 15 : 13,
-            fontWeight: bold ? 700 : 500, fontVariantNumeric: "tabular-nums",
-            color: color ?? (estimated ? "var(--status-warning)" : "var(--fg-primary)"),
-          }}>
+          <span
+            style={{
+              fontFamily: "var(--font-display)", fontSize: bold ? 15 : 13,
+              fontWeight: bold ? 700 : 500, fontVariantNumeric: "tabular-nums",
+              color: color ?? (estimated ? "var(--status-warning)" : "var(--fg-primary)"),
+            }}
+          >
             {estimated ? "~ " : ""}{fmtEUR(val)}
           </span>
           {pct && bold && (
-            <span style={{ fontSize: 11, fontWeight: 400, color: "var(--fg-tertiary)", fontVariantNumeric: "tabular-nums" }}>{pct}</span>
+            <span style={{ fontSize: 11, fontWeight: 400, color: "var(--fg-tertiary)", fontVariantNumeric: "tabular-nums" }}>
+              {pct}
+            </span>
           )}
         </span>
       </div>
@@ -332,25 +640,40 @@ function PLDetail({ agg }: { agg: Agg }) {
   return (
     <div>
       {hasCA && (
-        <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-primary)", marginBottom: 10, fontFamily: "var(--font-body)" }}>
+        <div
+          style={{
+            fontSize: 12, fontWeight: 600, color: "var(--fg-primary)",
+            marginBottom: 10, fontFamily: "var(--font-body)",
+          }}
+        >
           CA · {fmtEUR(agg.ca)}
         </div>
       )}
-      <Row label="Coût matière"         sub="60x"    val={agg.coutMatiere} />
-      <Row label="Masse salariale"       sub="64x"    val={agg.effectiveMS} estimated={agg.msIsEstimated} />
+      <Row label="Coût matière"          sub="60x"    val={agg.coutMatiere} />
+      <Row label="Masse salariale"        sub="64x"    val={agg.effectiveMS} estimated={agg.msIsEstimated} />
       <Row label="Charges d'exploitation" sub="61-63x" val={agg.chargesExploitation} />
       {hasCA && (
         <>
-          <Row label="EBITDA" val={agg.ebitda} bold separator estimated={agg.ebitdaIsEstimated}
-            color={agg.ebitdaIsEstimated ? "var(--status-warning)" : agg.ebitda >= 0 ? "var(--status-success)" : "var(--color-coral)"} />
-          <Row label="Remb. capital"      sub="16x"  val={agg.remboursementCapital} />
-          <Row label="Intérêts emprunt"   sub="661x" val={agg.interetsEmprunt} />
-          <Row label="NET DISPO" val={agg.netDispo} bold separator estimated={agg.ebitdaIsEstimated}
-            color={agg.ebitdaIsEstimated ? "var(--status-warning)" : agg.netDispo >= 0 ? "var(--status-success)" : "var(--color-coral)"} />
+          <Row
+            label="EBITDA" val={agg.ebitda} bold separator estimated={agg.ebitdaIsEstimated}
+            color={agg.ebitdaIsEstimated ? "var(--status-warning)" : agg.ebitda >= 0 ? "var(--status-success)" : "var(--color-coral)"}
+          />
+          <Row label="Remb. capital"    sub="16x"  val={agg.remboursementCapital} />
+          <Row label="Intérêts emprunt" sub="661x" val={agg.interetsEmprunt} />
+          <Row
+            label="NET DISPO" val={agg.netDispo} bold separator estimated={agg.ebitdaIsEstimated}
+            color={agg.ebitdaIsEstimated ? "var(--status-warning)" : agg.netDispo >= 0 ? "var(--status-success)" : "var(--color-coral)"}
+          />
         </>
       )}
       {!hasCA && (
-        <div style={{ marginTop: 10, padding: "8px 10px", background: "var(--bg-subtle)", borderRadius: "var(--radius-sm)", fontSize: 11, color: "var(--fg-tertiary)", fontFamily: "var(--font-body)" }}>
+        <div
+          style={{
+            marginTop: 10, padding: "8px 10px",
+            background: "var(--bg-subtle)", borderRadius: "var(--radius-sm)",
+            fontSize: 11, color: "var(--fg-tertiary)", fontFamily: "var(--font-body)",
+          }}
+        >
           EBITDA disponible dès synchronisation du CA APITIC
         </div>
       )}
@@ -403,15 +726,15 @@ export function FinancialBlock({ storeId, daily, period }: Props) {
       const netDispo = ebitda - m.remboursementCapital - m.interetsEmprunt;
       const hasData = m.coutMatiere + m.masseSalariale + m.chargesExploitation > 1 || msIsEstimated;
       return {
-        ...m, ca, effectiveMS, msIsEstimated, ebitda, ebitdaIsEstimated: msIsEstimated,
-        ebitdaPct: ca > 0 ? (ebitda / ca) * 100 : 0,
-        netDispo, netDispoPct: ca > 0 ? (netDispo / ca) * 100 : 0, hasData,
+        ...m, ca, effectiveMS, msIsEstimated,
+        ebitda, ebitdaIsEstimated: msIsEstimated,
+        netDispo, hasData,
       };
     });
   }, [data, monthlyCA, estimatedMS]);
 
-  const selectedKeys  = useMemo(() => periodToSelectedMonths(period), [period]);
-  const periodLabel   = useMemo(() => periodToFinancialRange(period).label, [period]);
+  const selectedKeys = useMemo(() => periodToSelectedMonths(period), [period]);
+  const periodLabel  = useMemo(() => periodToFinancialRange(period).label, [period]);
 
   const agg = useMemo<Agg | null>(() => {
     let sel = months.filter((m) => selectedKeys.includes(m.month) && m.hasData);
@@ -426,15 +749,16 @@ export function FinancialBlock({ storeId, daily, period }: Props) {
     const msEst = sel.some((m) => m.msIsEstimated);
     const ebitda = ca - cm - ms - ch;
     const net = ebitda - rc - ie;
-    const label = sel.length === 1
-      ? new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(new Date(sel[0].month + "-01"))
-      : `${fmtMon(sel[0].month)} → ${fmtMon(sel[sel.length - 1].month)} ${sel[sel.length - 1].month.slice(0, 4)}`;
+    const label =
+      sel.length === 1
+        ? new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(
+            new Date(sel[0].month + "-01"),
+          )
+        : `${fmtMon(sel[0].month)} → ${fmtMon(sel[sel.length - 1].month)} ${sel[sel.length - 1].month.slice(0, 4)}`;
     return {
       label, ca, coutMatiere: cm, effectiveMS: ms, msIsEstimated: msEst,
       chargesExploitation: ch, remboursementCapital: rc, interetsEmprunt: ie,
       ebitda, ebitdaIsEstimated: msEst, netDispo: net,
-      ebitdaPct: ca > 0 ? (ebitda / ca) * 100 : 0,
-      netDispoPct: ca > 0 ? (net / ca) * 100 : 0,
     };
   }, [months, selectedKeys]);
 
@@ -443,8 +767,12 @@ export function FinancialBlock({ storeId, daily, period }: Props) {
   if (isLoading) {
     return (
       <>
-        <div className="lm-card" style={{ gridColumn: "1 / -1", minHeight: 200 }}><div className="lm-card-body padded"><div className="lm-skeleton" style={{ height: 160 }} /></div></div>
-        <div className="lm-card" style={{ gridColumn: "span 2", minHeight: 160 }}><div className="lm-card-body padded"><div className="lm-skeleton" style={{ height: 120 }} /></div></div>
+        <div className="lm-card" style={{ gridColumn: "1 / -1", minHeight: 200 }}>
+          <div className="lm-card-body padded"><div className="lm-skeleton" style={{ height: 160 }} /></div>
+        </div>
+        <div className="lm-card" style={{ gridColumn: "span 2", minHeight: 160 }}>
+          <div className="lm-card-body padded"><div className="lm-skeleton" style={{ height: 120 }} /></div>
+        </div>
         <div className="lm-card" style={{ minHeight: 160 }} />
       </>
     );
@@ -465,27 +793,31 @@ export function FinancialBlock({ storeId, daily, period }: Props) {
 
   return (
     <>
-      {/* ── Chart 1 : Décomposition du CA ─── full width */}
+      {/* Chart 1 : Décomposition du C.A. — full width */}
       <div className="lm-card" style={{ gridColumn: "1 / -1" }}>
         <div className="lm-card-head">
           <div>
             <h3 className="lm-card-title">Décomposition du C.A.</h3>
-            <div className="lm-card-subtitle">Coût matière · Masse salariale · Charges · Marge — 12 derniers mois</div>
+            <div className="lm-card-subtitle">
+              Coût matière · Masse salariale · Charges · Marge — 12 derniers mois
+            </div>
           </div>
           {pennylaneTag}
         </div>
         <div className="lm-card-body padded">
-          <Legend items={[
-            { color: C.cm,    label: "Coût matière (60x)" },
-            { color: C.ms,    label: "Masse salariale (64x)" },
-            { color: C.ch,    label: "Charges d'exploitation (61-63x)" },
-            { color: C.marge, label: "Marge (EBITDA)" },
-          ]} />
+          <Legend
+            items={[
+              { color: COLORS.cm,    label: "Coût matière (60x)" },
+              { color: COLORS.ms,    label: "Masse salariale (64x)" },
+              { color: COLORS.ch,    label: "Charges d'exploitation (61-63x)" },
+              { color: COLORS.marge, label: "Marge (EBITDA)" },
+            ]}
+          />
           <StackedCaChart months={months} />
         </div>
       </div>
 
-      {/* ── Chart 2 : Ratios / CA + objectifs ─── 2 colonnes */}
+      {/* Chart 2 : Ratios / C.A. + objectifs — 2 colonnes */}
       <Card
         title="Ratios / C.A. et objectifs"
         subtitle={`Obj. matière ${TARGETS.cm}% · MS ${TARGETS.ms}% · Charges ${TARGETS.ch}%`}
@@ -493,16 +825,18 @@ export function FinancialBlock({ storeId, daily, period }: Props) {
         action={pennylaneTag}
       >
         <div style={{ padding: "4px 20px 20px" }}>
-          <Legend items={[
-            { color: C.cm, label: "Coût matière",           dash: false },
-            { color: C.ms, label: "Masse salariale",        dash: false },
-            { color: C.ch, label: "Charges d'exploitation", dash: false },
-          ]} />
+          <Legend
+            items={[
+              { color: COLORS.cm, label: "Coût matière",           dash: false },
+              { color: COLORS.ms, label: "Masse salariale",        dash: false },
+              { color: COLORS.ch, label: "Charges d'exploitation", dash: false },
+            ]}
+          />
           <RatioChart months={months} />
         </div>
       </Card>
 
-      {/* ── P&L détail période ─── 1 colonne */}
+      {/* P&L détail période — 1 colonne */}
       <Card
         title="Pilotage financier"
         subtitle={agg?.label ?? periodLabel}
