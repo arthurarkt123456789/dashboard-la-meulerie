@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getConfiguredStoreLinks } from "@/lib/apitic/mapping";
 import { fetchCancelledSalesForDate } from "@/lib/apitic/endpoints";
-import { currentBlackout } from "@/lib/apitic/http";
+import { currentBlackout, apiticFetch } from "@/lib/apitic/http";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -56,6 +56,24 @@ export async function GET(req: NextRequest) {
   const to = url.searchParams.get("to");
   if (!from || !to) {
     return NextResponse.json({ error: "from and to required" }, { status: 400 });
+  }
+
+  // ?debug=1&storeId=davso — returns the raw APITIC JSON for one date so we
+  // can inspect the exact response structure without needing admin auth.
+  if (url.searchParams.get("debug") === "1") {
+    const storeId = url.searchParams.get("storeId") ?? "davso";
+    const links = getConfiguredStoreLinks();
+    const link = links.find((l) => l.storeId === storeId);
+    if (!link) return NextResponse.json({ error: `Unknown storeId: ${storeId}`, configured: links.map(l => l.storeId) });
+    const date = from; // just one date
+    const path = `/accounts/${link.accountId}/sales/${date}/cancelled?page=1&size=50`;
+    try {
+      const raw = await apiticFetch(path, { ignoreBlackout: true, maxAttempts: 1 });
+      return NextResponse.json({ debug: true, storeId, date, path, raw });
+    } catch (e) {
+      const err = e as { status?: number; message?: string; name?: string };
+      return NextResponse.json({ debug: true, storeId, date, path, error: err.message ?? err.name, status: err.status });
+    }
   }
 
   // APITIC blocks cancelled-sales endpoint during service hours server-side.

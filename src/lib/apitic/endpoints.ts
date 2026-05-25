@@ -120,9 +120,11 @@ export async function fetchCancelledSalesForDate(
       cancelledAmount: Math.round(cancelledAmount * 100) / 100,
       cancelledLines,
     };
-    if (cancelledTx > 0) {
-      console.log(`[monitoring] ${accountId} ${date}: ${cancelledTx} tickets, ${cancelledLines} lignes, ${result.cancelledAmount} €`);
-    }
+    // Always log so Railway logs show exactly what APITIC returns
+    console.log(
+      `[cancelled] ${accountId} ${date}: json.total=${json.total} data.length=${data.length}` +
+      ` → cancelledTx=${cancelledTx} lines=${cancelledLines} amount=${result.cancelledAmount}`,
+    );
     return result;
   } catch (e) {
     const err = e as { status?: number; message?: string; name?: string };
