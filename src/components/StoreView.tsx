@@ -393,7 +393,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
         <FormulesCard formules={periodFormules} amountMode={amountMode} />
       </Card>
 
-      {store.id === "davso" && (
+      {(store.id === "davso" || store.id === "malmousque") && (
         <FinancialBlock storeId={store.id} daily={store.daily} period={period} />
       )}
     </div>
