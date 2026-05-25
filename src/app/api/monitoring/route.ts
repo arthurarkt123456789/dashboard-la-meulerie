@@ -58,22 +58,43 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "from and to required" }, { status: 400 });
   }
 
-  // ?debug=1&storeId=davso — returns the raw APITIC JSON for one date so we
-  // can inspect the exact response structure without needing admin auth.
+  // ?debug=1&storeId=davso — probes multiple cancelled-endpoint URL variants
+  // to find which one APITIC accepts for this account.
   if (url.searchParams.get("debug") === "1") {
     const storeId = url.searchParams.get("storeId") ?? "davso";
     const links = getConfiguredStoreLinks();
     const link = links.find((l) => l.storeId === storeId);
     if (!link) return NextResponse.json({ error: `Unknown storeId: ${storeId}`, configured: links.map(l => l.storeId) });
-    const date = from; // just one date
-    const path = `/accounts/${link.accountId}/sales/${date}/cancelled?page=1&size=50`;
-    try {
-      const raw = await apiticFetch(path, { ignoreBlackout: true, maxAttempts: 1 });
-      return NextResponse.json({ debug: true, storeId, date, path, raw });
-    } catch (e) {
-      const err = e as { status?: number; message?: string; name?: string };
-      return NextResponse.json({ debug: true, storeId, date, path, error: err.message ?? err.name, status: err.status });
+    const date = from;
+    const id = link.accountId;
+
+    async function tryPath(path: string) {
+      try {
+        const raw = await apiticFetch(path, { ignoreBlackout: true, maxAttempts: 1 });
+        const typed = raw as Record<string, unknown>;
+        const data = Array.isArray(typed.data) ? typed.data : [];
+        return { ok: true, total: typed.total, dataLength: data.length, firstItem: data[0] ?? null, raw: typed };
+      } catch (e) {
+        const err = e as { status?: number; message?: string };
+        return { ok: false, status: err.status, error: err.message };
+      }
     }
+
+    const variants: Record<string, string> = {
+      "with_pagination":   `/accounts/${id}/sales/${date}/cancelled?page=1&size=50`,
+      "no_params":         `/accounts/${id}/sales/${date}/cancelled`,
+      "alt_path_notes":    `/accounts/${id}/notes/cancelled?date=${date}`,
+      "alt_path_logs":     `/accounts/${id}/logs/cancelled?date=${date}`,
+      "sales_status":      `/accounts/${id}/sales?date=${date}&status=cancelled`,
+      "sales_deleted":     `/accounts/${id}/sales?date=${date}&deleted=1`,
+    };
+
+    const results: Record<string, Awaited<ReturnType<typeof tryPath>>> = {};
+    for (const [key, path] of Object.entries(variants)) {
+      results[key] = await tryPath(path);
+    }
+
+    return NextResponse.json({ debug: true, storeId, date, results });
   }
 
   // APITIC blocks cancelled-sales endpoint during service hours server-side.
