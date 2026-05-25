@@ -629,12 +629,12 @@ function PLDetail({ agg }: { agg: Agg }) {
       }}>
         <span style={{
           fontSize: bold ? 13 : 12, fontWeight: bold ? 600 : 400,
-          color: estimated ? "var(--status-warning)" : "var(--fg-secondary)",
+          color: estimated ? "var(--color-coral)" : "var(--fg-secondary)",
           fontFamily: "var(--font-body)",
         }}>
           {label}
           {sub && <span style={{ fontSize: 10, opacity: 0.55, marginLeft: 4 }}>{sub}</span>}
-          {estimated && <span style={{ fontSize: 10, marginLeft: 4, color: "var(--status-warning)" }}>est.</span>}
+          {estimated && <span style={{ fontSize: 10, marginLeft: 4, color: "var(--color-coral)" }}>est.</span>}
         </span>
         <span style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
           {pct && !bold && (
@@ -643,7 +643,7 @@ function PLDetail({ agg }: { agg: Agg }) {
           <span style={{
             fontFamily: "var(--font-display)", fontSize: bold ? 15 : 13,
             fontWeight: bold ? 700 : 500, fontVariantNumeric: "tabular-nums",
-            color: color ?? (estimated ? "var(--status-warning)" : "var(--fg-primary)"),
+            color: color ?? (estimated ? "var(--color-coral)" : "var(--fg-primary)"),
           }}>
             {estimated ? "~ " : ""}{fmtEUR(val)}
           </span>
@@ -668,11 +668,11 @@ function PLDetail({ agg }: { agg: Agg }) {
       {hasCA && (
         <>
           <Row label="EBITDA" val={agg.ebitda} bold separator estimated={agg.ebitdaIsEstimated}
-            color={agg.ebitdaIsEstimated ? "var(--status-warning)" : agg.ebitda >= 0 ? "var(--status-success)" : "var(--color-coral)"} />
+            color={agg.ebitdaIsEstimated ? "var(--color-coral)" : agg.ebitda >= 0 ? "var(--status-success)" : "var(--color-coral)"} />
           <Row label="Remb. capital"      sub="16x"  val={agg.remboursementCapital} />
           <Row label="Intérêts emprunt"   sub="661x" val={agg.interetsEmprunt} />
           <Row label="NET DISPO" val={agg.netDispo} bold separator estimated={agg.ebitdaIsEstimated}
-            color={agg.ebitdaIsEstimated ? "var(--status-warning)" : agg.netDispo >= 0 ? "var(--status-success)" : "var(--color-coral)"} />
+            color={agg.ebitdaIsEstimated ? "var(--color-coral)" : agg.netDispo >= 0 ? "var(--status-success)" : "var(--color-coral)"} />
         </>
       )}
       {!hasCA && (
@@ -684,7 +684,7 @@ function PLDetail({ agg }: { agg: Agg }) {
         </div>
       )}
       {agg.msIsEstimated && (
-        <p style={{ margin: "10px 0 0", fontSize: 11, color: "var(--status-warning)", fontFamily: "var(--font-body)" }}>
+        <p style={{ margin: "10px 0 0", fontSize: 11, color: "var(--color-coral)", fontFamily: "var(--font-body)" }}>
           ~ MS estimée sur la moyenne des mois disponibles
         </p>
       )}
