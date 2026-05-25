@@ -46,17 +46,15 @@ type Agg = {
 type Props = { storeId: string; daily: StoreDaily[]; period: PeriodSelection };
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
-// Colors derived from the dashboard design tokens:
-// marge/net  → --status-success (#2D8A4E) and --color-coral (#FF4433)
-// charges    → --status-warning family (#C07B30, darker/warmer than D4820A)
-// cm / ms    → muted steel-blue and muted slate, no Tailwind defaults
+// Exactly the same tokens as the rest of the dashboard:
+//   dark (#2A2A2A), coral (#FF4433), amber (#D4820A = --status-warning), green (#2D8A4E)
 
 const COLORS = {
-  cm:       "#4F7BAD",  // slate blue — muted, professional
-  ms:       "#7A5C8A",  // muted plum
-  ch:       "#C07B30",  // warm amber (same family as --status-warning)
-  marge:    "#2D8A4E",  // --status-success
-  margeNeg: "#FF4433",  // --color-coral
+  cm:       "#2A2A2A",  // --color-dark   (dominant base cost)
+  ms:       "#FF4433",  // --color-coral  (main accent, same as CA line)
+  ch:       "#D4820A",  // --status-warning amber
+  marge:    "#2D8A4E",  // --status-success green
+  margeNeg: "#C03020",  // dark coral (costs > CA)
 };
 const TARGETS = { cm: 45, ms: 20, ch: 15 } as const;
 
@@ -145,9 +143,11 @@ function Legend({ items }: { items: { color: string; label: string; dash?: boole
 function StackedCaChart({
   months,
   selectedKeys,
+  periodLabel,
 }: {
   months: EnrichedMonth[];
   selectedKeys: string[];
+  periodLabel: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(720);
@@ -162,7 +162,11 @@ function StackedCaChart({
     return () => ro.disconnect();
   }, []);
 
-  const pts = months.filter((m) => m.hasData);
+  // Filter to selected period — same logic as the CA line chart (rangeForSelection).
+  // Fall back to all available months when selection covers nothing (edge case).
+  const allPts = months.filter((m) => m.hasData);
+  const filtered = allPts.filter((m) => selectedKeys.includes(m.month));
+  const pts = filtered.length > 0 ? filtered : allPts;
   if (pts.length === 0) return null;
 
   const H = 260;
@@ -187,23 +191,14 @@ function StackedCaChart({
   const barXCenter = (i: number) => PAD.left + i * slotW + slotW / 2;
   const barXLeft = (i: number) => barXCenter(i) - barW / 2;
 
-  // Which bar indices are in the selected period?
-  const selIdx = pts.reduce<number[]>((acc, m, i) => {
-    if (selectedKeys.includes(m.month)) acc.push(i);
-    return acc;
-  }, []);
-  const hasSelection = selIdx.length > 0 && selIdx.length < n;
-
-  // Selection band bounds
-  const selBandX1 = selIdx.length > 0 ? barXLeft(selIdx[0]) - slotW * 0.18 : 0;
-  const selBandX2 = selIdx.length > 0 ? barXLeft(selIdx[selIdx.length - 1]) + barW + slotW * 0.18 : 0;
-
   function onMouseMove(e: React.MouseEvent<SVGSVGElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const idx = Math.floor((x - PAD.left) / slotW);
     setHover(idx >= 0 && idx < n ? idx : null);
   }
+
+  void periodLabel; // consumed by the parent card subtitle
 
   return (
     <div ref={containerRef} style={{ width: "100%", position: "relative" }}>
@@ -213,16 +208,6 @@ function StackedCaChart({
         onMouseMove={onMouseMove}
         onMouseLeave={() => setHover(null)}
       >
-        {/* Selection band background */}
-        {hasSelection && selIdx.length > 0 && (
-          <rect
-            x={selBandX1} y={PAD.top}
-            width={selBandX2 - selBandX1} height={IH}
-            fill="rgba(0,0,0,0.035)"
-            rx={3}
-          />
-        )}
-
         {/* Grid lines + Y labels */}
         {gridLevels.map((v) => (
           <g key={v}>
@@ -249,9 +234,7 @@ function StackedCaChart({
           const x = barXLeft(i);
           const xc = barXCenter(i);
           const hasCa = m.ca > 0;
-          const isSel = !hasSelection || selIdx.includes(i);
-          const dimmed = !isSel && hover !== i;
-          const baseOp = dimmed ? 0.22 : 0.9;
+          const dimmed = hover !== null && hover !== i;
 
           const segments: { val: number; color: string }[] = [
             { val: m.coutMatiere,         color: COLORS.cm },
@@ -265,7 +248,7 @@ function StackedCaChart({
             curBottom -= h;
             return (
               <rect key={color} x={x} y={curBottom} width={barW} height={h}
-                fill={color} opacity={baseOp} />
+                fill={color} opacity={dimmed ? 0.3 : 0.88} />
             );
           });
 
@@ -276,10 +259,10 @@ function StackedCaChart({
             if (marge >= 0) {
               curBottom -= h;
               margeRect = <rect x={x} y={curBottom} width={barW} height={h}
-                fill={COLORS.marge} opacity={dimmed ? 0.22 : 1} />;
+                fill={COLORS.marge} opacity={dimmed ? 0.3 : 1} />;
             } else {
               margeRect = <rect x={x} y={curBottom - h} width={barW} height={h}
-                fill={COLORS.margeNeg} opacity={dimmed ? 0.15 : 0.75} />;
+                fill={COLORS.margeNeg} opacity={dimmed ? 0.2 : 0.75} />;
             }
           }
 
@@ -294,7 +277,7 @@ function StackedCaChart({
                   x1={x} x2={x + barW}
                   y1={yOf(m.ca)} y2={yOf(m.ca)}
                   stroke="var(--fg-primary)" strokeWidth={1.5}
-                  opacity={dimmed ? 0.1 : 0.5}
+                  opacity={dimmed ? 0.15 : 0.5}
                 />
               )}
 
@@ -302,15 +285,14 @@ function StackedCaChart({
               {!hasCa && (
                 <rect x={x} y={curBottom} width={barW} height={PAD.top + IH - curBottom}
                   fill="none" stroke="var(--fg-tertiary)" strokeWidth={1}
-                  strokeDasharray="4 3" opacity={dimmed ? 0.15 : 0.4} />
+                  strokeDasharray="4 3" opacity={dimmed ? 0.2 : 0.4} />
               )}
 
               {/* X label */}
               <text
                 x={xc} y={H - 5}
                 textAnchor="middle" fontSize={11}
-                fill={isSel ? "var(--fg-secondary)" : "var(--fg-tertiary)"}
-                fontWeight={isSel && hasSelection ? 500 : 400}
+                fill="var(--fg-tertiary)"
                 style={{ fontFamily: "var(--font-body)" }}
               >
                 {fmtMon(m.month)}
@@ -336,8 +318,8 @@ function StackedCaChart({
         const xc = barXCenter(hover);
         const hasCa = m.ca > 0;
         const pct = (v: number) =>
-          hasCa && m.ca > 0 ? ` · ${((v / m.ca) * 100).toFixed(1).replace(".", ",")}%` : "";
-        const left = xc + 12 + 200 > w ? xc - 12 - 200 : xc + 12;
+          hasCa ? ` · ${((v / m.ca) * 100).toFixed(1).replace(".", ",")}%` : "";
+        const left = xc + 12 + 210 > w ? xc - 12 - 210 : xc + 12;
         return (
           <TooltipBox style={{ left, top: 8 }}>
             <div style={{ opacity: 0.7, marginBottom: 4, fontSize: 11, textTransform: "capitalize" }}>
@@ -824,7 +806,7 @@ export function FinancialBlock({ storeId, daily, period }: Props) {
           <div>
             <h3 className="lm-card-title">Décomposition du C.A.</h3>
             <div className="lm-card-subtitle">
-              Coût matière · Masse salariale · Charges · Marge — 12 derniers mois · période sélectionnée en surbrillance
+              Coût matière · Masse salariale · Charges · Marge — {periodLabel}
             </div>
           </div>
           {pennylaneTag}
@@ -836,7 +818,7 @@ export function FinancialBlock({ storeId, daily, period }: Props) {
             { color: COLORS.ch,    label: "Charges d'exploitation (61-63x)" },
             { color: COLORS.marge, label: "Marge (EBITDA)" },
           ]} />
-          <StackedCaChart months={months} selectedKeys={selectedKeys} />
+          <StackedCaChart months={months} selectedKeys={selectedKeys} periodLabel={periodLabel} />
         </div>
       </div>
 
