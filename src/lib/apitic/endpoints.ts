@@ -84,6 +84,36 @@ export async function fetchPaymentMeans(
   );
 }
 
+export type CancelledDayStats = {
+  cancelledTx: number;     // count of fully cancelled tickets
+  cancelledAmount: number; // € TTC sum of cancelled lines
+};
+
+/** Fetches cancelled-sales stats for a single date. Returns zeros on any error. */
+export async function fetchCancelledSalesForDate(
+  accountId: string,
+  date: string,
+): Promise<CancelledDayStats> {
+  try {
+    const json = (await apiticFetch(
+      `/accounts/${accountId}/sales/${date}/cancelled?page=1&size=100`,
+      { ignoreBlackout: true, maxAttempts: 2 },
+    )) as {
+      total?: number;
+      data?: { cancelled_lines?: { ati_price?: number }[] }[];
+    };
+    const cancelledTx = json.total ?? 0;
+    const cancelledAmount = (json.data ?? []).reduce(
+      (s, sale) =>
+        s + (sale.cancelled_lines ?? []).reduce((ls, l) => ls + (l.ati_price ?? 0), 0),
+      0,
+    );
+    return { cancelledTx, cancelledAmount: Math.round(cancelledAmount * 100) / 100 };
+  } catch {
+    return { cancelledTx: 0, cancelledAmount: 0 };
+  }
+}
+
 /** Fetches every sale for a single fiscal date, paginating until exhausted. */
 export async function fetchSalesForDate(
   accountId: string,

@@ -35,6 +35,7 @@ import { PaymentsCard } from "./PaymentsCard";
 import { SegmentSplit } from "./SegmentSplit";
 import { LegendInline } from "./LegendInline";
 import { SegmentFilterInline, useSegmentFilter } from "./SegmentFilter";
+import { MonitoringCharts } from "./MonitoringCharts";
 
 const SERIES_COLORS = [
   "var(--color-coral)", // Davso       — coral brand
@@ -443,6 +444,8 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
       >
         <FormulesCard formules={consolidatedFormules} amountMode={amountMode} />
       </Card>
+
+      <MonitoringCharts stores={stores} period={period} />
     </div>
   );
 }
