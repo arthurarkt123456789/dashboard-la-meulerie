@@ -410,11 +410,6 @@ function RatioChart({
   const IW = w - PAD.left - PAD.right;
   const IH = H - PAD.top - PAD.bottom;
   const n = pts.length;
-  const Y_MAX = 70;
-
-  const xAt = (i: number) => PAD.left + (n > 1 ? (i / (n - 1)) * IW : IW / 2);
-  const yAt = (pct: number) => PAD.top + IH - (pct / Y_MAX) * IH;
-
   const ratios = pts.map((m) => ({
     month: m.month,
     cm: (m.coutMatiere / m.ca) * 100,
@@ -425,6 +420,12 @@ function RatioChart({
   }));
 
   const hasSel = ratios.some((d) => d.isSel) && ratios.some((d) => !d.isSel);
+
+  const rawMax = Math.max(...ratios.flatMap((d) => [d.cm, d.ms, d.ch]), 65);
+  const Y_MAX = Math.ceil(rawMax / 10) * 10 + 10;
+
+  const xAt = (i: number) => PAD.left + (n > 1 ? (i / (n - 1)) * IW : IW / 2);
+  const yAt = (pct: number) => PAD.top + IH - (pct / Y_MAX) * IH;
 
   const series = [
     { key: "cm" as const, color: COLORS.cm,  label: "Coût matière",  target: TARGETS.cm, tLabel: `obj. matière ${TARGETS.cm}%`  },
@@ -445,7 +446,7 @@ function RatioChart({
     setHover(idx >= 0 && idx < n ? idx : null);
   }
 
-  const gridLevels = [0, 10, 20, 30, 40, 50, 60];
+  const gridLevels = Array.from({ length: Y_MAX / 10 + 1 }, (_, i) => i * 10);
 
   // Selection band for ratio chart
   const selXs = ratios.reduce<number[]>((acc, d, i) => {
