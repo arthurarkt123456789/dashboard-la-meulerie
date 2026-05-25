@@ -29,7 +29,7 @@ export const STORE_META: StoreMeta[] = [
     fullName: "La Meulerie Endoume",
     address: "8 rue d'Endoume, 13007 Marseille",
     opened: "2021",
-    openedDate: "2021-09-01",
+    openedDate: "2099-12-31",
     envVar: "APITIC_ACCOUNT_ENDOUME",
     openedEnvVar: "APITIC_OPENED_ENDOUME",
   },

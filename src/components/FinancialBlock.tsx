@@ -43,7 +43,7 @@ type Agg = {
   netDispo: number;
 };
 
-type Props = { storeId: string; daily: StoreDaily[]; period: PeriodSelection };
+type Props = { storeId: string; daily: StoreDaily[]; period: PeriodSelection; openedDate?: string };
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
 // Exactly the same tokens as the rest of the dashboard:
@@ -376,9 +376,11 @@ function StackedCaChart({
 function RatioChart({
   months,
   selectedKeys,
+  openingMonth,
 }: {
   months: EnrichedMonth[];
   selectedKeys: string[];
+  openingMonth?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(720);
@@ -393,7 +395,7 @@ function RatioChart({
     return () => ro.disconnect();
   }, []);
 
-  const pts = months.filter((m) => m.hasData && m.ca > 0);
+  const pts = months.filter((m) => m.hasData && m.ca > 0 && m.month !== openingMonth);
 
   if (pts.length < 2) {
     return (
@@ -694,7 +696,7 @@ function PLDetail({ agg }: { agg: Agg }) {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export function FinancialBlock({ storeId, daily, period }: Props) {
+export function FinancialBlock({ storeId, daily, period, openedDate }: Props) {
   const { data, isLoading, error } = useQuery<{ months: CostMonth[] }>({
     queryKey: ["financial-monthly", storeId],
     queryFn: async () => {
@@ -742,6 +744,13 @@ export function FinancialBlock({ storeId, daily, period }: Props) {
   // Period-derived selection
   const selectedKeys = useMemo(() => periodToSelectedMonths(period), [period]);
   const periodLabel  = useMemo(() => periodToFinancialRange(period).label, [period]);
+
+  // Opening month: derived from prop when available, else first daily row with CA > 0.
+  // Excluded from the ratio chart to avoid distorted ratios on a partial first month.
+  const openingMonth = useMemo(() => {
+    if (openedDate && openedDate < "2099") return openedDate.slice(0, 7);
+    return daily.find((d) => d.ca > 0)?.date.slice(0, 7) ?? undefined;
+  }, [openedDate, daily]);
 
   const agg = useMemo<Agg | null>(() => {
     let sel = months.filter((m) => selectedKeys.includes(m.month) && m.hasData);
@@ -835,7 +844,7 @@ export function FinancialBlock({ storeId, daily, period }: Props) {
             { color: COLORS.ms, label: "Masse salariale",        dash: false },
             { color: COLORS.ch, label: "Charges d'exploitation", dash: false },
           ]} />
-          <RatioChart months={months} selectedKeys={selectedKeys} />
+          <RatioChart months={months} selectedKeys={selectedKeys} openingMonth={openingMonth} />
         </div>
       </Card>
 

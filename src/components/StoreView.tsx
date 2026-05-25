@@ -394,7 +394,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
       </Card>
 
       {(store.id === "davso" || store.id === "malmousque" || store.id === "endoume" || store.id === "republique") && (
-        <FinancialBlock storeId={store.id} daily={store.daily} period={period} />
+        <FinancialBlock storeId={store.id} daily={store.daily} period={period} openedDate={store.openedDate} />
       )}
     </div>
   );
