@@ -1,27 +1,43 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { fetchSalesForDate } from "@/lib/apitic/endpoints";
 import { getLinkByStoreId } from "@/lib/apitic/mapping";
 import { apiticFetch } from "@/lib/apitic/http";
 import { checkAdmin } from "@/lib/admin-auth";
 
-// GET /api/admin/sale-types?storeId=davso&date=2026-05-01&token=<ADMIN_TOKEN>
+// GET /api/admin/sale-types?storeId=davso&date=2026-05-20&token=<ADMIN_TOKEN>
 //
-// Diagnostic: fetches all sales for one date and returns:
-//   - breakdown of unique sale_type values with counts + € totals
-//   - sample record per sale_type
-//   - also probes potential "cancelled tickets" endpoints
-//
-// Used to discover how APITIC flags annulations and pertes.
+// Probes a wide range of APITIC endpoint patterns to discover where
+// cancelled tickets (notes annulées) and product losses (pertes) live.
+// Returns raw keys + sample for every endpoint that returns 200.
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
-type ApiticSaleRaw = {
-  id: number;
-  sale_type: string;
-  lines?: { line_type?: string; ati_price?: number; quantity?: number; product_id?: number }[];
-  payments?: { amount?: number; payment_mean?: { name?: string } }[];
-};
+async function probe(
+  path: string,
+): Promise<{ status: string; keys?: string[]; total?: number; sample?: unknown }> {
+  try {
+    const resp = (await apiticFetch(path, {
+      ignoreBlackout: true,
+      maxAttempts: 1,
+    })) as Record<string, unknown>;
+
+    const data: unknown[] =
+      Array.isArray(resp.data) ? (resp.data as unknown[]) :
+      Array.isArray(resp) ? (resp as unknown[]) :
+      [];
+
+    return {
+      status: "200 ✓",
+      keys: Object.keys(resp),
+      total: typeof resp.total === "number" ? resp.total : data.length,
+      sample: data[0] ?? null,
+    };
+  } catch (e) {
+    const err = e as { status?: number; message?: string; name?: string };
+    const s = err.status ?? err.message ?? err.name ?? "error";
+    return { status: String(s) };
+  }
+}
 
 export async function GET(req: NextRequest) {
   const auth = checkAdmin(req);
@@ -38,62 +54,68 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: `Unknown storeId: ${storeId}` }, { status: 404 });
   }
 
-  // 1. Fetch all sales for the date
-  const sales = (await fetchSalesForDate(link.accountId, date)) as ApiticSaleRaw[];
+  const id = link.accountId;
 
-  // 2. Group by sale_type
-  const byType: Record<string, { count: number; totalTTC: number; sample: ApiticSaleRaw }> = {};
-  for (const sale of sales) {
-    const t = sale.sale_type ?? "(null)";
-    if (!byType[t]) byType[t] = { count: 0, totalTTC: 0, sample: sale };
-    byType[t].count++;
-    const ttc = (sale.lines ?? []).reduce((s, l) => s + (l.ati_price ?? 0), 0);
-    byType[t].totalTTC += ttc;
+  // Probe all plausible APITIC endpoint patterns in parallel.
+  // Any that return 200 are candidates for cancelled tickets / losses.
+  const candidates: Record<string, string> = {
+    // Log / action tables (most likely)
+    "logs_date":              `/accounts/${id}/logs/${date}`,
+    "logs_root":              `/accounts/${id}/logs`,
+    "actions_date":           `/accounts/${id}/actions/${date}`,
+    "actions_root":           `/accounts/${id}/actions`,
+    "activities_date":        `/accounts/${id}/activities/${date}`,
+    "events_date":            `/accounts/${id}/events/${date}`,
+    "audit_date":             `/accounts/${id}/audit/${date}`,
+
+    // Cancelled / void variants
+    "cancelled_sales_date":   `/accounts/${id}/cancelled-sales/${date}`,
+    "cancelled_sales_root":   `/accounts/${id}/cancelled-sales`,
+    "voided_date":            `/accounts/${id}/voided-sales/${date}`,
+    "deleted_sales_date":     `/accounts/${id}/deleted-sales/${date}`,
+    "refunds_date":           `/accounts/${id}/refunds/${date}`,
+    "returns_date":           `/accounts/${id}/returns/${date}`,
+
+    // Note / receipt oriented names (French POS vocab)
+    "notes_date":             `/accounts/${id}/notes/${date}`,
+    "notes_cancelled_date":   `/accounts/${id}/notes/cancelled/${date}`,
+    "cancelled_notes_date":   `/accounts/${id}/cancelled-notes/${date}`,
+    "receipts_date":          `/accounts/${id}/receipts/${date}`,
+    "cancelled_receipts_date":`/accounts/${id}/cancelled-receipts/${date}`,
+
+    // Losses / waste
+    "losses_date":            `/accounts/${id}/losses/${date}`,
+    "wastes_date":            `/accounts/${id}/wastes/${date}`,
+    "pertes_date":            `/accounts/${id}/pertes/${date}`,
+
+    // Generic sales with query param
+    "sales_cancelled_param":  `/accounts/${id}/sales/${date}?type=cancelled`,
+    "sales_voided_param":     `/accounts/${id}/sales/${date}?type=voided`,
+    "sales_all_types":        `/accounts/${id}/sales/${date}?include_cancelled=true`,
+  };
+
+  // Run probes with a small concurrency to avoid hammering APITIC
+  const results: Record<string, ReturnType<typeof probe> extends Promise<infer T> ? T : never> = {};
+  const entries = Object.entries(candidates);
+  const BATCH = 4;
+  for (let i = 0; i < entries.length; i += BATCH) {
+    const batch = entries.slice(i, i + BATCH);
+    const settled = await Promise.all(batch.map(([, path]) => probe(path)));
+    batch.forEach(([key], j) => {
+      results[key] = settled[j];
+    });
   }
 
-  // 3. Probe potential "cancelled tickets" endpoints (APITIC doesn't document these
-  //    publicly — try common patterns and report what comes back)
-  const candidateEndpoints = [
-    `/accounts/${link.accountId}/cancelled-sales/${date}`,
-    `/accounts/${link.accountId}/sales/${date}/cancelled`,
-    `/accounts/${link.accountId}/logs/${date}`,
-    `/accounts/${link.accountId}/voids/${date}`,
-  ];
-  const probeResults: Record<string, { status: string; keys?: string[]; count?: number }> = {};
-
-  for (const ep of candidateEndpoints) {
-    try {
-      const resp = await apiticFetch(ep, { ignoreBlackout: true }) as Record<string, unknown>;
-      const data = Array.isArray(resp.data) ? resp.data : Array.isArray(resp) ? resp : null;
-      probeResults[ep] = {
-        status: "200",
-        keys: Object.keys(resp),
-        count: data?.length ?? undefined,
-      };
-    } catch (e) {
-      const err = e as { status?: number; message?: string };
-      probeResults[ep] = { status: String(err.status ?? err.message ?? "error") };
-    }
-  }
+  // Separate hits from misses for readability
+  const hits = Object.entries(results).filter(([, v]) => v.status.startsWith("200"));
+  const misses = Object.entries(results).filter(([, v]) => !v.status.startsWith("200"));
 
   return NextResponse.json({
     storeId,
+    accountId: id,
     date,
-    totalSales: sales.length,
-    // Breakdown per sale_type — this is the key diagnostic
-    saleTypes: Object.entries(byType).map(([type, v]) => ({
-      sale_type: type,
-      count: v.count,
-      totalTTC: Math.round(v.totalTTC * 100) / 100,
-      sample: {
-        id: v.sample.id,
-        sale_type: v.sample.sale_type,
-        lineCount: v.sample.lines?.length ?? 0,
-        paymentMethods: (v.sample.payments ?? []).map(p => p.payment_mean?.name ?? "?"),
-        firstLine: v.sample.lines?.[0] ?? null,
-      },
-    })),
-    // Probe results for potential cancelled-ticket endpoints
-    cancelledEndpointProbes: probeResults,
+    summary: `${hits.length} hit(s) / ${misses.length} miss(es)`,
+    hits: Object.fromEntries(hits),
+    misses: Object.fromEntries(misses.map(([k, v]) => [k, v.status])),
   });
 }
