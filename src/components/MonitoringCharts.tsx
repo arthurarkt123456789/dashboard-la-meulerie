@@ -5,6 +5,8 @@ import type { PeriodSelection, StoreData } from "@/lib/apitic/types";
 import { rangeForSelection } from "@/lib/metrics";
 import { maybeBucket, type Granularity } from "@/lib/bucketing";
 import { Card } from "./Card";
+import { GranularityToggle } from "./GranularityToggle";
+import { LegendInline } from "./LegendInline";
 import { LineChart, type LineSeries, type LinePoint } from "./charts/LineChart";
 import type { MonitoringResponse } from "@/app/api/monitoring/route";
 
@@ -35,8 +37,8 @@ function datesInRange(from: string, to: string): string[] {
 const pctFmt = (n: number) => n.toFixed(1).replace(".", ",") + " %";
 const countFmt = (n: number) => Math.round(n).toString();
 
-// Builds per-day ratio data (numerator + denominator), buckets them together,
-// then computes the ratio from the bucketed sums so weekly/monthly views are correct.
+// Stores raw numerators + denominators, buckets them (so weekly sums are
+// on raw counts, not percentages), then computes the ratio from bucketed sums.
 function buildRatioData(
   days: string[],
   storeIds: string[],
@@ -68,7 +70,6 @@ function buildRatioData(
   });
 }
 
-// Builds absolute count data (weekly view sums correctly via maybeBucket).
 function buildCountData(
   days: string[],
   storeIds: string[],
@@ -82,8 +83,6 @@ function buildCountData(
   });
   return maybeBucket(raw, granularity);
 }
-
-// ─── Loading / Error placeholders ─────────────────────────────────────────────
 
 function ChartPlaceholder({ text, height = 160 }: { text: string; height?: number }) {
   return (
@@ -106,10 +105,22 @@ function ChartPlaceholder({ text, height = 160 }: { text: string; height?: numbe
 type Props = {
   stores: StoreData[];
   period: PeriodSelection;
+  periodLabel: string;
   granularity: Granularity;
+  allowWeekly: boolean;
+  allowMonth: boolean;
+  onGranularity: (g: Granularity) => void;
 };
 
-export function MonitoringCharts({ stores, period, granularity }: Props) {
+export function MonitoringCharts({
+  stores,
+  period,
+  periodLabel,
+  granularity,
+  allowWeekly,
+  allowMonth,
+  onGranularity,
+}: Props) {
   const todayISO = stores[0]?.daily[stores[0].daily.length - 1]?.date ?? "";
   const { from, to } = rangeForSelection(period, todayISO);
   const storeIds = stores.map((s) => s.id);
@@ -122,6 +133,7 @@ export function MonitoringCharts({ stores, period, granularity }: Props) {
       return res.json() as Promise<MonitoringResponse>;
     },
     staleTime: 10 * 60 * 1000,
+    retry: false,
   });
 
   const series: LineSeries[] = stores.map((s, i) => ({
@@ -132,8 +144,8 @@ export function MonitoringCharts({ stores, period, granularity }: Props) {
 
   const days = datesInRange(from, to);
 
-  // ── Index for fast lookup ──────────────────────────────────────────────────
-  const dailyByStore = new Map<string, Map<string, (typeof stores[0]["daily"][0])>>();
+  // ── Lookup indexes ────────────────────────────────────────────────────────
+  const dailyByStore = new Map<string, Map<string, typeof stores[0]["daily"][0]>>();
   for (const s of stores) {
     const m = new Map<string, typeof s.daily[0]>();
     for (const d of s.daily) m.set(d.date, d);
@@ -141,7 +153,7 @@ export function MonitoringCharts({ stores, period, granularity }: Props) {
   }
 
   const monByStore = new Map<string, Map<string, NonNullable<typeof data>["stores"][0]["daily"][0]>>();
-  if (data) {
+  if (data && !data.blackout) {
     for (const s of data.stores) {
       const m = new Map<string, typeof s.daily[0]>();
       for (const d of s.daily) m.set(d.date, d);
@@ -149,64 +161,73 @@ export function MonitoringCharts({ stores, period, granularity }: Props) {
     }
   }
 
-  // ── Chart 1: % espèces ────────────────────────────────────────────────────
+  // ── Chart 1: % espèces ─────────────────────────────────────────────────
   const especesData = buildRatioData(days, storeIds, (id, date) => {
     const day = dailyByStore.get(id)?.get(date);
     if (!day || day.closed || day.ca <= 0) return { num: null, den: null };
     return { num: day.especesAmount ?? 0, den: day.ca };
   }, granularity);
 
-  // ── Chart 2: tickets annulés — nombre ─────────────────────────────────────
+  // ── Charts 2-5 from monitoring API ────────────────────────────────────
   const ticketsCountData = buildCountData(days, storeIds, (id, date) => {
     const day = dailyByStore.get(id)?.get(date);
     if (!day || day.closed) return null;
-    const mon = monByStore.get(id)?.get(date);
-    return mon?.cancelledTx ?? 0;
+    return monByStore.get(id)?.get(date)?.cancelledTx ?? 0;
   }, granularity);
 
-  // ── Chart 3: tickets annulés — % transactions ─────────────────────────────
   const ticketsPctData = buildRatioData(days, storeIds, (id, date) => {
     const day = dailyByStore.get(id)?.get(date);
     if (!day || day.closed) return { num: null, den: null };
-    const mon = monByStore.get(id)?.get(date);
-    const cancelled = mon?.cancelledTx ?? 0;
-    const total = day.tx + cancelled;
-    return { num: cancelled, den: total };
+    const cancelled = monByStore.get(id)?.get(date)?.cancelledTx ?? 0;
+    return { num: cancelled, den: day.tx + cancelled };
   }, granularity);
 
-  // ── Chart 4: montant annulé — % du CA ────────────────────────────────────
   const amountPctData = buildRatioData(days, storeIds, (id, date) => {
     const day = dailyByStore.get(id)?.get(date);
     if (!day || day.closed || day.ca <= 0) return { num: null, den: null };
-    const mon = monByStore.get(id)?.get(date);
-    const cancelled = mon?.cancelledAmount ?? 0;
-    const total = day.ca + cancelled;
-    return { num: cancelled, den: total };
+    const cancelled = monByStore.get(id)?.get(date)?.cancelledAmount ?? 0;
+    return { num: cancelled, den: day.ca + cancelled };
   }, granularity);
 
-  // ── Chart 5: produits annulés — nombre de lignes ──────────────────────────
   const linesCountData = buildCountData(days, storeIds, (id, date) => {
     const day = dailyByStore.get(id)?.get(date);
     if (!day || day.closed) return null;
-    const mon = monByStore.get(id)?.get(date);
-    return mon?.cancelledLines ?? 0;
+    return monByStore.get(id)?.get(date)?.cancelledLines ?? 0;
   }, granularity);
 
-  const isLoadingMonitoring = isLoading;
-  const isErrorMonitoring = isError;
+  const isBlackout = !!data?.blackout;
+  const cancelledUnavailable = isLoading || isError || isBlackout;
+  const cancelledPlaceholder = isBlackout
+    ? `Indisponible · fenêtre APITIC ${data.blackout}`
+    : isLoading ? "Chargement des annulations…"
+    : "Données indisponibles";
+
+  const chartAction = (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+      {allowWeekly && (
+        <GranularityToggle
+          value={granularity}
+          onChange={onGranularity}
+          allowMonth={allowMonth}
+        />
+      )}
+      <LegendInline series={series} />
+    </div>
+  );
 
   return (
     <>
-      {/* ── Espèces ──────────────────────────────────────────────────────── */}
+      {/* ── % Espèces — same visual as CA chart ──────────────────────────── */}
       <Card
         title="% paiements en espèces"
-        subtitle="Par boutique · évolution"
+        subtitle={`Par boutique · ${periodLabel}`}
+        action={chartAction}
         span={2}
       >
         <LineChart
           data={especesData}
           series={series}
-          height={200}
+          height={280}
           period={period}
           granularity={granularity}
           yFormat={pctFmt}
@@ -215,14 +236,9 @@ export function MonitoringCharts({ stores, period, granularity }: Props) {
       </Card>
 
       {/* ── Tickets annulés ─────────────────────────────────────────────── */}
-      <Card
-        title="Tickets annulés — nombre"
-        subtitle="Par boutique"
-      >
-        {isLoadingMonitoring ? (
-          <ChartPlaceholder text="Chargement…" />
-        ) : isErrorMonitoring ? (
-          <ChartPlaceholder text="Données indisponibles" />
+      <Card title="Tickets annulés — nombre" subtitle="Par boutique">
+        {cancelledUnavailable ? (
+          <ChartPlaceholder text={cancelledPlaceholder} />
         ) : (
           <LineChart
             data={ticketsCountData}
@@ -236,14 +252,9 @@ export function MonitoringCharts({ stores, period, granularity }: Props) {
         )}
       </Card>
 
-      <Card
-        title="Tickets annulés — % transactions"
-        subtitle="Annulés / (soldés + annulés)"
-      >
-        {isLoadingMonitoring ? (
-          <ChartPlaceholder text="Chargement…" />
-        ) : isErrorMonitoring ? (
-          <ChartPlaceholder text="Données indisponibles" />
+      <Card title="Tickets annulés — % transactions" subtitle="Annulés / (soldés + annulés)">
+        {cancelledUnavailable ? (
+          <ChartPlaceholder text={cancelledPlaceholder} />
         ) : (
           <LineChart
             data={ticketsPctData}
@@ -263,10 +274,8 @@ export function MonitoringCharts({ stores, period, granularity }: Props) {
         subtitle="Valeur annulée / (CA + annulé)"
         span={2}
       >
-        {isLoadingMonitoring ? (
-          <ChartPlaceholder text="Chargement…" />
-        ) : isErrorMonitoring ? (
-          <ChartPlaceholder text="Données indisponibles" />
+        {cancelledUnavailable ? (
+          <ChartPlaceholder text={cancelledPlaceholder} height={200} />
         ) : (
           <LineChart
             data={amountPctData}
@@ -280,16 +289,14 @@ export function MonitoringCharts({ stores, period, granularity }: Props) {
         )}
       </Card>
 
-      {/* ── Produits annulés (lignes) ────────────────────────────────────── */}
+      {/* ── Produits annulés ────────────────────────────────────────────── */}
       <Card
-        title="Produits annulés — nombre de lignes"
-        subtitle="Lignes de produits dans les tickets annulés"
+        title="Produits annulés — lignes"
+        subtitle="Nombre de lignes dans les tickets annulés · par boutique"
         span={2}
       >
-        {isLoadingMonitoring ? (
-          <ChartPlaceholder text="Chargement…" />
-        ) : isErrorMonitoring ? (
-          <ChartPlaceholder text="Données indisponibles" />
+        {cancelledUnavailable ? (
+          <ChartPlaceholder text={cancelledPlaceholder} height={200} />
         ) : (
           <LineChart
             data={linesCountData}

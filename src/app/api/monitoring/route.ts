@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getConfiguredStoreLinks } from "@/lib/apitic/mapping";
 import { fetchCancelledSalesForDate } from "@/lib/apitic/endpoints";
+import { currentBlackout } from "@/lib/apitic/http";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -27,6 +28,7 @@ export type MonitoringDayStat = {
 };
 
 export type MonitoringResponse = {
+  blackout?: string;
   stores: { id: string; daily: MonitoringDayStat[] }[];
 };
 
@@ -56,8 +58,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "from and to required" }, { status: 400 });
   }
 
+  // APITIC blocks cancelled-sales endpoint during service hours server-side.
+  // Rather than hammering it and getting 503s, bail early with a signal the
+  // client can use to show a meaningful message.
+  const blackout = currentBlackout();
+  if (blackout) {
+    console.log(`[monitoring] blackout window ${blackout}, skipping fetch`);
+    return NextResponse.json({ blackout, stores: [] } satisfies MonitoringResponse);
+  }
+
   const links = getConfiguredStoreLinks();
   const dates = datesInRange(from, to);
+  console.log(`[monitoring] fetching ${dates.length} dates × ${links.length} stores (${from} → ${to})`);
 
   const storeResults = await Promise.all(
     links.map(async (link) => {
@@ -65,6 +77,12 @@ export async function GET(req: NextRequest) {
       return { id: link.storeId, daily };
     }),
   );
+
+  const totalCancelled = storeResults.reduce(
+    (s, st) => s + st.daily.reduce((ss, d) => ss + d.cancelledTx, 0),
+    0,
+  );
+  console.log(`[monitoring] done — total cancelledTx across all stores/dates: ${totalCancelled}`);
 
   return NextResponse.json({ stores: storeResults } satisfies MonitoringResponse);
 }
