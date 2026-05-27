@@ -23,6 +23,7 @@ import { HourlyBars } from "./charts/HourlyBars";
 import { TopProducts } from "./TopProducts";
 import { PaymentsCard } from "./PaymentsCard";
 import { SegmentSplit } from "./SegmentSplit";
+import { CategorySplit } from "./CategorySplit";
 import { SegmentFilterInline, useSegmentFilter } from "./SegmentFilter";
 import { BootstrapButton } from "./BootstrapButton";
 import { FinancialBlock } from "./FinancialBlock";
@@ -420,7 +421,6 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           sparkColor="var(--color-coral)"
           trendDelta={trendComparison.caTrendDelta}
           trendLabel={trendComparison.trendLabel}
-          segments={segmentShares}
           networkShare={caNetworkShare}
           networkRank={networkComparisons.caRank}
           accent
@@ -435,7 +435,6 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           spark={txSparkValues}
           trendDelta={trendComparison.txTrendDelta}
           trendLabel={trendComparison.trendLabel}
-          segments={txSegmentShares}
           networkShare={txNetworkShare}
           networkRank={networkComparisons.txRank}
         />
@@ -603,14 +602,44 @@ export function StoreView({ store, period, today, amountMode }: Props) {
       </Card>
 
       <Card
-        title="Répartition Fromagerie / Snacking"
+        title="Répartition des catégories"
         subtitle={`${periodLabel} · ${isHT ? "HT" : "TTC"}`}
       >
-        <SegmentSplit
-          fromagerie={isHT ? m.fromagerieCAHT : m.fromagerieCA}
-          snacking={isHT ? m.snackingCAHT : m.snackingCA}
-          suffix={isHT ? "€ HT" : "€ TTC"}
-        />
+        {(() => {
+          const totalCA = isHT ? m.caHT : m.ca;
+          const caSegs = [
+            { label: "Fromagerie", color: "var(--color-dark)", value: isHT ? m.fromagerieCAHT : m.fromagerieCA, share: totalCA ? (isHT ? m.fromagerieCAHT : m.fromagerieCA) / totalCA : 0 },
+            { label: "Snacking",   color: "var(--color-coral)", value: isHT ? m.snackingCAHT ?? 0 : m.snackingCA, share: totalCA ? (isHT ? m.snackingCAHT ?? 0 : m.snackingCA) / totalCA : 0 },
+            { label: "Épicerie",   color: "#1A5EA8", value: isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA, share: totalCA ? (isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA) / totalCA : 0 },
+            { label: "Merch",      color: "#7C3AED", value: isHT ? m.merchCAHT ?? 0 : m.merchCA, share: totalCA ? (isHT ? m.merchCAHT ?? 0 : m.merchCA) / totalCA : 0 },
+          ];
+          const txSegs = [
+            { label: "Fromagerie", color: "var(--color-dark)", value: m.days > 0 ? m.fromagerieTx / m.days : 0, share: m.tx ? m.fromagerieTx / m.tx : 0 },
+            { label: "Snacking",   color: "var(--color-coral)", value: m.days > 0 ? m.snackingTx / m.days : 0, share: m.tx ? m.snackingTx / m.tx : 0 },
+            { label: "Épicerie",   color: "#1A5EA8", value: m.days > 0 ? m.epicerieTx / m.days : 0, share: m.tx ? m.epicerieTx / m.tx : 0 },
+            { label: "Merch",      color: "#7C3AED", value: m.days > 0 ? m.merchTx / m.days : 0, share: m.tx ? m.merchTx / m.tx : 0 },
+          ];
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+              <CategorySplit
+                title="Chiffre d'affaires"
+                segments={caSegs}
+                formatValue={(v) => {
+                  if (v >= 1000) return (v / 1000).toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " k€";
+                  return Math.round(v) + " €";
+                }}
+                shareLabel="du CA"
+              />
+              <div style={{ borderTop: "1px solid var(--border-light)" }} />
+              <CategorySplit
+                title="Transactions / jour"
+                segments={txSegs}
+                formatValue={(v) => (Math.round(v * 10) / 10).toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                shareLabel="des tx"
+              />
+            </div>
+          );
+        })()}
       </Card>
 
       <Card
