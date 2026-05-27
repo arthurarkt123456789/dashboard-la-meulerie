@@ -117,6 +117,12 @@ function rollupDay(
   let snackingTx = 0;
   let epicerieTx = 0;
   let merchTx = 0;
+  let margeHT = 0;
+  let margeFromagerieHT = 0;
+  let margeSnackingHT = 0;
+  let margeEpicerieHT = 0;
+  let margeMerchHT = 0;
+  let margeCoveredCAHT = 0;
   for (const sale of sales) {
     let saleHasFromagerie = false;
     let saleHasSnacking = false;
@@ -149,6 +155,18 @@ function rollupDay(
         snackingCAHT += amountHT;
         saleHasSnacking = true;
       }
+      // Gross margin: purchase_price_excl_tax is unit cost HT.
+      // Only include lines where the cost is set (> 0).
+      if (line.purchase_price_excl_tax > 0) {
+        const costHT = line.quantity * line.purchase_price_excl_tax;
+        const lineMargeHT = amountHT - costHT;
+        margeHT += lineMargeHT;
+        margeCoveredCAHT += amountHT;
+        if (seg === "Fromagerie") margeFromagerieHT += lineMargeHT;
+        else if (seg === "Épicerie") margeEpicerieHT += lineMargeHT;
+        else if (seg === "Merch") margeMerchHT += lineMargeHT;
+        else margeSnackingHT += lineMargeHT;
+      }
     }
     if (saleHasFromagerie) fromagerieTx++;
     if (saleHasSnacking) snackingTx++;
@@ -175,6 +193,12 @@ function rollupDay(
     snackingTx,
     epicerieTx,
     merchTx,
+    margeHT: Math.round(margeHT * 100) / 100,
+    margeFromagerieHT: Math.round(margeFromagerieHT * 100) / 100,
+    margeSnackingHT: Math.round(margeSnackingHT * 100) / 100,
+    margeEpicerieHT: Math.round(margeEpicerieHT * 100) / 100,
+    margeMerchHT: Math.round(margeMerchHT * 100) / 100,
+    margeCoveredCAHT: Math.round(margeCoveredCAHT * 100) / 100,
   };
 }
 

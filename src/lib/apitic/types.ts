@@ -57,6 +57,14 @@ export type StoreDaily = {
   virementAmount?: number;
   especesAmount?: number;
   ticketsRestoAmount?: number;
+  // Gross margin: only for sale lines where purchase_price_excl_tax > 0.
+  margeHT?: number;
+  margeFromagerieHT?: number;
+  margeSnackingHT?: number;
+  margeEpicerieHT?: number;
+  margeMerchHT?: number;
+  /** CA HT of lines where purchase price is known (coverage denominator). */
+  margeCoveredCAHT?: number;
 };
 
 export type StoreHourly = {

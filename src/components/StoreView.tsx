@@ -17,6 +17,7 @@ import { fmtEUR, fmtNum } from "@/lib/format";
 import { Card } from "./Card";
 import { KPICard } from "./KPICard";
 import { BasketBreakdown } from "./BasketBreakdown";
+import { MarginBreakdown } from "./MarginBreakdown";
 import { LineChart } from "./charts/LineChart";
 import { HourlyBars } from "./charts/HourlyBars";
 import { TopProducts } from "./TopProducts";
@@ -442,6 +443,18 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           yoyAvailable={m.yoyAvailable}
           suffix={isHT ? "€ HT" : "€ TTC"}
           networkBasketAbsolute={networkBasketAbsolute}
+        />
+        <MarginBreakdown
+          margeHT={m.margeHT}
+          margeCoveredCAHT={m.margeCoveredCAHT}
+          caHT={m.caHT}
+          margeFromagerieHT={m.margeFromagerieHT}
+          margeSnackingHT={m.margeSnackingHT}
+          margeEpicerieHT={m.margeEpicerieHT}
+          margeMerchHT={m.margeMerchHT}
+          margeDelta={m.margeDelta}
+          yoyMargeDelta={m.yoyAvailable ? m.yoyMargeDelta : null}
+          yoyAvailable={m.yoyAvailable}
         />
         <KPICard
           label="CA / jour moyen"
