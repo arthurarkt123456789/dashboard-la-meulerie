@@ -5,7 +5,7 @@ import type { FormuleStats, PaymentMethod, PaymentSplit, PeriodSelection, StoreD
 import { maybeBucket, type Granularity } from "@/lib/bucketing";
 import { GranularityToggle } from "./GranularityToggle";
 import { N1Toggle } from "./N1Toggle";
-import { SegmentEvolution } from "./SegmentEvolution";
+import { StackedCategoryChart } from "./charts/StackedCategoryChart";
 import { FormulesCard } from "./FormulesCard";
 import type { AmountMode } from "./AmountModeToggle";
 import {
@@ -650,16 +650,9 @@ export function StoreView({ store, period, today, amountMode }: Props) {
         <WeekdayChart daily={store.daily} period={period} isHT={isHT} height={220} />
       </Card>
 
-      <SegmentEvolution
-        daily={store.daily}
-        period={period}
-        amountMode={amountMode}
-        allowWeekly={allowWeekly}
-        allowMonth={allowMonth}
-        granularity={effectiveGranularity}
-        onGranularity={setGranularity}
-        yoyAvailable={m.yoyAvailable}
-      />
+      <Card title="CA par catégories" subtitle={`${isHT ? "HT" : "TTC"} · barres journalières · moyenne 7 jours`} span={3}>
+        <StackedCategoryChart daily={store.daily} period={period} isHT={isHT} height={300} />
+      </Card>
 
       <Card
         title="Top produits"
