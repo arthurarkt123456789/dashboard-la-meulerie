@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
       }
 
       const categoryById = new Map(categories.map((c) => [c.id, c.name]));
-      const segCounts = { Fromagerie: 0, Snacking: 0 };
+      const segCounts: Record<string, number> = { Fromagerie: 0, Snacking: 0, "Épicerie": 0 };
       const unknownCats = new Map<number, { name: string; count: number }>();
       for (const p of products) {
         const catName = categoryById.get(p.category_id);

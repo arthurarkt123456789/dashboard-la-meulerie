@@ -1,7 +1,7 @@
 // Shapes consumed by the dashboard UI. The APITIC adapter (and the mock)
 // must produce exactly these. Adding fields here is the contract change point.
 
-export type Segment = "Fromagerie" | "Snacking";
+export type Segment = "Fromagerie" | "Snacking" | "Épicerie";
 
 export type PeriodKey = "today" | "7d" | "30d" | "90d";
 
@@ -33,10 +33,13 @@ export type StoreDaily = {
   fromagerieCAHT: number;
   snackingCA: number;
   snackingCAHT: number;
+  epicerieCA?: number;
+  epicerieCAHT?: number;
   /** Tickets with at least one Fromagerie line. Mixed tickets count in both. */
   fromagerieTx?: number;
   /** Tickets with at least one Snacking line. Mixed tickets count in both. */
   snackingTx?: number;
+  epicerieTx?: number;
   closed?: boolean;    // day before store opened
   partial?: boolean;   // day in progress
   // Per-day formule breakdown — allows period-aware computation in the UI.

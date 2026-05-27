@@ -83,6 +83,8 @@ export function TopProducts({
                     background:
                       p.segment === "Fromagerie"
                         ? "var(--color-dark)"
+                        : p.segment === "Épicerie"
+                        ? "#1A5EA8"
                         : "var(--color-coral)",
                   }}
                 />

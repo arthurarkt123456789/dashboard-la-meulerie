@@ -28,6 +28,7 @@ import { FinancialBlock } from "./FinancialBlock";
 import { DavsoExtras } from "./DavsoExtras";
 import { WeekdayChart } from "./WeekdayChart";
 import { useStoreData } from "@/lib/queries";
+import { roll7 } from "@/lib/smoothing";
 
 type Props = {
   store: StoreData;
@@ -74,6 +75,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
     : "day";
   const isHT = amountMode === "HT";
   const [showN1, setShowN1] = useState(true);
+  const [smoothCA, setSmoothCA] = useState(false);
 
   const m = useMemo(
     () => periodMetricsForSelection(store.daily, period),
@@ -95,10 +97,13 @@ export function StoreView({ store, period, today, amountMode }: Props) {
       }));
   }, [store.daily, period, isHT]);
 
-  const chartData = useMemo(
-    () => maybeBucket(lineData, effectiveGranularity),
-    [lineData, effectiveGranularity],
-  );
+  const chartData = useMemo(() => {
+    const bucketed = maybeBucket(lineData, effectiveGranularity);
+    if (!smoothCA || effectiveGranularity !== "day") return bucketed;
+    const smoothed = roll7(bucketed.map((d) => (typeof d.ca === "number" ? d.ca : null)));
+    return bucketed.map((d, i) => ({ ...d, ca: smoothed[i] }));
+  }, [lineData, effectiveGranularity, smoothCA]);
+
   const yoyChartData = useMemo(() => {
     if (!m.yoyAvailable) return null;
     const days = m.days;
@@ -113,8 +118,11 @@ export function StoreView({ store, period, today, amountMode }: Props) {
       date: lineData[i]?.date ?? d.date,
       ca: isHT ? d.caHT ?? 0 : d.ca,
     }));
-    return maybeBucket(raw, effectiveGranularity);
-  }, [m.yoyAvailable, m.days, store.daily, lineData, effectiveGranularity, isHT, period]);
+    const bucketed = maybeBucket(raw, effectiveGranularity);
+    if (!smoothCA || effectiveGranularity !== "day") return bucketed;
+    const smoothed = roll7(bucketed.map((d) => d.ca ?? null));
+    return bucketed.map((d, i) => ({ ...d, ca: smoothed[i] ?? 0 }));
+  }, [m.yoyAvailable, m.days, store.daily, lineData, effectiveGranularity, isHT, period, smoothCA]);
   // Formule and payment stats computed from the period's daily slice so they
   // react to the date selector instead of always showing "30 derniers jours".
   const periodFormules = useMemo<FormuleStats>(() => {
@@ -212,9 +220,9 @@ export function StoreView({ store, period, today, amountMode }: Props) {
 
   const epicerieCAShare = useMemo(() => {
     const totalCA = isHT ? m.caHT : m.ca;
-    if (!totalCA) return null;
-    const epicerieCA = totalCA - (isHT ? m.fromagerieCAHT : m.fromagerieCA) - (isHT ? (m.snackingCAHT ?? 0) : m.snackingCA);
-    return Math.max(0, epicerieCA / totalCA);
+    const epicerieCA = isHT ? m.epicerieCAHT : m.epicerieCA;
+    if (!totalCA || !epicerieCA) return null;
+    return epicerieCA / totalCA;
   }, [m, isHT]);
 
   const caPerDay = m.days > 0 ? (isHT ? m.caHT : m.ca) / m.days : 0;
@@ -284,6 +292,10 @@ export function StoreView({ store, period, today, amountMode }: Props) {
             value: isHT ? m.avgTicketSnackingHT : m.avgTicketSnacking,
             delta: m.ticketSnackingDelta,
           }}
+          epicerie={{
+            value: isHT ? m.avgTicketEpicerieHT : m.avgTicketEpicerie,
+            delta: m.ticketEpicerieDelta,
+          }}
           epicerieCAShare={epicerieCAShare}
           stdDev={stdDev}
           yoyAvailable={m.yoyAvailable}
@@ -309,7 +321,8 @@ export function StoreView({ store, period, today, amountMode }: Props) {
         title="Évolution du chiffre d'affaires"
         subtitle={
           periodLabel +
-          (m.yoyAvailable && showN1 ? " · N-1 en pointillé" : "")
+          (m.yoyAvailable && showN1 ? " · N-1 en pointillé" : "") +
+          (smoothCA && effectiveGranularity === "day" ? " · moy. 7j" : "")
         }
         action={
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -325,6 +338,14 @@ export function StoreView({ store, period, today, amountMode }: Props) {
               onChange={setShowN1}
               disabled={!m.yoyAvailable}
             />
+            <button
+              className={"lm-seg-btn" + (smoothCA ? " active" : "")}
+              style={{ fontSize: 11, padding: "2px 8px", lineHeight: "20px" }}
+              onClick={() => setSmoothCA((v) => !v)}
+              title="Moyenne glissante 7 jours"
+            >
+              ~7j
+            </button>
           </div>
         }
         span={2}

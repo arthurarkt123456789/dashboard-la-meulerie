@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { PeriodSelection, StoreDaily } from "@/lib/apitic/types";
 import { rangeForSelection } from "@/lib/metrics";
 import { maybeBucket, type Granularity } from "@/lib/bucketing";
+import { roll7 } from "@/lib/smoothing";
 import { Card } from "./Card";
 import { LineChart, type LineSeries } from "./charts/LineChart";
 import { LegendInline } from "./LegendInline";
@@ -41,6 +42,7 @@ export function SegmentEvolution({
   yoyAvailable,
 }: Props) {
   const [showN1, setShowN1] = useState(false);
+  const [smooth, setSmooth] = useState(false);
   const isHT = amountMode === "HT";
   const yoyOffsetDays =
     period.kind === "month" || period.kind === "fiscal-year-todate" ? 365 : 364;
@@ -102,15 +104,28 @@ export function SegmentEvolution({
     ];
   }, [showN1]);
 
+  const smoothedData = useMemo(() => {
+    if (!smooth || granularity !== "day") return lineData;
+    const keys = ["fromagerie", "snacking", ...(showN1 ? ["fromagerie__yoy", "snacking__yoy"] : [])];
+    const smoothed = { ...Object.fromEntries(keys.map((k) => [k, roll7(lineData.map((d) => {
+      const v = d[k];
+      return typeof v === "number" ? v : null;
+    }))])) };
+    return lineData.map((d, i) => ({
+      ...d,
+      ...Object.fromEntries(keys.map((k) => [k, smoothed[k][i]])),
+    }));
+  }, [lineData, smooth, granularity, showN1]);
+
   const chartData = useMemo(
-    () => maybeBucket(lineData, granularity),
-    [lineData, granularity],
+    () => maybeBucket(smoothedData, granularity),
+    [smoothedData, granularity],
   );
 
   return (
     <Card
       title="Évolution Fromagerie / Snacking"
-      subtitle={`Montants ${isHT ? "HT" : "TTC"}`}
+      subtitle={`Montants ${isHT ? "HT" : "TTC"}${smooth && granularity === "day" ? " · moy. 7j" : ""}`}
       action={
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           {allowWeekly && (
@@ -121,6 +136,14 @@ export function SegmentEvolution({
             />
           )}
           <N1Toggle value={showN1} onChange={setShowN1} disabled={!yoyAvailable} />
+          <button
+            className={"lm-seg-btn" + (smooth ? " active" : "")}
+            style={{ fontSize: 11, padding: "2px 8px", lineHeight: "20px" }}
+            onClick={() => setSmooth((v) => !v)}
+            title="Moyenne glissante 7 jours"
+          >
+            ~7j
+          </button>
           <LegendInline series={series.filter((s) => !s.dashed)} />
         </div>
       }

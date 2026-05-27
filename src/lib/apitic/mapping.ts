@@ -94,6 +94,7 @@ export function getLinkByStoreId(storeId: string): StoreLink | null {
 // Configured via env:
 //   APITIC_CATEGORIES_FROMAGERIE="12,34,55"
 //   APITIC_CATEGORIES_SNACKING="2,7,18"
+//   APITIC_CATEGORIES_EPICERIE="8,9,23"   ← optional third segment
 // Anything else falls back to APITIC_DEFAULT_SEGMENT (default "Snacking").
 //
 // If both env vars are empty, we degrade gracefully with a keyword heuristic
@@ -127,17 +128,19 @@ export type SegmentMapper = {
 
 export function buildSegmentMapper(): SegmentMapper {
   const fromagerieIds = parseIdList(process.env.APITIC_CATEGORIES_FROMAGERIE);
+  const epicerieIds = parseIdList(process.env.APITIC_CATEGORIES_EPICERIE);
   const snackingIds = parseIdList(process.env.APITIC_CATEGORIES_SNACKING);
   const defaultSegment: Segment =
     process.env.APITIC_DEFAULT_SEGMENT === "Fromagerie"
       ? "Fromagerie"
       : "Snacking";
-  const hasConfig = fromagerieIds.size + snackingIds.size > 0;
+  const hasConfig = fromagerieIds.size + epicerieIds.size + snackingIds.size > 0;
 
   return {
     defaultSegment,
     segmentForCategory(categoryId: number, categoryName?: string): Segment {
       if (fromagerieIds.has(categoryId)) return "Fromagerie";
+      if (epicerieIds.has(categoryId)) return "Épicerie";
       if (snackingIds.has(categoryId)) return "Snacking";
       if (!hasConfig && categoryName) {
         const n = categoryName.toLowerCase();

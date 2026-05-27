@@ -54,7 +54,7 @@ export function WeekdayChart({ daily, period, isHT, height = 220 }: Props) {
       const avgCA = days.reduce((s, d) => s + (isHT ? (d.caHT ?? 0) : d.ca), 0) / n;
       const avgFrm = days.reduce((s, d) => s + (isHT ? (d.fromagerieCAHT ?? 0) : d.fromagerieCA), 0) / n;
       const avgSnk = days.reduce((s, d) => s + (isHT ? (d.snackingCAHT ?? 0) : d.snackingCA), 0) / n;
-      const avgEpi = Math.max(0, avgCA - avgFrm - avgSnk);
+      const avgEpi = days.reduce((s, d) => s + (isHT ? (d.epicerieCAHT ?? 0) : (d.epicerieCA ?? 0)), 0) / n;
       const avgTx = days.reduce((s, d) => s + d.tx, 0) / n;
       return { dow, label: FR_DAYS[dow], avgCA, avgFromagerie: avgFrm, avgSnacking: avgSnk, avgEpicerie: avgEpi, avgTx, n };
     }).filter((x): x is DayStats => x !== null);

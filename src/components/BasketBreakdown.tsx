@@ -10,7 +10,9 @@ type Props = {
   global: SegmentValue;
   fromagerie: SegmentValue;
   snacking: SegmentValue;
-  /** Épicerie/boissons — we can't compute per-ticket avg without epicerieTx, so show CA share only. */
+  /** Épicerie/boissons — per-ticket average. If epicerieCA > 0 but epicerieTx = 0, pass value=0 and caShare. */
+  epicerie?: SegmentValue;
+  /** Shown as fallback when epicerie.value === 0 but there is CA (categories not split into tickets). */
   epicerieCAShare?: number | null;
   stdDev?: number | null;
   yoyAvailable?: boolean;
@@ -35,6 +37,7 @@ export function BasketBreakdown({
   global,
   fromagerie,
   snacking,
+  epicerie,
   epicerieCAShare,
   stdDev,
   yoyAvailable,
@@ -94,7 +97,9 @@ export function BasketBreakdown({
       </div>
       <SegmentRow label="Fromagerie" color="var(--color-dark)" b={fromagerie} suffix={suffix} />
       <SegmentRow label="Snacking" color="var(--color-coral)" b={snacking} suffix={suffix} />
-      {epicerieCAShare != null && epicerieCAShare > 0 && (
+      {epicerie && epicerie.value > 0 ? (
+        <SegmentRow label="Épicerie" color="#1A5EA8" b={epicerie} suffix={suffix} />
+      ) : epicerieCAShare != null && epicerieCAShare > 0 ? (
         <div style={{
           display: "grid",
           gridTemplateColumns: "8px 1fr auto",
@@ -113,7 +118,7 @@ export function BasketBreakdown({
             <span style={{ fontSize: 10, color: "var(--fg-tertiary)", fontWeight: 400, marginLeft: 3 }}>du CA</span>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import type { PeriodSelection, StoreData } from "@/lib/apitic/types";
 import { rangeForSelection } from "@/lib/metrics";
 import { bucketByWeek } from "@/lib/bucketing";
 import { useStoreData } from "@/lib/queries";
+import { roll7 } from "@/lib/smoothing";
 import { Card } from "./Card";
 import { KPICard } from "./KPICard";
 import { DualLineChart } from "./charts/DualLineChart";
@@ -16,13 +17,6 @@ function addDays(iso: string, n: number): string {
   const d = new Date(`${iso}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
-}
-
-function roll7(arr: (number | null)[]): (number | null)[] {
-  return arr.map((_, i) => {
-    const win = arr.slice(Math.max(0, i - 6), i + 1).filter((v): v is number => v !== null);
-    return win.length >= 3 ? win.reduce((a, b) => a + b, 0) / win.length : null;
-  });
 }
 
 type Props = {
