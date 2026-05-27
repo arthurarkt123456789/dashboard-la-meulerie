@@ -10,10 +10,9 @@ type Props = {
   global: SegmentValue;
   fromagerie: SegmentValue;
   snacking: SegmentValue;
-  /** Épicerie/boissons — per-ticket average. If epicerieCA > 0 but epicerieTx = 0, pass value=0 and caShare. */
   epicerie?: SegmentValue;
-  /** Shown as fallback when epicerie.value === 0 but there is CA (categories not split into tickets). */
   epicerieCAShare?: number | null;
+  merch?: SegmentValue;
   stdDev?: number | null;
   yoyAvailable?: boolean;
   partial?: boolean;
@@ -39,6 +38,7 @@ export function BasketBreakdown({
   snacking,
   epicerie,
   epicerieCAShare,
+  merch,
   stdDev,
   yoyAvailable,
   partial,
@@ -119,6 +119,9 @@ export function BasketBreakdown({
           </div>
         </div>
       ) : null}
+      {merch && merch.value > 0 && (
+        <SegmentRow label="Merch" color="#7C3AED" b={merch} suffix={suffix} />
+      )}
     </div>
   );
 }

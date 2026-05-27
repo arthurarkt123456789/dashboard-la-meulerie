@@ -297,6 +297,10 @@ export function StoreView({ store, period, today, amountMode }: Props) {
             delta: m.ticketEpicerieDelta,
           }}
           epicerieCAShare={epicerieCAShare}
+          merch={{
+            value: isHT ? m.avgTicketMerchHT : m.avgTicketMerch,
+            delta: m.ticketMerchDelta,
+          }}
           stdDev={stdDev}
           yoyAvailable={m.yoyAvailable}
           suffix={isHT ? "€ HT" : "€ TTC"}

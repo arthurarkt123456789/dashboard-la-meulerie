@@ -132,9 +132,12 @@ function sumRange(slice: StoreDaily[]): PeriodSum {
   const snackingCAHT = slice.reduce((s, d) => s + (d.snackingCAHT ?? 0), 0);
   const epicerieCA = slice.reduce((s, d) => s + (d.epicerieCA ?? 0), 0);
   const epicerieCAHT = slice.reduce((s, d) => s + (d.epicerieCAHT ?? 0), 0);
+  const merchCA = slice.reduce((s, d) => s + (d.merchCA ?? 0), 0);
+  const merchCAHT = slice.reduce((s, d) => s + (d.merchCAHT ?? 0), 0);
   const fromagerieTx = slice.reduce((s, d) => s + (d.fromagerieTx ?? 0), 0);
   const snackingTx = slice.reduce((s, d) => s + (d.snackingTx ?? 0), 0);
   const epicerieTx = slice.reduce((s, d) => s + (d.epicerieTx ?? 0), 0);
+  const merchTx = slice.reduce((s, d) => s + (d.merchTx ?? 0), 0);
   return {
     ca,
     caHT,
@@ -145,9 +148,12 @@ function sumRange(slice: StoreDaily[]): PeriodSum {
     snackingCAHT,
     epicerieCA,
     epicerieCAHT,
+    merchCA,
+    merchCAHT,
     fromagerieTx,
     snackingTx,
     epicerieTx,
+    merchTx,
     avgTicket: tx ? ca / tx : 0,
     avgTicketHT: tx ? caHT / tx : 0,
     avgTicketFromagerie: fromagerieTx ? fromagerieCA / fromagerieTx : 0,
@@ -156,6 +162,8 @@ function sumRange(slice: StoreDaily[]): PeriodSum {
     avgTicketSnackingHT: snackingTx ? snackingCAHT / snackingTx : 0,
     avgTicketEpicerie: epicerieTx ? epicerieCA / epicerieTx : 0,
     avgTicketEpicerieHT: epicerieTx ? epicerieCAHT / epicerieTx : 0,
+    avgTicketMerch: merchTx ? merchCA / merchTx : 0,
+    avgTicketMerchHT: merchTx ? merchCAHT / merchTx : 0,
     slice,
   };
 }
@@ -172,15 +180,20 @@ type PeriodSum = {
   snackingCAHT: number;
   epicerieCA: number;
   epicerieCAHT: number;
+  merchCA: number;
+  merchCAHT: number;
   fromagerieTx: number;
   snackingTx: number;
   epicerieTx: number;
+  merchTx: number;
   avgTicketFromagerie: number;
   avgTicketFromagerieHT: number;
   avgTicketSnacking: number;
   avgTicketSnackingHT: number;
   avgTicketEpicerie: number;
   avgTicketEpicerieHT: number;
+  avgTicketMerch: number;
+  avgTicketMerchHT: number;
   slice: StoreDaily[];
 };
 
@@ -195,9 +208,12 @@ export function sumPeriod(daily: StoreDaily[], days: number): PeriodSum {
   const snackingCAHT = slice.reduce((s, d) => s + (d.snackingCAHT ?? 0), 0);
   const epicerieCA = slice.reduce((s, d) => s + (d.epicerieCA ?? 0), 0);
   const epicerieCAHT = slice.reduce((s, d) => s + (d.epicerieCAHT ?? 0), 0);
+  const merchCA = slice.reduce((s, d) => s + (d.merchCA ?? 0), 0);
+  const merchCAHT = slice.reduce((s, d) => s + (d.merchCAHT ?? 0), 0);
   const fromagerieTx = slice.reduce((s, d) => s + (d.fromagerieTx ?? 0), 0);
   const snackingTx = slice.reduce((s, d) => s + (d.snackingTx ?? 0), 0);
   const epicerieTx = slice.reduce((s, d) => s + (d.epicerieTx ?? 0), 0);
+  const merchTx = slice.reduce((s, d) => s + (d.merchTx ?? 0), 0);
   return {
     ca,
     caHT,
@@ -208,9 +224,12 @@ export function sumPeriod(daily: StoreDaily[], days: number): PeriodSum {
     snackingCAHT,
     epicerieCA,
     epicerieCAHT,
+    merchCA,
+    merchCAHT,
     fromagerieTx,
     snackingTx,
     epicerieTx,
+    merchTx,
     avgTicket: tx ? ca / tx : 0,
     avgTicketHT: tx ? caHT / tx : 0,
     avgTicketFromagerie: fromagerieTx ? fromagerieCA / fromagerieTx : 0,
@@ -219,6 +238,8 @@ export function sumPeriod(daily: StoreDaily[], days: number): PeriodSum {
     avgTicketSnackingHT: snackingTx ? snackingCAHT / snackingTx : 0,
     avgTicketEpicerie: epicerieTx ? epicerieCA / epicerieTx : 0,
     avgTicketEpicerieHT: epicerieTx ? epicerieCAHT / epicerieTx : 0,
+    avgTicketMerch: merchTx ? merchCA / merchTx : 0,
+    avgTicketMerchHT: merchTx ? merchCAHT / merchTx : 0,
     slice,
   };
 }
@@ -288,6 +309,7 @@ export type StoreMetrics = PeriodSum & {
   ticketFromagerieDelta: number;
   ticketSnackingDelta: number;
   ticketEpicerieDelta: number;
+  ticketMerchDelta: number;
   yoyAvailable: boolean;
   yoyCaDelta: number;
   yoyTxDelta: number;
@@ -357,6 +379,9 @@ export function periodMetricsForSelection(
   const ticketSnackingDelta = prev.avgTicketSnacking
     ? (cur.avgTicketSnacking - prev.avgTicketSnacking) / prev.avgTicketSnacking
     : 0;
+  const ticketMerchDelta = prev.avgTicketMerch
+    ? (cur.avgTicketMerch - prev.avgTicketMerch) / prev.avgTicketMerch
+    : 0;
   const ticketEpicerieDelta = prev.avgTicketEpicerie
     ? (cur.avgTicketEpicerie - prev.avgTicketEpicerie) / prev.avgTicketEpicerie
     : 0;
@@ -375,6 +400,7 @@ export function periodMetricsForSelection(
     ticketFromagerieDelta,
     ticketSnackingDelta,
     ticketEpicerieDelta,
+    ticketMerchDelta,
     yoyAvailable,
     yoyCaDelta,
     yoyTxDelta,
@@ -421,6 +447,9 @@ export function consolidatedPeriodMetricsForSelection(
     : 0;
   const ticketSnackingDelta = prev.avgTicketSnacking
     ? (cur.avgTicketSnacking - prev.avgTicketSnacking) / prev.avgTicketSnacking
+    : 0;
+  const ticketMerchDelta = prev.avgTicketMerch
+    ? (cur.avgTicketMerch - prev.avgTicketMerch) / prev.avgTicketMerch
     : 0;
   const ticketEpicerieDelta = prev.avgTicketEpicerie
     ? (cur.avgTicketEpicerie - prev.avgTicketEpicerie) / prev.avgTicketEpicerie
@@ -469,6 +498,7 @@ export function consolidatedPeriodMetricsForSelection(
     ticketFromagerieDelta,
     ticketSnackingDelta,
     ticketEpicerieDelta,
+    ticketMerchDelta,
     yoyAvailable,
     yoyCaDelta,
     yoyTxDelta,
@@ -496,12 +526,15 @@ function periodMetricsFromRange(daily: StoreDaily[], days: number): StoreMetrics
   const prevFromagerieCA = prevSlice.reduce((s, d) => s + d.fromagerieCA, 0);
   const prevSnackingCA = prevSlice.reduce((s, d) => s + d.snackingCA, 0);
   const prevEpicerieCA = prevSlice.reduce((s, d) => s + (d.epicerieCA ?? 0), 0);
+  const prevMerchCA = prevSlice.reduce((s, d) => s + (d.merchCA ?? 0), 0);
   const prevFromagerieTx = prevSlice.reduce((s, d) => s + (d.fromagerieTx ?? 0), 0);
   const prevSnackingTx = prevSlice.reduce((s, d) => s + (d.snackingTx ?? 0), 0);
   const prevEpicerieTx = prevSlice.reduce((s, d) => s + (d.epicerieTx ?? 0), 0);
+  const prevMerchTx = prevSlice.reduce((s, d) => s + (d.merchTx ?? 0), 0);
   const prevAvgFromagerie = prevFromagerieTx ? prevFromagerieCA / prevFromagerieTx : 0;
   const prevAvgSnacking = prevSnackingTx ? prevSnackingCA / prevSnackingTx : 0;
   const prevAvgEpicerie = prevEpicerieTx ? prevEpicerieCA / prevEpicerieTx : 0;
+  const prevAvgMerch = prevMerchTx ? prevMerchCA / prevMerchTx : 0;
   const caDelta = prev.ca ? (cur.ca - prev.ca) / prev.ca : 0;
   const txDelta = prev.tx ? (cur.tx - prev.tx) / prev.tx : 0;
   const ticketDelta = prev.avgTicket ? (cur.avgTicket - prev.avgTicket) / prev.avgTicket : 0;
@@ -513,6 +546,9 @@ function periodMetricsFromRange(daily: StoreDaily[], days: number): StoreMetrics
     : 0;
   const ticketEpicerieDelta = prevAvgEpicerie
     ? (cur.avgTicketEpicerie - prevAvgEpicerie) / prevAvgEpicerie
+    : 0;
+  const ticketMerchDelta = prevAvgMerch
+    ? (cur.avgTicketMerch - prevAvgMerch) / prevAvgMerch
     : 0;
   const yoyCaDelta = yoy.available && yoy.ca ? (cur.ca - yoy.ca) / yoy.ca : 0;
   const yoyTxDelta = yoy.available && yoy.tx ? (cur.tx - yoy.tx) / yoy.tx : 0;
@@ -526,6 +562,7 @@ function periodMetricsFromRange(daily: StoreDaily[], days: number): StoreMetrics
     ticketFromagerieDelta,
     ticketSnackingDelta,
     ticketEpicerieDelta,
+    ticketMerchDelta,
     yoyAvailable: yoy.available,
     yoyCaDelta,
     yoyTxDelta,
@@ -579,6 +616,7 @@ export function consolidatedPeriodMetrics(
     ? (cur.avgTicketSnacking - prevAvgSnacking) / prevAvgSnacking
     : 0;
   const ticketEpicerieDelta = 0;
+  const ticketMerchDelta = 0;
 
   const eligible = perStore.filter(({ daily }) => sumYoY(daily, days).available);
 
@@ -616,6 +654,7 @@ export function consolidatedPeriodMetrics(
     ticketFromagerieDelta,
     ticketSnackingDelta,
     ticketEpicerieDelta,
+    ticketMerchDelta,
     yoyAvailable,
     yoyCaDelta,
     yoyTxDelta,
@@ -657,9 +696,12 @@ export function consolidateDaily(perStore: StoreDaily[][]): StoreDaily[] {
           snackingCAHT: d.snackingCAHT ?? 0,
           epicerieCA: d.epicerieCA ?? 0,
           epicerieCAHT: d.epicerieCAHT ?? 0,
+          merchCA: d.merchCA ?? 0,
+          merchCAHT: d.merchCAHT ?? 0,
           fromagerieTx: d.fromagerieTx ?? 0,
           snackingTx: d.snackingTx ?? 0,
           epicerieTx: d.epicerieTx ?? 0,
+          merchTx: d.merchTx ?? 0,
           partial: d.partial,
         });
       } else {
@@ -672,9 +714,12 @@ export function consolidateDaily(perStore: StoreDaily[][]): StoreDaily[] {
         existing.snackingCAHT = (existing.snackingCAHT ?? 0) + (d.snackingCAHT ?? 0);
         existing.epicerieCA = (existing.epicerieCA ?? 0) + (d.epicerieCA ?? 0);
         existing.epicerieCAHT = (existing.epicerieCAHT ?? 0) + (d.epicerieCAHT ?? 0);
+        existing.merchCA = (existing.merchCA ?? 0) + (d.merchCA ?? 0);
+        existing.merchCAHT = (existing.merchCAHT ?? 0) + (d.merchCAHT ?? 0);
         existing.fromagerieTx = (existing.fromagerieTx ?? 0) + (d.fromagerieTx ?? 0);
         existing.snackingTx = (existing.snackingTx ?? 0) + (d.snackingTx ?? 0);
         existing.epicerieTx = (existing.epicerieTx ?? 0) + (d.epicerieTx ?? 0);
+        existing.merchTx = (existing.merchTx ?? 0) + (d.merchTx ?? 0);
         if (d.partial) existing.partial = true;
       }
     }

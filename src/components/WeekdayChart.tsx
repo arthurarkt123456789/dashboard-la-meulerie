@@ -23,6 +23,7 @@ type DayStats = {
   avgFromagerie: number;
   avgSnacking: number;
   avgEpicerie: number;
+  avgMerch: number;
   avgTx: number;
   n: number;
 };
@@ -55,8 +56,9 @@ export function WeekdayChart({ daily, period, isHT, height = 220 }: Props) {
       const avgFrm = days.reduce((s, d) => s + (isHT ? (d.fromagerieCAHT ?? 0) : d.fromagerieCA), 0) / n;
       const avgSnk = days.reduce((s, d) => s + (isHT ? (d.snackingCAHT ?? 0) : d.snackingCA), 0) / n;
       const avgEpi = days.reduce((s, d) => s + (isHT ? (d.epicerieCAHT ?? 0) : (d.epicerieCA ?? 0)), 0) / n;
+      const avgMerch = days.reduce((s, d) => s + (isHT ? (d.merchCAHT ?? 0) : (d.merchCA ?? 0)), 0) / n;
       const avgTx = days.reduce((s, d) => s + d.tx, 0) / n;
-      return { dow, label: FR_DAYS[dow], avgCA, avgFromagerie: avgFrm, avgSnacking: avgSnk, avgEpicerie: avgEpi, avgTx, n };
+      return { dow, label: FR_DAYS[dow], avgCA, avgFromagerie: avgFrm, avgSnacking: avgSnk, avgEpicerie: avgEpi, avgMerch, avgTx, n };
     }).filter((x): x is DayStats => x !== null);
   }, [daily, period, isHT]);
 
@@ -84,7 +86,8 @@ export function WeekdayChart({ daily, period, isHT, height = 220 }: Props) {
         {[
           { color: "var(--color-dark)", label: "Fromagerie" },
           { color: "var(--color-coral)", label: "Snacking" },
-          { color: "#1A5EA8", label: "Épicerie/Boissons" },
+          { color: "#1A5EA8", label: "Épicerie fine" },
+          { color: "#7C3AED", label: "Merch" },
         ].map((s) => (
           <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
             <span style={{ width: 10, height: 10, background: s.color, borderRadius: 1, display: "inline-block" }} />
@@ -128,18 +131,25 @@ export function WeekdayChart({ daily, period, isHT, height = 220 }: Props) {
           const hFrm = (s.avgFromagerie / maxCA) * innerH;
           const hSnk = (s.avgSnacking / maxCA) * innerH;
           const hEpi = (s.avgEpicerie / maxCA) * innerH;
-          const totalH = hFrm + hSnk + hEpi;
+          const hMrch = (s.avgMerch / maxCA) * innerH;
+          const totalH = hFrm + hSnk + hEpi + hMrch;
 
-          const yEpi = PAD.top + innerH - totalH;
+          const yMrch = PAD.top + innerH - totalH;
+          const yEpi = yMrch + hMrch;
           const ySnk = yEpi + hEpi;
           const yFrm = ySnk + hSnk;
 
           return (
             <g key={s.dow} opacity={hover !== null && !isH ? 0.55 : 1}>
-              {/* Épicerie (top) */}
+              {/* Merch (top) */}
+              {hMrch > 0.5 && (
+                <rect x={x0} y={yMrch} width={barW} height={hMrch}
+                  fill="#7C3AED" rx={1} />
+              )}
+              {/* Épicerie */}
               {hEpi > 0.5 && (
                 <rect x={x0} y={yEpi} width={barW} height={hEpi}
-                  fill="#1A5EA8" rx={1} />
+                  fill="#1A5EA8" rx={0} />
               )}
               {/* Snacking */}
               {hSnk > 0.5 && (
@@ -154,7 +164,7 @@ export function WeekdayChart({ daily, period, isHT, height = 220 }: Props) {
               )}
 
               {/* CA label on top */}
-              <text x={cx} y={yEpi - 4} textAnchor="middle" fontSize="10"
+              <text x={cx} y={yMrch - 4} textAnchor="middle" fontSize="10"
                 fill={isH ? "var(--fg-primary)" : "var(--fg-secondary)"}
                 style={{ fontFamily: "var(--font-body)", fontVariantNumeric: "tabular-nums", fontWeight: isH ? 600 : 400 }}>
                 {fmtEURshort(s.avgCA)}
@@ -197,7 +207,8 @@ export function WeekdayChart({ daily, period, isHT, height = 220 }: Props) {
               { label: "CA total", val: fmtEURshort(s.avgCA), color: "transparent" },
               { label: "Fromagerie", val: fmtEURshort(s.avgFromagerie), color: "var(--color-dark)", border: "1px solid rgba(255,255,255,0.4)" },
               { label: "Snacking", val: fmtEURshort(s.avgSnacking), color: "var(--color-coral)" },
-              { label: "Épicerie", val: fmtEURshort(s.avgEpicerie), color: "#1A5EA8" },
+              { label: "Épicerie fine", val: fmtEURshort(s.avgEpicerie), color: "#1A5EA8" },
+              { label: "Merch", val: fmtEURshort(s.avgMerch), color: "#7C3AED" },
               { label: "Transactions", val: Math.round(s.avgTx) + " tx", color: "transparent" },
               { label: "Panier moy.", val: s.avgTx > 0 ? (s.avgCA / s.avgTx).toFixed(2).replace(".", ",") + " €" : "—", color: "transparent" },
             ].map(({ label, val, color }) => (

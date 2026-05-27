@@ -85,6 +85,8 @@ export function TopProducts({
                         ? "var(--color-dark)"
                         : p.segment === "Épicerie"
                         ? "#1A5EA8"
+                        : p.segment === "Merch"
+                        ? "#7C3AED"
                         : "var(--color-coral)",
                   }}
                 />

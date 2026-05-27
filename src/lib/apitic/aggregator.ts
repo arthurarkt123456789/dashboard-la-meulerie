@@ -111,13 +111,17 @@ function rollupDay(
   let snackingCAHT = 0;
   let epicerieCA = 0;
   let epicerieCAHT = 0;
+  let merchCA = 0;
+  let merchCAHT = 0;
   let fromagerieTx = 0;
   let snackingTx = 0;
   let epicerieTx = 0;
+  let merchTx = 0;
   for (const sale of sales) {
     let saleHasFromagerie = false;
     let saleHasSnacking = false;
     let saleHasEpicerie = false;
+    let saleHasMerch = false;
     for (const line of sale.lines ?? []) {
       if (line.line_type !== "sale") continue;
       // ati_price is already net of discount_ati_price; same convention for
@@ -136,6 +140,10 @@ function rollupDay(
         epicerieCA += amountTTC;
         epicerieCAHT += amountHT;
         saleHasEpicerie = true;
+      } else if (seg === "Merch") {
+        merchCA += amountTTC;
+        merchCAHT += amountHT;
+        saleHasMerch = true;
       } else {
         snackingCA += amountTTC;
         snackingCAHT += amountHT;
@@ -145,6 +153,7 @@ function rollupDay(
     if (saleHasFromagerie) fromagerieTx++;
     if (saleHasSnacking) snackingTx++;
     if (saleHasEpicerie) epicerieTx++;
+    if (saleHasMerch) merchTx++;
   }
   const tx = sales.length;
   return {
@@ -160,9 +169,12 @@ function rollupDay(
     snackingCAHT: Math.round(snackingCAHT * 100) / 100,
     epicerieCA: Math.round(epicerieCA),
     epicerieCAHT: Math.round(epicerieCAHT * 100) / 100,
+    merchCA: Math.round(merchCA),
+    merchCAHT: Math.round(merchCAHT * 100) / 100,
     fromagerieTx,
     snackingTx,
     epicerieTx,
+    merchTx,
   };
 }
 

@@ -28,6 +28,7 @@ const OPTS: { id: SegmentFilterValue; label: string }[] = [
   { id: "Fromagerie", label: "Fromagerie" },
   { id: "Snacking", label: "Snacking" },
   { id: "Épicerie", label: "Épicerie" },
+  { id: "Merch", label: "Merch" },
 ];
 
 export function SegmentFilterInline() {
