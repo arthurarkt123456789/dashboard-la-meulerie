@@ -94,6 +94,17 @@ export function StoreView({ store, period, today, amountMode }: Props) {
       }
       return Array.from(byMonth.values());
     }
+    if (period.kind === "preset" && period.key === "90d") {
+      const byWeek = new Map<string, number>();
+      for (const d of slice) {
+        const dt = new Date(`${d.date}T00:00:00Z`);
+        const dow = dt.getUTCDay();
+        dt.setUTCDate(dt.getUTCDate() - (dow === 0 ? 6 : dow - 1));
+        const k = dt.toISOString().slice(0, 10);
+        byWeek.set(k, (byWeek.get(k) ?? 0) + (isHT ? d.caHT ?? 0 : d.ca));
+      }
+      return Array.from(byWeek.values());
+    }
     return slice.map((d) => (isHT ? d.caHT ?? 0 : d.ca));
   }, [store.daily, period, isHT]);
 
@@ -108,6 +119,17 @@ export function StoreView({ store, period, today, amountMode }: Props) {
         byMonth.set(k, (byMonth.get(k) ?? 0) + d.tx);
       }
       return Array.from(byMonth.values());
+    }
+    if (period.kind === "preset" && period.key === "90d") {
+      const byWeek = new Map<string, number>();
+      for (const d of slice) {
+        const dt = new Date(`${d.date}T00:00:00Z`);
+        const dow = dt.getUTCDay();
+        dt.setUTCDate(dt.getUTCDate() - (dow === 0 ? 6 : dow - 1));
+        const k = dt.toISOString().slice(0, 10);
+        byWeek.set(k, (byWeek.get(k) ?? 0) + d.tx);
+      }
+      return Array.from(byWeek.values());
     }
     return slice.map((d) => d.tx);
   }, [store.daily, period]);
