@@ -404,8 +404,9 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           accent
         />
         <KPICard
-          label="Transactions"
-          value={fmtNum(m.tx)}
+          label="Transactions / jour"
+          value={fmtNum(m.days > 0 ? Math.round(m.tx / m.days) : m.tx)}
+          subValue={m.days > 1 ? `${fmtNum(m.tx)} tx au total` : undefined}
           delta={m.txDelta}
           yoyDelta={m.yoyAvailable ? m.yoyTxDelta : undefined}
           yoyAvailable={m.yoyAvailable}
