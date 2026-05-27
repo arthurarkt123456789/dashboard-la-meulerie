@@ -17,13 +17,16 @@ type Props = {
   sparkRefLine?: number;
   accent?: boolean;
   partial?: boolean;
+  /** Delta comparison vs network avg (e.g. CA/jour moyen). */
   networkRef?: string;
   networkRefDelta?: number | null;
+  /** Absolute share of network total — shown as "X% du réseau" (neutral). */
+  networkShare?: number | null;
   subValue?: string;
   /** "vs. Moyenne" delta — benchmark depends on selected period. */
   trendDelta?: number | null;
   trendLabel?: string;
-  /** Mini stacked bar showing segment CA shares. */
+  /** Mini stacked bar showing segment shares. */
   segments?: SegmentShare[];
 };
 
@@ -63,6 +66,7 @@ export function KPICard({
   partial,
   networkRef,
   networkRefDelta,
+  networkShare,
   subValue,
   trendDelta,
   trendLabel,
@@ -119,6 +123,12 @@ export function KPICard({
         ) : null}
         {networkRef && typeof networkRefDelta === "number" && (
           <DeltaRow value={networkRefDelta} label={`vs. réseau (${networkRef})`} />
+        )}
+        {typeof networkShare === "number" && (
+          <div className="lm-kpi-delta-row">
+            <span className="lm-delta neu">{(networkShare * 100).toFixed(0)}%</span>
+            <span className="lm-delta-label">du réseau</span>
+          </div>
         )}
         {typeof trendDelta === "number" && (
           <DeltaRow value={trendDelta} label={trendLabel || "vs. moyenne"} />

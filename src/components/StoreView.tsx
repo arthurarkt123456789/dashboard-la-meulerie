@@ -200,23 +200,23 @@ export function StoreView({ store, period, today, amountMode }: Props) {
   const allStores = useStoreData();
 
   const networkComparisons = useMemo(() => {
-    if (!allStores.data?.length) return { caPerDay: null, txPerDay: null, basket: null };
+    if (!allStores.data?.length) return { caPerDay: null, totalCA: null, totalTx: null };
     const todayISO2 = store.daily[store.daily.length - 1]?.date ?? "";
     const { from: f, to: t } = rangeForSelection(period, todayISO2);
     const caVals: number[] = [];
-    const txVals: number[] = [];
-    const basketVals: number[] = [];
+    let sumCA = 0;
+    let sumTx = 0;
     for (const s of allStores.data) {
       const sl = s.daily.filter((d) => d.date >= f && d.date <= t && !d.closed);
       if (!sl.length) continue;
       const ca = isHT ? sl.reduce((a, d) => a + (d.caHT ?? 0), 0) : sl.reduce((a, d) => a + d.ca, 0);
       const tx = sl.reduce((a, d) => a + d.tx, 0);
+      sumCA += ca;
+      sumTx += tx;
       caVals.push(ca / sl.length);
-      txVals.push(tx / sl.length);
-      if (tx > 0) basketVals.push(ca / tx);
     }
     const avg = (arr: number[]) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
-    return { caPerDay: avg(caVals), txPerDay: avg(txVals), basket: avg(basketVals) };
+    return { caPerDay: avg(caVals), totalCA: sumCA || null, totalTx: sumTx || null };
   }, [allStores.data, store.daily, period, isHT]);
 
   const networkAvgCaPerDay = networkComparisons.caPerDay;
@@ -310,21 +310,22 @@ export function StoreView({ store, period, today, amountMode }: Props) {
     ? fmtEUR(networkAvgCaPerDay).replace(" €", "") + (isHT ? " €HT" : " €TTC")
     : undefined;
 
-  const networkTxRefDelta =
-    networkComparisons.txPerDay && networkComparisons.txPerDay > 0
-      ? (m.days > 0 ? m.tx / m.days : 0) / networkComparisons.txPerDay - 1
-      : null;
-  const networkTxRefStr = networkComparisons.txPerDay
-    ? `${fmtNum(networkComparisons.txPerDay).replace(/\s/g, " ")} tx/j`
-    : undefined;
-  const storeBasket = isHT ? m.avgTicketHT : m.avgTicket;
-  const networkBasketRefDelta =
-    networkComparisons.basket && networkComparisons.basket > 0
-      ? (storeBasket - networkComparisons.basket) / networkComparisons.basket
-      : null;
-  const networkBasketRefStr = networkComparisons.basket
-    ? fmtEUR(networkComparisons.basket).replace(" €", "") + (isHT ? " €HT" : " €TTC")
-    : undefined;
+  const txSegmentShares = useMemo(() => {
+    const totalTx = m.tx;
+    if (!totalTx) return [];
+    return [
+      { label: "Fromage.", color: "var(--color-dark)", share: m.fromagerieTx / totalTx },
+      { label: "Snacking", color: "var(--color-coral)", share: m.snackingTx / totalTx },
+      { label: "Épicerie", color: "#1A5EA8", share: m.epicerieTx / totalTx },
+      { label: "Merch", color: "#7C3AED", share: m.merchTx / totalTx },
+    ].filter((s) => s.share > 0.005);
+  }, [m]);
+
+  // Part réseau: this store's share of total network CA / Tx
+  const caNetworkShare = networkComparisons.totalCA
+    ? (isHT ? m.caHT : m.ca) / networkComparisons.totalCA
+    : null;
+  const txNetworkShare = networkComparisons.totalTx ? m.tx / networkComparisons.totalTx : null;
 
   return (
     <div className="lm-grid">
@@ -357,9 +358,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           yoyAvailable={m.yoyAvailable}
           spark={sparkValues}
           sparkColor="var(--color-coral)"
-          sparkRefLine={networkAvgCaPerDay ?? undefined}
-          networkRef={networkRefStr}
-          networkRefDelta={networkRefDelta}
+          networkShare={caNetworkShare}
           trendDelta={trendComparison.caTrendDelta}
           trendLabel={trendComparison.trendLabel}
           segments={segmentShares}
@@ -372,11 +371,10 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           yoyDelta={m.yoyAvailable ? m.yoyTxDelta : undefined}
           yoyAvailable={m.yoyAvailable}
           spark={store.daily.slice(-14).map((d) => d.tx)}
-          networkRef={networkTxRefStr}
-          networkRefDelta={networkTxRefDelta}
+          networkShare={txNetworkShare}
           trendDelta={trendComparison.txTrendDelta}
           trendLabel={trendComparison.trendLabel}
-          segments={segmentShares}
+          segments={txSegmentShares}
         />
         <BasketBreakdown
           global={{
@@ -404,8 +402,6 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           stdDev={stdDev}
           yoyAvailable={m.yoyAvailable}
           suffix={isHT ? "€ HT" : "€ TTC"}
-          networkRef={networkBasketRefStr}
-          networkDelta={networkBasketRefDelta}
         />
         <KPICard
           label="CA / jour moyen"
