@@ -173,12 +173,15 @@ export function StoreView({ store, period, today, amountMode }: Props) {
     const smoothed = roll7(bucketed.map((d) => d.ca ?? null));
     return bucketed.map((d, i) => ({ ...d, ca: smoothed[i] ?? 0 }));
   }, [m.yoyAvailable, m.days, store.daily, lineData, effectiveGranularity, isHT, period, smoothCA]);
-  // Formule and payment stats computed from the period's daily slice so they
-  // react to the date selector instead of always showing "30 derniers jours".
-  const periodFormules = useMemo<FormuleStats>(() => {
+  // Shared daily slice for the selected period — reused by formules, payments, and charts.
+  const periodSlice = useMemo(() => {
     const todayISO = store.daily[store.daily.length - 1]?.date ?? "";
     const { from, to } = rangeForSelection(period, todayISO);
-    const slice = store.daily.filter((d) => d.date >= from && d.date <= to && !d.closed);
+    return store.daily.filter((d) => d.date >= from && d.date <= to && !d.closed);
+  }, [store.daily, period]);
+
+  const periodFormules = useMemo<FormuleStats>(() => {
+    const slice = periodSlice;
     return {
       endDate: slice[slice.length - 1]?.date ?? "",
       days: slice.length,
@@ -198,12 +201,10 @@ export function StoreView({ store, period, today, amountMode }: Props) {
       snackingCAHT: slice.reduce((s, d) => s + (d.snackingCAHT ?? 0), 0),
       snackingTx: slice.reduce((s, d) => s + (d.snackingTx ?? 0), 0),
     };
-  }, [store.daily, period]);
+  }, [periodSlice]);
 
   const periodPayments = useMemo<PaymentSplit[]>(() => {
-    const todayISO = store.daily[store.daily.length - 1]?.date ?? "";
-    const { from, to } = rangeForSelection(period, todayISO);
-    const slice = store.daily.filter((d) => d.date >= from && d.date <= to && !d.closed);
+    const slice = periodSlice;
     const totalTTC = slice.reduce((s, d) => s + d.ca, 0);
     const totalHT = slice.reduce((s, d) => s + (d.caHT ?? 0), 0);
     const htRatio = totalTTC > 0 ? totalHT / totalTTC : 1;
@@ -222,7 +223,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
         amountHT: amounts[method] * htRatio,
       }),
     );
-  }, [store.daily, period]);
+  }, [periodSlice]);
 
 
 
@@ -651,7 +652,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
       </Card>
 
       <Card title="CA par catégories" subtitle={`${isHT ? "HT" : "TTC"} · barres journalières · moyenne 7 jours`} span={3}>
-        <StackedCategoryChart daily={store.daily} period={period} isHT={isHT} height={300} />
+        <StackedCategoryChart daily={periodSlice} period={period} isHT={isHT} height={300} />
       </Card>
 
       <Card
@@ -669,17 +670,28 @@ export function StoreView({ store, period, today, amountMode }: Props) {
       </Card>
 
       <Card
-        title="Moyens de paiement"
-        subtitle={`${periodLabel} · ${isHT ? "HT" : "TTC"}`}
-      >
-        <PaymentsCard payments={periodPayments} amountMode={amountMode} />
-      </Card>
-
-      <Card
         title="Formules lunch"
         subtitle={`${periodLabel} · part du CA et tickets snacking`}
       >
-        <FormulesCard formules={periodFormules} amountMode={amountMode} />
+        <FormulesCard
+          formules={periodFormules}
+          amountMode={amountMode}
+          daily={periodSlice}
+          period={period}
+        />
+      </Card>
+
+      <Card
+        title="Moyens de paiement"
+        subtitle={`${periodLabel} · ${isHT ? "HT" : "TTC"}`}
+        span={3}
+      >
+        <PaymentsCard
+          payments={periodPayments}
+          amountMode={amountMode}
+          daily={periodSlice}
+          period={period}
+        />
       </Card>
 
       {(store.id === "davso" || store.id === "malmousque" || store.id === "endoume" || store.id === "republique") && (
