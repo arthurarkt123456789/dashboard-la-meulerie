@@ -26,6 +26,8 @@ import { SegmentFilterInline, useSegmentFilter } from "./SegmentFilter";
 import { BootstrapButton } from "./BootstrapButton";
 import { FinancialBlock } from "./FinancialBlock";
 import { DavsoExtras } from "./DavsoExtras";
+import { WeekdayChart } from "./WeekdayChart";
+import { useStoreData } from "@/lib/queries";
 
 type Props = {
   store: StoreData;
@@ -175,6 +177,55 @@ export function StoreView({ store, period, today, amountMode }: Props) {
     ? Math.round(doneHours.reduce((s, h) => s + h.tx, 0) / doneHours.length)
     : 0;
 
+  // ── Network comparison & advanced KPI metrics ──────────────────────────
+  const allStores = useStoreData();
+
+  const networkAvgCaPerDay = useMemo(() => {
+    if (!allStores.data?.length) return null;
+    const todayISO2 = store.daily[store.daily.length - 1]?.date ?? "";
+    const { from: f, to: t } = rangeForSelection(period, todayISO2);
+    const avgs = allStores.data
+      .map((s) => {
+        const sl = s.daily.filter((d) => d.date >= f && d.date <= t && !d.closed);
+        if (!sl.length) return null;
+        const ca = isHT
+          ? sl.reduce((a, d) => a + (d.caHT ?? 0), 0)
+          : sl.reduce((a, d) => a + d.ca, 0);
+        return ca / sl.length;
+      })
+      .filter((v): v is number => v !== null);
+    return avgs.length ? avgs.reduce((a, b) => a + b, 0) / avgs.length : null;
+  }, [allStores.data, store.daily, period, isHT]);
+
+  const stdDev = useMemo(() => {
+    const todayISO2 = store.daily[store.daily.length - 1]?.date ?? "";
+    const { from: f, to: t } = rangeForSelection(period, todayISO2);
+    const openDays = store.daily.filter(
+      (d) => d.date >= f && d.date <= t && !d.closed && d.tx > 0,
+    );
+    if (openDays.length < 2) return null;
+    const vals = openDays.map((d) => (isHT ? (d.avgTicketHT ?? 0) : d.avgTicket));
+    const mean = vals.reduce((s, v) => s + v, 0) / vals.length;
+    const variance = vals.reduce((s, v) => s + (v - mean) ** 2, 0) / vals.length;
+    return Math.sqrt(variance);
+  }, [store.daily, period, isHT]);
+
+  const epicerieCAShare = useMemo(() => {
+    const totalCA = isHT ? m.caHT : m.ca;
+    if (!totalCA) return null;
+    const epicerieCA = totalCA - (isHT ? m.fromagerieCAHT : m.fromagerieCA) - (isHT ? (m.snackingCAHT ?? 0) : m.snackingCA);
+    return Math.max(0, epicerieCA / totalCA);
+  }, [m, isHT]);
+
+  const caPerDay = m.days > 0 ? (isHT ? m.caHT : m.ca) / m.days : 0;
+  const networkRefDelta =
+    networkAvgCaPerDay && networkAvgCaPerDay > 0
+      ? (caPerDay - networkAvgCaPerDay) / networkAvgCaPerDay
+      : null;
+  const networkRefStr = networkAvgCaPerDay
+    ? fmtEUR(networkAvgCaPerDay).replace(" €", "") + (isHT ? " €HT" : " €TTC")
+    : undefined;
+
   return (
     <div className="lm-grid">
       <div className="lm-store-head" style={{ gridColumn: "1 / -1" }}>
@@ -207,6 +258,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           yoyNote={yoyNote}
           spark={sparkValues}
           sparkColor="var(--color-coral)"
+          sparkRefLine={networkAvgCaPerDay ?? undefined}
           accent
         />
         <KPICard
@@ -219,7 +271,11 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           spark={store.daily.slice(-14).map((d) => d.tx)}
         />
         <BasketBreakdown
-          global={{ value: isHT ? m.avgTicketHT : m.avgTicket, delta: m.ticketDelta }}
+          global={{
+            value: isHT ? m.avgTicketHT : m.avgTicket,
+            delta: m.ticketDelta,
+            yoyDelta: m.yoyAvailable ? m.yoyTicketDelta : null,
+          }}
           fromagerie={{
             value: isHT ? m.avgTicketFromagerieHT : m.avgTicketFromagerie,
             delta: m.ticketFromagerieDelta,
@@ -228,17 +284,24 @@ export function StoreView({ store, period, today, amountMode }: Props) {
             value: isHT ? m.avgTicketSnackingHT : m.avgTicketSnacking,
             delta: m.ticketSnackingDelta,
           }}
+          epicerieCAShare={epicerieCAShare}
+          stdDev={stdDev}
+          yoyAvailable={m.yoyAvailable}
           suffix={isHT ? "€ HT" : "€ TTC"}
         />
         <KPICard
           label="CA / jour moyen"
-          value={fmtEUR(
-            m.days ? (isHT ? m.caHT : m.ca) / m.days : 0,
-          ).replace(" €", "")}
+          value={fmtEUR(caPerDay).replace(" €", "")}
           suffix={isHT ? "€ HT" : "€ TTC"}
-          yoyNote={
-            m.days > 1 ? `sur ${m.days} jours de la période` : "période"
-          }
+          delta={m.caDelta}
+          yoyDelta={m.yoyAvailable ? m.yoyCaDelta : undefined}
+          yoyAvailable={m.yoyAvailable}
+          yoyNote={yoyNote}
+          spark={sparkValues}
+          sparkRefLine={networkAvgCaPerDay ?? undefined}
+          networkRef={networkRefStr}
+          networkRefDelta={networkRefDelta}
+          subValue={m.days > 1 ? `sur ${m.days} jours` : undefined}
         />
       </div>
 
@@ -284,7 +347,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
 
       <Card
         title="Affluence intraday"
-        subtitle="CA moyen par heure · 30 derniers jours"
+        subtitle="CA moyen (€) par tranche horaire · 30 derniers jours"
       >
         <HourlyBars hourly={store.hourly} height={140} />
         <div
@@ -315,7 +378,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           </div>
           <div>
             <div className="lm-label" style={{ fontSize: 10 }}>
-              Tx/heure moy.
+              Tx moy./heure
             </div>
             <div
               style={{
@@ -328,6 +391,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
               }}
             >
               {avgTxPerHour}
+              <span style={{ fontSize: 13, fontWeight: 400, color: "var(--fg-tertiary)", marginLeft: 3 }}>tx</span>
             </div>
           </div>
         </div>
@@ -342,6 +406,14 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           snacking={isHT ? m.snackingCAHT : m.snackingCA}
           suffix={isHT ? "€ HT" : "€ TTC"}
         />
+      </Card>
+
+      <Card
+        title="CA & transactions par jour de la semaine"
+        subtitle={`Moyenne sur la période · ${isHT ? "HT" : "TTC"} · Fromagerie / Snacking / Épicerie`}
+        span={2}
+      >
+        <WeekdayChart daily={store.daily} period={period} isHT={isHT} height={220} />
       </Card>
 
       <SegmentEvolution

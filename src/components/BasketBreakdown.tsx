@@ -1,18 +1,20 @@
 import { fmtPct } from "@/lib/format";
 
-type SegmentBasket = {
-  label: string;
+type SegmentValue = {
   value: number;
   delta?: number | null;
-  color: string;
+  yoyDelta?: number | null;
 };
 
 type Props = {
-  global: { value: number; delta?: number | null };
-  fromagerie: { value: number; delta?: number | null };
-  snacking: { value: number; delta?: number | null };
+  global: SegmentValue;
+  fromagerie: SegmentValue;
+  snacking: SegmentValue;
+  /** Épicerie/boissons — we can't compute per-ticket avg without epicerieTx, so show CA share only. */
+  epicerieCAShare?: number | null;
+  stdDev?: number | null;
+  yoyAvailable?: boolean;
   partial?: boolean;
-  /** "€" by default. Pass "€ HT" or "€ TTC" to add a clarifier. */
   suffix?: string;
 };
 
@@ -33,9 +35,15 @@ export function BasketBreakdown({
   global,
   fromagerie,
   snacking,
+  epicerieCAShare,
+  stdDev,
+  yoyAvailable,
   partial,
   suffix = "€",
 }: Props) {
+  const hasGlobalDelta = typeof global.delta === "number";
+  const hasYoy = yoyAvailable !== false && typeof global.yoyDelta === "number";
+
   return (
     <div className="lm-card lm-kpi">
       <div className="lm-kpi-head">
@@ -48,19 +56,64 @@ export function BasketBreakdown({
           <span className="lm-kpi-suffix">{suffix}</span>
         </div>
       </div>
+      {stdDev != null && stdDev > 0 && (
+        <div style={{
+          fontFamily: "var(--font-body)",
+          fontSize: 11,
+          color: "var(--fg-tertiary)",
+          marginTop: -2,
+          marginBottom: 2,
+        }}>
+          ± {fmtEur2(stdDev)} {suffix} (écart-type)
+        </div>
+      )}
       <div className="lm-kpi-deltas">
-        {typeof global.delta === "number" && (
+        {hasGlobalDelta && (
           <div className="lm-kpi-delta-row">
             <span className={"lm-delta " + deltaClass(global.delta)}>
-              {global.delta > 0 ? "↑ " : global.delta < 0 ? "↓ " : ""}
-              {fmtPct(global.delta).replace(/^\+/, "")}
+              {(global.delta ?? 0) > 0 ? "↑ " : (global.delta ?? 0) < 0 ? "↓ " : ""}
+              {fmtPct(global.delta!).replace(/^\+/, "")}
             </span>
             <span className="lm-delta-label">vs période préc.</span>
           </div>
         )}
+        {yoyAvailable === false ? (
+          <div className="lm-kpi-delta-row">
+            <span className="lm-delta neu">—</span>
+            <span className="lm-delta-label">N-1 indisponible</span>
+          </div>
+        ) : hasYoy ? (
+          <div className="lm-kpi-delta-row">
+            <span className={"lm-delta " + deltaClass(global.yoyDelta)}>
+              {(global.yoyDelta ?? 0) > 0 ? "↑ " : (global.yoyDelta ?? 0) < 0 ? "↓ " : ""}
+              {fmtPct(global.yoyDelta!).replace(/^\+/, "")}
+            </span>
+            <span className="lm-delta-label">vs N-1</span>
+          </div>
+        ) : null}
       </div>
       <SegmentRow label="Fromagerie" color="var(--color-dark)" b={fromagerie} suffix={suffix} />
       <SegmentRow label="Snacking" color="var(--color-coral)" b={snacking} suffix={suffix} />
+      {epicerieCAShare != null && epicerieCAShare > 0 && (
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "8px 1fr auto",
+          gap: 8,
+          alignItems: "center",
+          marginTop: 8,
+          paddingTop: 8,
+          borderTop: "1px solid var(--border-light)",
+        }}>
+          <span style={{ width: 8, height: 8, background: "#1A5EA8", borderRadius: 1 }} />
+          <div style={{ fontFamily: "var(--font-body)", fontSize: 11, color: "var(--fg-secondary)", letterSpacing: 0.4, textTransform: "uppercase" }}>
+            Épicerie
+          </div>
+          <div style={{ fontFamily: "var(--font-body)", fontSize: 13, fontWeight: 500, color: "var(--fg-primary)", fontVariantNumeric: "tabular-nums" }}>
+            {(epicerieCAShare * 100).toFixed(0)} %
+            <span style={{ fontSize: 10, color: "var(--fg-tertiary)", fontWeight: 400, marginLeft: 3 }}>du CA</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -70,11 +123,13 @@ function SegmentRow({
   color,
   b,
   suffix,
+  subNote,
 }: {
   label: string;
   color: string;
   b: { value: number; delta?: number | null };
   suffix: string;
+  subNote?: string;
 }) {
   return (
     <div
@@ -96,16 +151,23 @@ function SegmentRow({
           borderRadius: 1,
         }}
       />
-      <div
-        style={{
-          fontFamily: "var(--font-body)",
-          fontSize: 11,
-          color: "var(--fg-secondary)",
-          letterSpacing: 0.4,
-          textTransform: "uppercase",
-        }}
-      >
-        {label}
+      <div>
+        <div
+          style={{
+            fontFamily: "var(--font-body)",
+            fontSize: 11,
+            color: "var(--fg-secondary)",
+            letterSpacing: 0.4,
+            textTransform: "uppercase",
+          }}
+        >
+          {label}
+        </div>
+        {subNote && (
+          <div style={{ fontSize: 10, color: "var(--fg-tertiary)", fontFamily: "var(--font-body)" }}>
+            {subNote}
+          </div>
+        )}
       </div>
       <div
         style={{

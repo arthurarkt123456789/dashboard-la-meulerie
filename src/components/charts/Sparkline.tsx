@@ -7,6 +7,8 @@ type Props = {
   width?: number;
   height?: number;
   stroke?: string;
+  /** Horizontal dashed reference line (e.g. network average). Same unit as values. */
+  refLine?: number;
 };
 
 export function Sparkline({
@@ -14,12 +16,14 @@ export function Sparkline({
   width = 120,
   height = 36,
   stroke = "var(--fg-accent)",
+  refLine,
 }: Props) {
   const gradId = useId();
   if (!values || values.length < 2) return null;
 
-  const max = Math.max(...values);
-  const min = Math.min(...values);
+  const allForScale = refLine !== undefined ? [...values, refLine] : values;
+  const max = Math.max(...allForScale);
+  const min = Math.min(...allForScale);
   const range = max - min || 1;
   const pad = 2;
   const innerW = width - pad * 2;
@@ -51,6 +55,18 @@ export function Sparkline({
         strokeLinejoin="round"
         strokeLinecap="round"
       />
+      {refLine !== undefined && (() => {
+        const ry = pad + innerH - ((refLine - min) / (range || 1)) * innerH;
+        return (
+          <line
+            x1={pad} y1={ry} x2={width - pad} y2={ry}
+            stroke="var(--fg-tertiary)"
+            strokeWidth="1"
+            strokeDasharray="2 2"
+            opacity="0.7"
+          />
+        );
+      })()}
     </svg>
   );
 }
