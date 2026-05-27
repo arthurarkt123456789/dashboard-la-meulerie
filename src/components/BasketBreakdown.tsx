@@ -156,7 +156,7 @@ function SegmentRow({
         display: "grid",
         gridTemplateColumns: "8px 1fr auto",
         gap: 8,
-        alignItems: "center",
+        alignItems: "flex-start",
         marginTop: 8,
         paddingTop: 8,
         borderTop: "1px solid var(--border-light)",
@@ -191,12 +191,18 @@ function SegmentRow({
       <div
         style={{
           display: "flex",
-          alignItems: "baseline",
-          gap: 6,
+          flexDirection: "column",
+          alignItems: "flex-end",
+          gap: 2,
           fontFamily: "var(--font-body)",
           fontVariantNumeric: "tabular-nums",
         }}
       >
+        {typeof b.delta === "number" && isFinite(b.delta) && b.delta !== 0 && (
+          <span className={"lm-delta " + deltaClass(b.delta)} style={{ fontSize: 11 }}>
+            {b.delta > 0 ? "↑" : "↓"} {fmtPct(b.delta).replace(/^[+-]/, "")}
+          </span>
+        )}
         <span
           style={{
             fontFamily: "var(--font-display)",
@@ -216,16 +222,6 @@ function SegmentRow({
             "—"
           )}
         </span>
-        {typeof b.delta === "number" && isFinite(b.delta) && b.delta !== 0 && (
-          <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginTop: 1 }}>
-            <span className={"lm-delta " + deltaClass(b.delta)} style={{ fontSize: 11 }}>
-              {b.delta > 0 ? "↑" : "↓"} {fmtPct(b.delta).replace(/^[+-]/, "")}
-            </span>
-            <span style={{ fontSize: 9, color: "var(--fg-tertiary)", fontFamily: "var(--font-body)" }}>
-              vs. p.p.
-            </span>
-          </div>
-        )}
       </div>
     </div>
   );

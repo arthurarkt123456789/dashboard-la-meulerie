@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { maybeBucket, type Granularity } from "@/lib/bucketing";
 import { GranularityToggle } from "./GranularityToggle";
 import { N1Toggle } from "./N1Toggle";
-import { SegmentEvolution } from "./SegmentEvolution";
 import { FormulesCard } from "./FormulesCard";
 import type { AmountMode } from "./AmountModeToggle";
 import type { PeriodSelection, StoreData } from "@/lib/apitic/types";
@@ -32,7 +31,8 @@ import { LineChart, type LineSeries } from "./charts/LineChart";
 import { HBarChart } from "./charts/HBarChart";
 import { TopProducts } from "./TopProducts";
 import { PaymentsCard } from "./PaymentsCard";
-import { SegmentSplit } from "./SegmentSplit";
+import { CategorySplit } from "./CategorySplit";
+import { StackedCategoryChart } from "./charts/StackedCategoryChart";
 import { LegendInline } from "./LegendInline";
 import { SegmentFilterInline, useSegmentFilter } from "./SegmentFilter";
 import { MonitoringCharts } from "./MonitoringCharts";
@@ -217,6 +217,12 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
     [lineData, effectiveGranularity],
   );
 
+  const consolidatedPeriodSlice = useMemo(() => {
+    const todayISO = consolidatedDaily[consolidatedDaily.length - 1]?.date ?? "";
+    const { from, to } = rangeForSelection(period, todayISO);
+    return consolidatedDaily.filter((d) => d.date >= from && d.date <= to && !d.closed);
+  }, [consolidatedDaily, period]);
+
   const yoyNote = m.yoyAvailable
     ? `vs N-1 · périmètre ${m.scopeStores}/${m.totalStores}`
     : "N-1 indisponible";
@@ -396,26 +402,49 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
       </Card>
 
       <Card
-        title="Répartition Fromagerie / Snacking"
-        subtitle={periodLabel}
+        title="Répartition des catégories"
+        subtitle={`${periodLabel} · ${isHT ? "HT" : "TTC"}`}
       >
-        <SegmentSplit
-          fromagerie={isHT ? m.fromagerieCAHT : m.fromagerieCA}
-          snacking={isHT ? m.snackingCAHT : m.snackingCA}
-          suffix={isHT ? "€ HT" : "€ TTC"}
-        />
+        {(() => {
+          const totalCA = isHT ? m.caHT : m.ca;
+          const caSegs = [
+            { label: "Fromagerie", color: "var(--color-dark)", value: isHT ? m.fromagerieCAHT : m.fromagerieCA, share: totalCA ? (isHT ? m.fromagerieCAHT : m.fromagerieCA) / totalCA : 0 },
+            { label: "Snacking",   color: "var(--color-coral)", value: isHT ? m.snackingCAHT ?? 0 : m.snackingCA, share: totalCA ? (isHT ? m.snackingCAHT ?? 0 : m.snackingCA) / totalCA : 0 },
+            { label: "Épicerie",   color: "#1A5EA8", value: isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA, share: totalCA ? (isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA) / totalCA : 0 },
+            { label: "Merch",      color: "#7C3AED", value: isHT ? m.merchCAHT ?? 0 : m.merchCA, share: totalCA ? (isHT ? m.merchCAHT ?? 0 : m.merchCA) / totalCA : 0 },
+          ];
+          const txSegs = [
+            { label: "Fromagerie", color: "var(--color-dark)", value: m.days > 0 ? m.fromagerieTx / m.days : 0, share: m.tx ? m.fromagerieTx / m.tx : 0 },
+            { label: "Snacking",   color: "var(--color-coral)", value: m.days > 0 ? m.snackingTx / m.days : 0, share: m.tx ? m.snackingTx / m.tx : 0 },
+            { label: "Épicerie",   color: "#1A5EA8", value: m.days > 0 ? m.epicerieTx / m.days : 0, share: m.tx ? m.epicerieTx / m.tx : 0 },
+            { label: "Merch",      color: "#7C3AED", value: m.days > 0 ? m.merchTx / m.days : 0, share: m.tx ? m.merchTx / m.tx : 0 },
+          ];
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+              <CategorySplit
+                title="Chiffre d'affaires"
+                segments={caSegs}
+                formatValue={(v) => {
+                  if (v >= 1000) return (v / 1000).toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " k€";
+                  return Math.round(v) + " €";
+                }}
+                shareLabel="du CA"
+              />
+              <div style={{ borderTop: "1px solid var(--border-light)" }} />
+              <CategorySplit
+                title="Transactions / jour"
+                segments={txSegs}
+                formatValue={(v) => (Math.round(v * 10) / 10).toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                shareLabel="des tx"
+              />
+            </div>
+          );
+        })()}
       </Card>
 
-      <SegmentEvolution
-        daily={consolidatedDaily}
-        period={period}
-        amountMode={amountMode}
-        allowWeekly={allowWeekly}
-        allowMonth={allowMonth}
-        granularity={effectiveGranularity}
-        onGranularity={setGranularity}
-        yoyAvailable={m.yoyAvailable}
-      />
+      <Card title="CA par catégories" subtitle={`${isHT ? "HT" : "TTC"} · barres journalières · moyenne 7 jours`} span={3}>
+        <StackedCategoryChart daily={consolidatedPeriodSlice} period={period} isHT={isHT} height={300} />
+      </Card>
 
       <Card
         title="Top produits"
@@ -432,17 +461,28 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
       </Card>
 
       <Card
-        title="Moyens de paiement"
-        subtitle={`30 derniers jours · tous magasins · ${isHT ? "HT" : "TTC"}`}
+        title="Formules lunch"
+        subtitle={`${periodLabel} · part du CA et tickets snacking`}
       >
-        <PaymentsCard payments={consolidatedPayments} amountMode={amountMode} />
+        <FormulesCard
+          formules={consolidatedFormules}
+          amountMode={amountMode}
+          daily={consolidatedPeriodSlice}
+          period={period}
+        />
       </Card>
 
       <Card
-        title="Formules lunch"
-        subtitle="30 derniers jours · part du CA et tickets snacking"
+        title="Moyens de paiement"
+        subtitle={`${periodLabel} · tous magasins · ${isHT ? "HT" : "TTC"}`}
+        span={3}
       >
-        <FormulesCard formules={consolidatedFormules} amountMode={amountMode} />
+        <PaymentsCard
+          payments={consolidatedPayments}
+          amountMode={amountMode}
+          daily={consolidatedPeriodSlice}
+          period={period}
+        />
       </Card>
 
       <MonitoringCharts

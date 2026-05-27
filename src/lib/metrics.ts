@@ -786,6 +786,16 @@ export function consolidateDaily(perStore: StoreDaily[][]): StoreDaily[] {
           margeCoveredSnackingCAHT: d.margeCoveredSnackingCAHT ?? 0,
           margeCoveredEpicerieCAHT: d.margeCoveredEpicerieCAHT ?? 0,
           margeCoveredMerchCAHT: d.margeCoveredMerchCAHT ?? 0,
+          grilledUnits: d.grilledUnits ?? 0,
+          grilledCA: d.grilledCA ?? 0,
+          grilledCAHT: d.grilledCAHT ?? 0,
+          baguetteUnits: d.baguetteUnits ?? 0,
+          baguetteCA: d.baguetteCA ?? 0,
+          baguetteCAHT: d.baguetteCAHT ?? 0,
+          cbAmount: d.cbAmount ?? 0,
+          virementAmount: d.virementAmount ?? 0,
+          especesAmount: d.especesAmount ?? 0,
+          ticketsRestoAmount: d.ticketsRestoAmount ?? 0,
           partial: d.partial,
         });
       } else {
@@ -814,6 +824,16 @@ export function consolidateDaily(perStore: StoreDaily[][]): StoreDaily[] {
         existing.margeCoveredSnackingCAHT = (existing.margeCoveredSnackingCAHT ?? 0) + (d.margeCoveredSnackingCAHT ?? 0);
         existing.margeCoveredEpicerieCAHT = (existing.margeCoveredEpicerieCAHT ?? 0) + (d.margeCoveredEpicerieCAHT ?? 0);
         existing.margeCoveredMerchCAHT = (existing.margeCoveredMerchCAHT ?? 0) + (d.margeCoveredMerchCAHT ?? 0);
+        existing.grilledUnits = (existing.grilledUnits ?? 0) + (d.grilledUnits ?? 0);
+        existing.grilledCA = (existing.grilledCA ?? 0) + (d.grilledCA ?? 0);
+        existing.grilledCAHT = (existing.grilledCAHT ?? 0) + (d.grilledCAHT ?? 0);
+        existing.baguetteUnits = (existing.baguetteUnits ?? 0) + (d.baguetteUnits ?? 0);
+        existing.baguetteCA = (existing.baguetteCA ?? 0) + (d.baguetteCA ?? 0);
+        existing.baguetteCAHT = (existing.baguetteCAHT ?? 0) + (d.baguetteCAHT ?? 0);
+        existing.cbAmount = (existing.cbAmount ?? 0) + (d.cbAmount ?? 0);
+        existing.virementAmount = (existing.virementAmount ?? 0) + (d.virementAmount ?? 0);
+        existing.especesAmount = (existing.especesAmount ?? 0) + (d.especesAmount ?? 0);
+        existing.ticketsRestoAmount = (existing.ticketsRestoAmount ?? 0) + (d.ticketsRestoAmount ?? 0);
         if (d.partial) existing.partial = true;
       }
     }
