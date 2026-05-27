@@ -26,6 +26,7 @@ import {
 import { Card } from "./Card";
 import { KPICard } from "./KPICard";
 import { BasketBreakdown } from "./BasketBreakdown";
+import { MarginBreakdown } from "./MarginBreakdown";
 import { ScopeNote } from "./ScopeNote";
 import { LineChart, type LineSeries } from "./charts/LineChart";
 import { HBarChart } from "./charts/HBarChart";
@@ -125,9 +126,35 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
     consolidatedFormules,
     m,
   } = view;
-  const sparkValues = consolidatedDaily
-    .slice(-14)
-    .map((d) => (isHT ? d.caHT ?? 0 : d.ca));
+  const sparkValues = useMemo(() => {
+    const todayISO = consolidatedDaily[consolidatedDaily.length - 1]?.date ?? "";
+    const { from, to } = rangeForSelection(period, todayISO);
+    const slice = consolidatedDaily.filter((d) => d.date >= from && d.date <= to);
+    if (period.kind === "preset" && period.key === "90d") {
+      const byWeek = new Map<string, number>();
+      for (const d of slice) {
+        const dt = new Date(`${d.date}T00:00:00Z`);
+        const dow = dt.getUTCDay();
+        dt.setUTCDate(dt.getUTCDate() - (dow === 0 ? 6 : dow - 1));
+        const k = dt.toISOString().slice(0, 10);
+        byWeek.set(k, (byWeek.get(k) ?? 0) + (isHT ? d.caHT ?? 0 : d.ca));
+      }
+      return Array.from(byWeek.values());
+    }
+    return slice.map((d) => (isHT ? d.caHT ?? 0 : d.ca));
+  }, [consolidatedDaily, period, isHT]);
+
+  const caPerDay = m.days > 0 ? (isHT ? m.caHT : m.ca) / m.days : 0;
+
+  const segmentShares = useMemo(() => {
+    const totalCA = isHT ? m.caHT : m.ca;
+    return [
+      { label: "Fromagerie", color: "var(--color-dark)", share: totalCA ? (isHT ? m.fromagerieCAHT : m.fromagerieCA) / totalCA : 0 },
+      { label: "Snacking", color: "var(--color-coral)", share: totalCA ? (isHT ? (m.snackingCAHT ?? 0) : m.snackingCA) / totalCA : 0 },
+      { label: "Épicerie", color: "#1A5EA8", share: totalCA ? (isHT ? (m.epicerieCAHT ?? 0) : m.epicerieCA) / totalCA : 0 },
+      { label: "Merch", color: "#7C3AED", share: totalCA ? (isHT ? (m.merchCAHT ?? 0) : m.merchCA) / totalCA : 0 },
+    ].filter((s) => s.share > 0);
+  }, [m, isHT]);
 
   const storeMetrics = useMemo(() => {
     return stores
@@ -253,16 +280,21 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
           accent
         />
         <KPICard
-          label="Transactions"
-          value={fmtNum(m.tx)}
+          label="Transactions / jour"
+          value={fmtNum(m.days > 0 ? Math.round(m.tx / m.days) : m.tx)}
+          subValue={m.days > 1 ? `${fmtNum(m.tx)} tx au total` : undefined}
           delta={m.txDelta}
           yoyDelta={m.yoyAvailable ? m.yoyTxDelta : undefined}
           yoyAvailable={m.yoyAvailable}
           yoyNote={yoyNote}
-          spark={consolidatedDaily.slice(-14).map((d) => d.tx)}
+          spark={consolidatedPeriodSlice.map((d) => d.tx)}
         />
         <BasketBreakdown
-          global={{ value: isHT ? m.avgTicketHT : m.avgTicket, delta: m.ticketDelta }}
+          global={{
+            value: isHT ? m.avgTicketHT : m.avgTicket,
+            delta: m.ticketDelta,
+            yoyDelta: m.yoyAvailable ? m.yoyTicketDelta : null,
+          }}
           fromagerie={{
             value: isHT ? m.avgTicketFromagerieHT : m.avgTicketFromagerie,
             delta: m.ticketFromagerieDelta,
@@ -271,13 +303,44 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
             value: isHT ? m.avgTicketSnackingHT : m.avgTicketSnacking,
             delta: m.ticketSnackingDelta,
           }}
+          epicerie={{
+            value: isHT ? m.avgTicketEpicerieHT : m.avgTicketEpicerie,
+            delta: m.ticketEpicerieDelta,
+          }}
+          merch={{
+            value: isHT ? m.avgTicketMerchHT : m.avgTicketMerch,
+            delta: m.ticketMerchDelta,
+          }}
+          yoyAvailable={m.yoyAvailable}
           suffix={isHT ? "€ HT" : "€ TTC"}
         />
+        <MarginBreakdown
+          margeHT={m.margeHT}
+          margeCoveredCAHT={m.margeCoveredCAHT}
+          caHT={m.caHT}
+          margeFromagerieHT={m.margeFromagerieHT}
+          margeSnackingHT={m.margeSnackingHT}
+          margeEpicerieHT={m.margeEpicerieHT}
+          margeMerchHT={m.margeMerchHT}
+          margeCoveredFromagerieCAHT={m.margeCoveredFromagerieCAHT}
+          margeCoveredSnackingCAHT={m.margeCoveredSnackingCAHT}
+          margeCoveredEpicerieCAHT={m.margeCoveredEpicerieCAHT}
+          margeCoveredMerchCAHT={m.margeCoveredMerchCAHT}
+          margeDelta={m.margeDelta}
+          yoyMargeDelta={m.yoyAvailable ? m.yoyMargeDelta : null}
+          yoyAvailable={m.yoyAvailable}
+        />
         <KPICard
-          label="Magasins actifs"
-          value={String(stores.length)}
-          suffix={` / ${stores.length}`}
-          yoyNote="République ouvert nov. 2025"
+          label="CA / jour moyen"
+          value={fmtEUR(caPerDay).replace(" €", "")}
+          suffix={isHT ? "€ HT" : "€ TTC"}
+          delta={m.caDelta}
+          yoyDelta={m.yoyAvailable ? m.yoyCaDelta : undefined}
+          yoyAvailable={m.yoyAvailable}
+          yoyNote={yoyNote}
+          spark={sparkValues}
+          subValue={m.days > 1 ? `sur ${m.days} jours · ${stores.length} magasins` : undefined}
+          segments={segmentShares}
         />
       </div>
 
