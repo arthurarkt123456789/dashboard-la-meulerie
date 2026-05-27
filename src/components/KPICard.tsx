@@ -20,8 +20,9 @@ type Props = {
   /** Delta comparison vs network avg (e.g. CA/jour moyen). */
   networkRef?: string;
   networkRefDelta?: number | null;
-  /** Absolute share of network total — shown as "X% du réseau" (neutral). */
+  /** Absolute share of network total — shown as "Top N · X% du réseau" (neutral). */
   networkShare?: number | null;
+  networkRank?: number | null;
   subValue?: string;
   /** "vs. Moyenne" delta — benchmark depends on selected period. */
   trendDelta?: number | null;
@@ -67,6 +68,7 @@ export function KPICard({
   networkRef,
   networkRefDelta,
   networkShare,
+  networkRank,
   subValue,
   trendDelta,
   trendLabel,
@@ -86,17 +88,6 @@ export function KPICard({
           {value}
           {suffix && <span className="lm-kpi-suffix">{suffix}</span>}
         </div>
-        {spark && spark.length >= 2 && (
-          <div className="lm-kpi-spark">
-            <Sparkline
-              values={spark}
-              stroke={sparkColor || "var(--color-dark)"}
-              width={88}
-              height={28}
-              refLine={sparkRefLine}
-            />
-          </div>
-        )}
       </div>
       {subValue && (
         <div style={{
@@ -124,12 +115,6 @@ export function KPICard({
         {networkRef && typeof networkRefDelta === "number" && (
           <DeltaRow value={networkRefDelta} label={`vs. réseau (${networkRef})`} />
         )}
-        {typeof networkShare === "number" && (
-          <div className="lm-kpi-delta-row">
-            <span className="lm-delta neu">{(networkShare * 100).toFixed(0)}%</span>
-            <span className="lm-delta-label">du réseau</span>
-          </div>
-        )}
         {typeof trendDelta === "number" && (
           <DeltaRow value={trendDelta} label={trendLabel || "vs. moyenne"} />
         )}
@@ -137,9 +122,9 @@ export function KPICard({
       {segments && segments.some((s) => s.share > 0.005) && (
         <div style={{ marginTop: 10 }}>
           <div style={{
-            height: 4,
+            height: 7,
             display: "flex",
-            borderRadius: 2,
+            borderRadius: 3,
             overflow: "hidden",
             background: "var(--bg-subtle)",
           }}>
@@ -167,6 +152,27 @@ export function KPICard({
               </div>
             ))}
           </div>
+        </div>
+      )}
+      {typeof networkShare === "number" && (
+        <div className="lm-kpi-delta-row" style={{ marginTop: 8 }}>
+          <span className="lm-delta neu">
+            {networkRank ? `Top ${networkRank} · ` : ""}{(networkShare * 100).toFixed(0)}%
+          </span>
+          <span className="lm-delta-label">du réseau</span>
+        </div>
+      )}
+      {spark && spark.length >= 2 && (
+        <div style={{ marginTop: 10 }}>
+          <Sparkline
+            values={spark}
+            stroke={sparkColor || "var(--color-dark)"}
+            width={200}
+            height={32}
+            refLine={sparkRefLine}
+            showAvg
+            responsive
+          />
         </div>
       )}
     </div>

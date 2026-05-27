@@ -17,8 +17,8 @@ type Props = {
   yoyAvailable?: boolean;
   partial?: boolean;
   suffix?: string;
-  networkRef?: string;
-  networkDelta?: number | null;
+  /** Absolute difference vs network avg basket (e.g. +1.2 or -0.8). Same unit as suffix. */
+  networkBasketAbsolute?: number | null;
 };
 
 function fmtEur2(n: number): string {
@@ -45,13 +45,10 @@ export function BasketBreakdown({
   yoyAvailable,
   partial,
   suffix = "€",
-  networkRef,
-  networkDelta,
+  networkBasketAbsolute,
 }: Props) {
   const hasGlobalDelta = typeof global.delta === "number";
   const hasYoy = yoyAvailable !== false && typeof global.yoyDelta === "number";
-  const netPos = typeof networkDelta === "number" && networkDelta > 0;
-  const netNeg = typeof networkDelta === "number" && networkDelta < 0;
 
   return (
     <div className="lm-card lm-kpi">
@@ -100,13 +97,12 @@ export function BasketBreakdown({
             <span className="lm-delta-label">vs. last year</span>
           </div>
         ) : null}
-        {networkRef && typeof networkDelta === "number" && (
+        {networkBasketAbsolute != null && (
           <div className="lm-kpi-delta-row">
-            <span className={"lm-delta " + (netPos ? "pos" : netNeg ? "neg" : "neu")}>
-              {netPos ? "↑ " : netNeg ? "↓ " : ""}
-              {fmtPct(networkDelta).replace(/^\+/, "")}
+            <span className={"lm-delta " + (networkBasketAbsolute > 0 ? "pos" : networkBasketAbsolute < 0 ? "neg" : "neu")}>
+              {networkBasketAbsolute > 0 ? "+" : ""}{fmtEur2(networkBasketAbsolute)} {suffix}
             </span>
-            <span className="lm-delta-label">vs. réseau ({networkRef})</span>
+            <span className="lm-delta-label">vs. réseau</span>
           </div>
         )}
       </div>
@@ -220,12 +216,14 @@ function SegmentRow({
           )}
         </span>
         {typeof b.delta === "number" && isFinite(b.delta) && b.delta !== 0 && (
-          <span
-            className={"lm-delta " + deltaClass(b.delta)}
-            style={{ fontSize: 11 }}
-          >
-            {b.delta > 0 ? "↑" : "↓"} {fmtPct(b.delta).replace(/^[+-]/, "")}
-          </span>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginTop: 1 }}>
+            <span className={"lm-delta " + deltaClass(b.delta)} style={{ fontSize: 11 }}>
+              {b.delta > 0 ? "↑" : "↓"} {fmtPct(b.delta).replace(/^[+-]/, "")}
+            </span>
+            <span style={{ fontSize: 9, color: "var(--fg-tertiary)", fontFamily: "var(--font-body)" }}>
+              vs. p.p.
+            </span>
+          </div>
         )}
       </div>
     </div>

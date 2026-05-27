@@ -82,10 +82,10 @@ export function StoreView({ store, period, today, amountMode }: Props) {
     [store.daily, period],
   );
   const sparkValues = useMemo(() => {
+    const todayISO = store.daily[store.daily.length - 1]?.date ?? "";
+    const { from, to } = rangeForSelection(period, todayISO);
+    const slice = store.daily.filter((d) => d.date >= from && d.date <= to);
     if (period.kind === "fiscal-year-todate") {
-      const todayISO = store.daily[store.daily.length - 1]?.date ?? "";
-      const { from, to } = rangeForSelection(period, todayISO);
-      const slice = store.daily.filter((d) => d.date >= from && d.date <= to);
       const byMonth = new Map<string, number>();
       for (const d of slice) {
         const k = d.date.slice(0, 7);
@@ -93,8 +93,23 @@ export function StoreView({ store, period, today, amountMode }: Props) {
       }
       return Array.from(byMonth.values());
     }
-    return store.daily.slice(-14).map((d) => (isHT ? d.caHT ?? 0 : d.ca));
+    return slice.map((d) => (isHT ? d.caHT ?? 0 : d.ca));
   }, [store.daily, period, isHT]);
+
+  const txSparkValues = useMemo(() => {
+    const todayISO = store.daily[store.daily.length - 1]?.date ?? "";
+    const { from, to } = rangeForSelection(period, todayISO);
+    const slice = store.daily.filter((d) => d.date >= from && d.date <= to);
+    if (period.kind === "fiscal-year-todate") {
+      const byMonth = new Map<string, number>();
+      for (const d of slice) {
+        const k = d.date.slice(0, 7);
+        byMonth.set(k, (byMonth.get(k) ?? 0) + d.tx);
+      }
+      return Array.from(byMonth.values());
+    }
+    return slice.map((d) => d.tx);
+  }, [store.daily, period]);
   const periodLabel = periodLabelFor(period);
 
   const lineData = useMemo(() => {
@@ -200,12 +215,16 @@ export function StoreView({ store, period, today, amountMode }: Props) {
   const allStores = useStoreData();
 
   const networkComparisons = useMemo(() => {
-    if (!allStores.data?.length) return { caPerDay: null, totalCA: null, totalTx: null };
+    const empty = { caPerDay: null, totalCA: null, totalTx: null, avgBasket: null, caRank: null, txRank: null };
+    if (!allStores.data?.length) return empty;
     const todayISO2 = store.daily[store.daily.length - 1]?.date ?? "";
     const { from: f, to: t } = rangeForSelection(period, todayISO2);
     const caVals: number[] = [];
+    const basketVals: number[] = [];
     let sumCA = 0;
     let sumTx = 0;
+    const storeCAs: { id: string; ca: number }[] = [];
+    const storeTxs: { id: string; tx: number }[] = [];
     for (const s of allStores.data) {
       const sl = s.daily.filter((d) => d.date >= f && d.date <= t && !d.closed);
       if (!sl.length) continue;
@@ -214,10 +233,24 @@ export function StoreView({ store, period, today, amountMode }: Props) {
       sumCA += ca;
       sumTx += tx;
       caVals.push(ca / sl.length);
+      storeCAs.push({ id: s.id, ca });
+      storeTxs.push({ id: s.id, tx });
+      if (tx > 0) basketVals.push(ca / tx);
     }
     const avg = (arr: number[]) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
-    return { caPerDay: avg(caVals), totalCA: sumCA || null, totalTx: sumTx || null };
-  }, [allStores.data, store.daily, period, isHT]);
+    const sortedCA = [...storeCAs].sort((a, b) => b.ca - a.ca);
+    const sortedTx = [...storeTxs].sort((a, b) => b.tx - a.tx);
+    const caRankIdx = sortedCA.findIndex((x) => x.id === store.id);
+    const txRankIdx = sortedTx.findIndex((x) => x.id === store.id);
+    return {
+      caPerDay: avg(caVals),
+      totalCA: sumCA || null,
+      totalTx: sumTx || null,
+      avgBasket: avg(basketVals),
+      caRank: caRankIdx >= 0 ? caRankIdx + 1 : null,
+      txRank: txRankIdx >= 0 ? txRankIdx + 1 : null,
+    };
+  }, [allStores.data, store.daily, store.id, period, isHT]);
 
   const networkAvgCaPerDay = networkComparisons.caPerDay;
 
@@ -326,6 +359,10 @@ export function StoreView({ store, period, today, amountMode }: Props) {
     ? (isHT ? m.caHT : m.ca) / networkComparisons.totalCA
     : null;
   const txNetworkShare = networkComparisons.totalTx ? m.tx / networkComparisons.totalTx : null;
+  // Basket vs réseau: absolute difference
+  const networkBasketAbsolute = networkComparisons.avgBasket
+    ? (isHT ? m.avgTicketHT : m.avgTicket) - networkComparisons.avgBasket
+    : null;
 
   return (
     <div className="lm-grid">
@@ -358,10 +395,11 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           yoyAvailable={m.yoyAvailable}
           spark={sparkValues}
           sparkColor="var(--color-coral)"
-          networkShare={caNetworkShare}
           trendDelta={trendComparison.caTrendDelta}
           trendLabel={trendComparison.trendLabel}
           segments={segmentShares}
+          networkShare={caNetworkShare}
+          networkRank={networkComparisons.caRank}
           accent
         />
         <KPICard
@@ -370,11 +408,12 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           delta={m.txDelta}
           yoyDelta={m.yoyAvailable ? m.yoyTxDelta : undefined}
           yoyAvailable={m.yoyAvailable}
-          spark={store.daily.slice(-14).map((d) => d.tx)}
-          networkShare={txNetworkShare}
+          spark={txSparkValues}
           trendDelta={trendComparison.txTrendDelta}
           trendLabel={trendComparison.trendLabel}
           segments={txSegmentShares}
+          networkShare={txNetworkShare}
+          networkRank={networkComparisons.txRank}
         />
         <BasketBreakdown
           global={{
@@ -402,6 +441,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           stdDev={stdDev}
           yoyAvailable={m.yoyAvailable}
           suffix={isHT ? "€ HT" : "€ TTC"}
+          networkBasketAbsolute={networkBasketAbsolute}
         />
         <KPICard
           label="CA / jour moyen"

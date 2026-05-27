@@ -9,6 +9,10 @@ type Props = {
   stroke?: string;
   /** Horizontal dashed reference line (e.g. network average). Same unit as values. */
   refLine?: number;
+  /** Draw a dashed line at the mean of values. */
+  showAvg?: boolean;
+  /** Scale SVG to 100% container width (viewBox-based). */
+  responsive?: boolean;
 };
 
 export function Sparkline({
@@ -17,11 +21,18 @@ export function Sparkline({
   height = 36,
   stroke = "var(--fg-accent)",
   refLine,
+  showAvg,
+  responsive,
 }: Props) {
   const gradId = useId();
   if (!values || values.length < 2) return null;
 
-  const allForScale = refLine !== undefined ? [...values, refLine] : values;
+  const avg = values.reduce((a, b) => a + b, 0) / values.length;
+  const allForScale = [
+    ...values,
+    ...(refLine !== undefined ? [refLine] : []),
+    ...(showAvg ? [avg] : []),
+  ];
   const max = Math.max(...allForScale);
   const min = Math.min(...allForScale);
   const range = max - min || 1;
@@ -38,8 +49,14 @@ export function Sparkline({
     linePath +
     ` L ${pts[pts.length - 1][0]} ${height - pad} L ${pts[0][0]} ${height - pad} Z`;
 
+  const avgY = pad + innerH - ((avg - min) / range) * innerH;
+
+  const svgProps = responsive
+    ? { viewBox: `0 0 ${width} ${height}`, width: "100%", height, preserveAspectRatio: "none" as const }
+    : { width, height };
+
   return (
-    <svg width={width} height={height} style={{ display: "block" }}>
+    <svg {...svgProps} style={{ display: "block" }}>
       <defs>
         <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={stroke} stopOpacity="0.18" />
@@ -55,6 +72,15 @@ export function Sparkline({
         strokeLinejoin="round"
         strokeLinecap="round"
       />
+      {showAvg && (
+        <line
+          x1={pad} y1={avgY} x2={width - pad} y2={avgY}
+          stroke={stroke}
+          strokeWidth="1"
+          strokeDasharray="3 3"
+          opacity="0.45"
+        />
+      )}
       {refLine !== undefined && (() => {
         const ry = pad + innerH - ((refLine - min) / (range || 1)) * innerH;
         return (
