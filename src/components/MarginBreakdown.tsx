@@ -14,20 +14,20 @@ type Props = {
   partial?: boolean;
 };
 
-function fmtEurK(n: number): string {
-  if (Math.abs(n) >= 1000) {
-    return (Math.round(n / 10) / 100).toLocaleString("fr-FR", {
-      minimumFractionDigits: 1,
-      maximumFractionDigits: 1,
-    }) + " k€";
-  }
-  return (Math.round(n * 100) / 100)
-    .toFixed(2)
-    .replace(".", ",") + " €";
-}
-
 function fmtRate(n: number): string {
   return (Math.round(n * 1000) / 10).toFixed(1).replace(".", ",") + " %";
+}
+
+function fmtEurCompact(n: number): string {
+  if (Math.abs(n) >= 1000) {
+    return (
+      (Math.round(n / 10) / 100).toLocaleString("fr-FR", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      }) + " k€"
+    );
+  }
+  return Math.round(n) + " €";
 }
 
 function deltaClass(delta: number | null | undefined): string {
@@ -52,10 +52,6 @@ export function MarginBreakdown({
 }: Props) {
   const margeRate = margeCoveredCAHT > 0 ? margeHT / margeCoveredCAHT : null;
   const coverage = caHT > 0 ? margeCoveredCAHT / caHT : null;
-  const hasMargeFromagerie = margeFromagerieHT !== 0;
-  const hasMargeSnacking = margeSnackingHT !== 0;
-  const hasMargeEpicerie = margeEpicerieHT !== 0;
-  const hasMargeMerch = margeMerchHT !== 0;
 
   return (
     <div className="lm-card lm-kpi">
@@ -65,29 +61,22 @@ export function MarginBreakdown({
       </div>
       <div className="lm-kpi-value-row">
         <div className="lm-kpi-value">
-          {margeHT >= 1000
-            ? (Math.round(margeHT / 10) / 100).toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
-            : (Math.round(margeHT * 100) / 100).toFixed(0).replace(".", ",")}
-          <span className="lm-kpi-suffix">{margeHT >= 1000 ? "k€ HT" : "€ HT"}</span>
+          {margeRate != null ? fmtRate(margeRate) : "—"}
         </div>
       </div>
-      {margeRate != null && (
-        <div style={{
-          fontFamily: "var(--font-body)",
-          fontSize: 12,
-          color: "var(--fg-secondary)",
-          marginTop: -2,
-          marginBottom: 4,
-          fontVariantNumeric: "tabular-nums",
-        }}>
-          Taux : <strong style={{ color: "var(--fg-primary)" }}>{fmtRate(margeRate)}</strong>
-          {coverage != null && (
-            <span style={{ color: "var(--fg-tertiary)", fontSize: 10, marginLeft: 6 }}>
-              (couvre {fmtRate(coverage)} du CA)
-            </span>
-          )}
-        </div>
-      )}
+      <div style={{
+        fontFamily: "var(--font-body)",
+        fontSize: 11,
+        color: "var(--fg-tertiary)",
+        marginTop: -2,
+        marginBottom: 2,
+        fontVariantNumeric: "tabular-nums",
+      }}>
+        {fmtEurCompact(margeHT)} HT
+        {coverage != null && (
+          <span style={{ marginLeft: 6 }}>· couvre {fmtRate(coverage)} du CA</span>
+        )}
+      </div>
       <div className="lm-kpi-deltas">
         {typeof margeDelta === "number" && isFinite(margeDelta) && (
           <div className="lm-kpi-delta-row">
@@ -113,34 +102,23 @@ export function MarginBreakdown({
           </div>
         ) : null}
       </div>
-      {hasMargeFromagerie && (
-        <MargeRow label="Fromagerie" color="var(--color-dark)" value={margeFromagerieHT} total={margeHT} />
+      {margeFromagerieHT !== 0 && (
+        <MargeRow label="Fromagerie" color="var(--color-dark)" value={margeFromagerieHT} />
       )}
-      {hasMargeSnacking && (
-        <MargeRow label="Snacking" color="var(--color-coral)" value={margeSnackingHT} total={margeHT} />
+      {margeSnackingHT !== 0 && (
+        <MargeRow label="Snacking" color="var(--color-coral)" value={margeSnackingHT} />
       )}
-      {hasMargeEpicerie && (
-        <MargeRow label="Épicerie" color="#1A5EA8" value={margeEpicerieHT} total={margeHT} />
+      {margeEpicerieHT !== 0 && (
+        <MargeRow label="Épicerie" color="#1A5EA8" value={margeEpicerieHT} />
       )}
-      {hasMargeMerch && (
-        <MargeRow label="Merch" color="#7C3AED" value={margeMerchHT} total={margeHT} />
+      {margeMerchHT !== 0 && (
+        <MargeRow label="Merch" color="#7C3AED" value={margeMerchHT} />
       )}
     </div>
   );
 }
 
-function MargeRow({
-  label,
-  color,
-  value,
-  total,
-}: {
-  label: string;
-  color: string;
-  value: number;
-  total: number;
-}) {
-  const share = total !== 0 ? value / total : null;
+function MargeRow({ label, color, value }: { label: string; color: string; value: number }) {
   return (
     <div
       style={{
@@ -163,28 +141,16 @@ function MargeRow({
       }}>
         {label}
       </div>
-      <div style={{
-        display: "flex",
-        alignItems: "baseline",
-        gap: 6,
-        fontFamily: "var(--font-body)",
+      <span style={{
+        fontFamily: "var(--font-display)",
+        fontWeight: 600,
+        fontSize: 16,
+        color: "var(--fg-primary)",
+        letterSpacing: "-0.01em",
         fontVariantNumeric: "tabular-nums",
       }}>
-        <span style={{
-          fontFamily: "var(--font-display)",
-          fontWeight: 600,
-          fontSize: 16,
-          color: value !== 0 ? "var(--fg-primary)" : "var(--fg-tertiary)",
-          letterSpacing: "-0.01em",
-        }}>
-          {value !== 0 ? fmtEurK(value) : "—"}
-        </span>
-        {share != null && value !== 0 && (
-          <span style={{ fontSize: 10, color: "var(--fg-tertiary)" }}>
-            {fmtRate(share)}
-          </span>
-        )}
-      </div>
+        {fmtEurCompact(value)}
+      </span>
     </div>
   );
 }
