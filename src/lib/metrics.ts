@@ -417,15 +417,17 @@ export function periodMetricsForSelection(
   const ticketEpicerieDelta = prev.avgTicketEpicerie
     ? (cur.avgTicketEpicerie - prev.avgTicketEpicerie) / prev.avgTicketEpicerie
     : 0;
-  const margeDelta = prev.margeHT ? (cur.margeHT - prev.margeHT) / prev.margeHT : 0;
+  const curMargeRate = cur.margeCoveredCAHT > 0 ? cur.margeHT / cur.margeCoveredCAHT : 0;
+  const prevMargeRate = prev.margeCoveredCAHT > 0 ? prev.margeHT / prev.margeCoveredCAHT : 0;
+  const margeDelta = curMargeRate - prevMargeRate;
   const yoyCaDelta = yoyAvailable && yoy.ca ? (cur.ca - yoy.ca) / yoy.ca : 0;
   const yoyTxDelta = yoyAvailable && yoy.tx ? (cur.tx - yoy.tx) / yoy.tx : 0;
   const yoyTicketDelta =
     yoyAvailable && yoy.avgTicket
       ? (cur.avgTicket - yoy.avgTicket) / yoy.avgTicket
       : 0;
-  const yoyMargeDelta =
-    yoyAvailable && yoy.margeHT ? (cur.margeHT - yoy.margeHT) / yoy.margeHT : 0;
+  const yoyMargeRate = yoy.margeCoveredCAHT > 0 ? yoy.margeHT / yoy.margeCoveredCAHT : 0;
+  const yoyMargeDelta = yoyAvailable ? curMargeRate - yoyMargeRate : 0;
 
   return {
     ...cur,
@@ -590,14 +592,18 @@ function periodMetricsFromRange(daily: StoreDaily[], days: number): StoreMetrics
     ? (cur.avgTicketMerch - prevAvgMerch) / prevAvgMerch
     : 0;
   const prevMargeHT = prevSlice.reduce((s, d) => s + (d.margeHT ?? 0), 0);
+  const prevMargeCoveredCAHT = prevSlice.reduce((s, d) => s + (d.margeCoveredCAHT ?? 0), 0);
   const yoyMargeHT = yoy.slice.reduce((s, d) => s + (d.margeHT ?? 0), 0);
-  const margeDelta = prevMargeHT ? (cur.margeHT - prevMargeHT) / prevMargeHT : 0;
+  const yoyMargeCoveredCAHT = yoy.slice.reduce((s, d) => s + (d.margeCoveredCAHT ?? 0), 0);
+  const curMargeRate = cur.margeCoveredCAHT > 0 ? cur.margeHT / cur.margeCoveredCAHT : 0;
+  const prevMargeRate = prevMargeCoveredCAHT > 0 ? prevMargeHT / prevMargeCoveredCAHT : 0;
+  const margeDelta = curMargeRate - prevMargeRate;
   const yoyCaDelta = yoy.available && yoy.ca ? (cur.ca - yoy.ca) / yoy.ca : 0;
   const yoyTxDelta = yoy.available && yoy.tx ? (cur.tx - yoy.tx) / yoy.tx : 0;
   const yoyTicketDelta =
     yoy.available && yoy.avgTicket ? (cur.avgTicket - yoy.avgTicket) / yoy.avgTicket : 0;
-  const yoyMargeDelta =
-    yoy.available && yoyMargeHT ? (cur.margeHT - yoyMargeHT) / yoyMargeHT : 0;
+  const yoyMargeRate = yoyMargeCoveredCAHT > 0 ? yoyMargeHT / yoyMargeCoveredCAHT : 0;
+  const yoyMargeDelta = yoy.available ? curMargeRate - yoyMargeRate : 0;
   return {
     ...cur,
     caDelta,

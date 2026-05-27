@@ -452,6 +452,10 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           margeSnackingHT={m.margeSnackingHT}
           margeEpicerieHT={m.margeEpicerieHT}
           margeMerchHT={m.margeMerchHT}
+          fromagerieCAHT={m.fromagerieCAHT}
+          snackingCAHT={m.snackingCAHT}
+          epicerieCAHT={m.epicerieCAHT}
+          merchCAHT={m.merchCAHT}
           margeDelta={m.margeDelta}
           yoyMargeDelta={m.yoyAvailable ? m.yoyMargeDelta : null}
           yoyAvailable={m.yoyAvailable}

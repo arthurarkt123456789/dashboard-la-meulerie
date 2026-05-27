@@ -1,5 +1,3 @@
-import { fmtPct } from "@/lib/format";
-
 type Props = {
   margeHT: number;
   margeCoveredCAHT: number;
@@ -8,7 +6,13 @@ type Props = {
   margeSnackingHT: number;
   margeEpicerieHT: number;
   margeMerchHT: number;
+  fromagerieCAHT: number;
+  snackingCAHT: number;
+  epicerieCAHT: number;
+  merchCAHT: number;
+  /** Difference in margin rates in pp (e.g. 0.023 = +2.3 pp). */
   margeDelta: number | null;
+  /** Same unit: pp difference vs N-1. */
   yoyMargeDelta: number | null;
   yoyAvailable: boolean;
   partial?: boolean;
@@ -16,6 +20,11 @@ type Props = {
 
 function fmtRate(n: number): string {
   return (Math.round(n * 1000) / 10).toFixed(1).replace(".", ",") + " %";
+}
+
+function fmtPP(pp: number): string {
+  const val = (Math.round(pp * 10000) / 100).toFixed(2).replace(".", ",");
+  return (pp >= 0 ? "+" : "") + val + " pp";
 }
 
 function fmtEurCompact(n: number): string {
@@ -30,10 +39,10 @@ function fmtEurCompact(n: number): string {
   return Math.round(n) + " €";
 }
 
-function deltaClass(delta: number | null | undefined): string {
-  if (typeof delta !== "number" || !isFinite(delta)) return "neu";
-  if (delta > 0) return "pos";
-  if (delta < 0) return "neg";
+function ppClass(pp: number | null | undefined): string {
+  if (typeof pp !== "number" || !isFinite(pp)) return "neu";
+  if (pp > 0) return "pos";
+  if (pp < 0) return "neg";
   return "neu";
 }
 
@@ -45,6 +54,10 @@ export function MarginBreakdown({
   margeSnackingHT,
   margeEpicerieHT,
   margeMerchHT,
+  fromagerieCAHT,
+  snackingCAHT,
+  epicerieCAHT,
+  merchCAHT,
   margeDelta,
   yoyMargeDelta,
   yoyAvailable,
@@ -68,8 +81,8 @@ export function MarginBreakdown({
         fontFamily: "var(--font-body)",
         fontSize: 11,
         color: "var(--fg-tertiary)",
-        marginTop: -2,
-        marginBottom: 2,
+        marginTop: 2,
+        marginBottom: 6,
         fontVariantNumeric: "tabular-nums",
       }}>
         {fmtEurCompact(margeHT)} HT
@@ -77,12 +90,11 @@ export function MarginBreakdown({
           <span style={{ marginLeft: 6 }}>· couvre {fmtRate(coverage)} du CA</span>
         )}
       </div>
-      <div className="lm-kpi-deltas">
+      <div className="lm-kpi-deltas" style={{ marginTop: 8 }}>
         {typeof margeDelta === "number" && isFinite(margeDelta) && (
           <div className="lm-kpi-delta-row">
-            <span className={"lm-delta " + deltaClass(margeDelta)}>
-              {margeDelta > 0 ? "↑ " : margeDelta < 0 ? "↓ " : ""}
-              {fmtPct(margeDelta).replace(/^\+/, "")}
+            <span className={"lm-delta " + ppClass(margeDelta)}>
+              {fmtPP(margeDelta)}
             </span>
             <span className="lm-delta-label">vs. période préc.</span>
           </div>
@@ -94,31 +106,41 @@ export function MarginBreakdown({
           </div>
         ) : typeof yoyMargeDelta === "number" && isFinite(yoyMargeDelta) ? (
           <div className="lm-kpi-delta-row">
-            <span className={"lm-delta " + deltaClass(yoyMargeDelta)}>
-              {yoyMargeDelta > 0 ? "↑ " : yoyMargeDelta < 0 ? "↓ " : ""}
-              {fmtPct(yoyMargeDelta).replace(/^\+/, "")}
+            <span className={"lm-delta " + ppClass(yoyMargeDelta)}>
+              {fmtPP(yoyMargeDelta)}
             </span>
             <span className="lm-delta-label">vs. last year</span>
           </div>
         ) : null}
       </div>
-      {margeFromagerieHT !== 0 && (
-        <MargeRow label="Fromagerie" color="var(--color-dark)" value={margeFromagerieHT} />
+      {margeFromagerieHT !== 0 && fromagerieCAHT > 0 && (
+        <MargeRow label="Fromagerie" color="var(--color-dark)" marge={margeFromagerieHT} caHT={fromagerieCAHT} />
       )}
-      {margeSnackingHT !== 0 && (
-        <MargeRow label="Snacking" color="var(--color-coral)" value={margeSnackingHT} />
+      {margeSnackingHT !== 0 && snackingCAHT > 0 && (
+        <MargeRow label="Snacking" color="var(--color-coral)" marge={margeSnackingHT} caHT={snackingCAHT} />
       )}
-      {margeEpicerieHT !== 0 && (
-        <MargeRow label="Épicerie" color="#1A5EA8" value={margeEpicerieHT} />
+      {margeEpicerieHT !== 0 && epicerieCAHT > 0 && (
+        <MargeRow label="Épicerie" color="#1A5EA8" marge={margeEpicerieHT} caHT={epicerieCAHT} />
       )}
-      {margeMerchHT !== 0 && (
-        <MargeRow label="Merch" color="#7C3AED" value={margeMerchHT} />
+      {margeMerchHT !== 0 && merchCAHT > 0 && (
+        <MargeRow label="Merch" color="#7C3AED" marge={margeMerchHT} caHT={merchCAHT} />
       )}
     </div>
   );
 }
 
-function MargeRow({ label, color, value }: { label: string; color: string; value: number }) {
+function MargeRow({
+  label,
+  color,
+  marge,
+  caHT,
+}: {
+  label: string;
+  color: string;
+  marge: number;
+  caHT: number;
+}) {
+  const rate = marge / caHT;
   return (
     <div
       style={{
@@ -141,16 +163,29 @@ function MargeRow({ label, color, value }: { label: string; color: string; value
       }}>
         {label}
       </div>
-      <span style={{
-        fontFamily: "var(--font-display)",
-        fontWeight: 600,
-        fontSize: 16,
-        color: "var(--fg-primary)",
-        letterSpacing: "-0.01em",
+      <div style={{
+        display: "flex",
+        alignItems: "baseline",
+        gap: 5,
         fontVariantNumeric: "tabular-nums",
       }}>
-        {fmtEurCompact(value)}
-      </span>
+        <span style={{
+          fontFamily: "var(--font-display)",
+          fontWeight: 600,
+          fontSize: 16,
+          color: "var(--fg-primary)",
+          letterSpacing: "-0.01em",
+        }}>
+          {fmtRate(rate)}
+        </span>
+        <span style={{
+          fontFamily: "var(--font-body)",
+          fontSize: 10,
+          color: "var(--fg-tertiary)",
+        }}>
+          {fmtEurCompact(marge)}
+        </span>
+      </div>
     </div>
   );
 }

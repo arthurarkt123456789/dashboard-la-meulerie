@@ -73,7 +73,7 @@ export function BasketBreakdown({
           ± {fmtEur2(stdDev)} {suffix} (écart-type)
         </div>
       )}
-      <div className="lm-kpi-deltas">
+      <div className="lm-kpi-deltas" style={{ marginTop: 20 }}>
         {hasGlobalDelta && (
           <div className="lm-kpi-delta-row">
             <span className={"lm-delta " + deltaClass(global.delta)}>
