@@ -17,6 +17,8 @@ type Props = {
   yoyAvailable?: boolean;
   partial?: boolean;
   suffix?: string;
+  networkRef?: string;
+  networkDelta?: number | null;
 };
 
 function fmtEur2(n: number): string {
@@ -43,9 +45,13 @@ export function BasketBreakdown({
   yoyAvailable,
   partial,
   suffix = "€",
+  networkRef,
+  networkDelta,
 }: Props) {
   const hasGlobalDelta = typeof global.delta === "number";
   const hasYoy = yoyAvailable !== false && typeof global.yoyDelta === "number";
+  const netPos = typeof networkDelta === "number" && networkDelta > 0;
+  const netNeg = typeof networkDelta === "number" && networkDelta < 0;
 
   return (
     <div className="lm-card lm-kpi">
@@ -77,13 +83,13 @@ export function BasketBreakdown({
               {(global.delta ?? 0) > 0 ? "↑ " : (global.delta ?? 0) < 0 ? "↓ " : ""}
               {fmtPct(global.delta!).replace(/^\+/, "")}
             </span>
-            <span className="lm-delta-label">vs période préc.</span>
+            <span className="lm-delta-label">vs. période préc.</span>
           </div>
         )}
         {yoyAvailable === false ? (
           <div className="lm-kpi-delta-row">
             <span className="lm-delta neu">—</span>
-            <span className="lm-delta-label">N-1 indisponible</span>
+            <span className="lm-delta-label">last year N/A</span>
           </div>
         ) : hasYoy ? (
           <div className="lm-kpi-delta-row">
@@ -91,9 +97,18 @@ export function BasketBreakdown({
               {(global.yoyDelta ?? 0) > 0 ? "↑ " : (global.yoyDelta ?? 0) < 0 ? "↓ " : ""}
               {fmtPct(global.yoyDelta!).replace(/^\+/, "")}
             </span>
-            <span className="lm-delta-label">vs N-1</span>
+            <span className="lm-delta-label">vs. last year</span>
           </div>
         ) : null}
+        {networkRef && typeof networkDelta === "number" && (
+          <div className="lm-kpi-delta-row">
+            <span className={"lm-delta " + (netPos ? "pos" : netNeg ? "neg" : "neu")}>
+              {netPos ? "↑ " : netNeg ? "↓ " : ""}
+              {fmtPct(networkDelta).replace(/^\+/, "")}
+            </span>
+            <span className="lm-delta-label">vs. réseau ({networkRef})</span>
+          </div>
+        )}
       </div>
       <SegmentRow label="Fromagerie" color="var(--color-dark)" b={fromagerie} suffix={suffix} />
       <SegmentRow label="Snacking" color="var(--color-coral)" b={snacking} suffix={suffix} />

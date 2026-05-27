@@ -1,6 +1,8 @@
 import { fmtPct } from "@/lib/format";
 import { Sparkline } from "./charts/Sparkline";
 
+type SegmentShare = { label: string; color: string; share: number };
+
 type Props = {
   label: string;
   value: string;
@@ -15,12 +17,35 @@ type Props = {
   sparkRefLine?: number;
   accent?: boolean;
   partial?: boolean;
-  /** E.g. "1 674 €/j" — shown as "vs réseau (X)" comparison row. */
   networkRef?: string;
   networkRefDelta?: number | null;
-  /** Sub-value shown below the main number (e.g. "± 3,2 €" for std dev). */
   subValue?: string;
+  /** "vs. Moyenne" delta — benchmark depends on selected period. */
+  trendDelta?: number | null;
+  trendLabel?: string;
+  /** Mini stacked bar showing segment CA shares. */
+  segments?: SegmentShare[];
 };
+
+function dc(v: number | null | undefined) {
+  if (typeof v !== "number" || !isFinite(v)) return "neu";
+  if (v > 0) return "pos";
+  if (v < 0) return "neg";
+  return "neu";
+}
+
+function DeltaRow({ value, label }: { value: number; label: string }) {
+  const cls = dc(value);
+  return (
+    <div className="lm-kpi-delta-row">
+      <span className={"lm-delta " + cls}>
+        {value > 0 ? "↑ " : value < 0 ? "↓ " : ""}
+        {fmtPct(value).replace(/^\+/, "")}
+      </span>
+      <span className="lm-delta-label">{label}</span>
+    </div>
+  );
+}
 
 export function KPICard({
   label,
@@ -39,14 +64,10 @@ export function KPICard({
   networkRef,
   networkRefDelta,
   subValue,
+  trendDelta,
+  trendLabel,
+  segments,
 }: Props) {
-  const isPos = typeof delta === "number" && delta > 0;
-  const isNeg = typeof delta === "number" && delta < 0;
-  const yoyPos = typeof yoyDelta === "number" && yoyDelta > 0;
-  const yoyNeg = typeof yoyDelta === "number" && yoyDelta < 0;
-  const netPos = typeof networkRefDelta === "number" && networkRefDelta > 0;
-  const netNeg = typeof networkRefDelta === "number" && networkRefDelta < 0;
-
   return (
     <div className="lm-card lm-kpi">
       <div className="lm-kpi-head">
@@ -86,53 +107,58 @@ export function KPICard({
       )}
       <div className="lm-kpi-deltas">
         {typeof delta === "number" && (
-          <div className="lm-kpi-delta-row">
-            <span
-              className={"lm-delta " + (isPos ? "pos" : isNeg ? "neg" : "neu")}
-            >
-              {isPos && "↑ "}
-              {isNeg && "↓ "}
-              {fmtPct(delta).replace(/^\+/, "")}
-            </span>
-            <span className="lm-delta-label">
-              {deltaLabel || "vs période préc."}
-            </span>
-          </div>
+          <DeltaRow value={delta} label={deltaLabel || "vs. période préc."} />
         )}
         {yoyAvailable === false ? (
           <div className="lm-kpi-delta-row">
             <span className="lm-delta neu">—</span>
-            <span className="lm-delta-label">
-              {yoyNote || "N-1 indisponible"}
-            </span>
+            <span className="lm-delta-label">{yoyNote || "last year N/A"}</span>
           </div>
         ) : typeof yoyDelta === "number" ? (
-          <div className="lm-kpi-delta-row">
-            <span
-              className={
-                "lm-delta " + (yoyPos ? "pos" : yoyNeg ? "neg" : "neu")
-              }
-            >
-              {yoyPos && "↑ "}
-              {yoyNeg && "↓ "}
-              {fmtPct(yoyDelta).replace(/^\+/, "")}
-            </span>
-            <span className="lm-delta-label">{yoyNote || "vs N-1"}</span>
-          </div>
+          <DeltaRow value={yoyDelta} label={yoyNote || "vs. last year"} />
         ) : null}
-        {networkRef && (
-          <div className="lm-kpi-delta-row">
-            <span className={"lm-delta " + (netPos ? "pos" : netNeg ? "neg" : "neu")}>
-              {netPos && "↑ "}
-              {netNeg && "↓ "}
-              {typeof networkRefDelta === "number"
-                ? fmtPct(networkRefDelta).replace(/^\+/, "")
-                : "="}
-            </span>
-            <span className="lm-delta-label">vs réseau ({networkRef})</span>
-          </div>
+        {networkRef && typeof networkRefDelta === "number" && (
+          <DeltaRow value={networkRefDelta} label={`vs. réseau (${networkRef})`} />
+        )}
+        {typeof trendDelta === "number" && (
+          <DeltaRow value={trendDelta} label={trendLabel || "vs. moyenne"} />
         )}
       </div>
+      {segments && segments.some((s) => s.share > 0.005) && (
+        <div style={{ marginTop: 10 }}>
+          <div style={{
+            height: 4,
+            display: "flex",
+            borderRadius: 2,
+            overflow: "hidden",
+            background: "var(--bg-subtle)",
+          }}>
+            {segments.filter((s) => s.share > 0.005).map((s) => (
+              <div
+                key={s.label}
+                style={{ width: `${s.share * 100}%`, background: s.color }}
+              />
+            ))}
+          </div>
+          <div style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "3px 10px",
+            marginTop: 5,
+            fontFamily: "var(--font-body)",
+          }}>
+            {segments.filter((s) => s.share > 0.005).map((s) => (
+              <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 10 }}>
+                <span style={{ width: 6, height: 6, background: s.color, borderRadius: 1, flexShrink: 0 }} />
+                <span style={{ color: "var(--fg-tertiary)" }}>{s.label}</span>
+                <span style={{ color: "var(--fg-secondary)", fontVariantNumeric: "tabular-nums" }}>
+                  {(s.share * 100).toFixed(0)}%
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
