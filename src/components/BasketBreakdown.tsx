@@ -204,6 +204,7 @@ function SegmentRow({
             fontSize: 18,
             color: b.value > 0 ? "var(--fg-primary)" : "var(--fg-tertiary)",
             letterSpacing: "-0.01em",
+            whiteSpace: "nowrap",
           }}
         >
           {b.value > 0 ? (
