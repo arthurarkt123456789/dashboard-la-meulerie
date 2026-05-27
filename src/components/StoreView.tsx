@@ -25,6 +25,7 @@ import { SegmentSplit } from "./SegmentSplit";
 import { SegmentFilterInline, useSegmentFilter } from "./SegmentFilter";
 import { BootstrapButton } from "./BootstrapButton";
 import { FinancialBlock } from "./FinancialBlock";
+import { DavsoExtras } from "./DavsoExtras";
 
 type Props = {
   store: StoreData;
@@ -384,6 +385,10 @@ export function StoreView({ store, period, today, amountMode }: Props) {
 
       {(store.id === "davso" || store.id === "malmousque" || store.id === "endoume" || store.id === "republique") && (
         <FinancialBlock storeId={store.id} daily={store.daily} period={period} openedDate={store.openedDate} />
+      )}
+
+      {store.id === "davso" && (
+        <DavsoExtras store={store} period={period} amountMode={amountMode} />
       )}
     </div>
   );
