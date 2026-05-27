@@ -95,7 +95,7 @@ export function KPICard({
           fontSize: 11,
           color: "var(--fg-tertiary)",
           marginBottom: 4,
-          marginTop: -2,
+          marginTop: 8,
         }}>
           {subValue}
         </div>

@@ -67,7 +67,7 @@ export function BasketBreakdown({
           fontFamily: "var(--font-body)",
           fontSize: 11,
           color: "var(--fg-tertiary)",
-          marginTop: -2,
+          marginTop: 8,
           marginBottom: 2,
         }}>
           ± {fmtEur2(stdDev)} {suffix} (écart-type)
