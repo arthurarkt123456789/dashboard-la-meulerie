@@ -6,13 +6,12 @@ type Props = {
   margeSnackingHT: number;
   margeEpicerieHT: number;
   margeMerchHT: number;
-  fromagerieCAHT: number;
-  snackingCAHT: number;
-  epicerieCAHT: number;
-  merchCAHT: number;
-  /** Difference in margin rates in pp (e.g. 0.023 = +2.3 pp). */
+  margeCoveredFromagerieCAHT: number;
+  margeCoveredSnackingCAHT: number;
+  margeCoveredEpicerieCAHT: number;
+  margeCoveredMerchCAHT: number;
+  /** Rate difference in pp (e.g. 0.023 = +2.3 pp). */
   margeDelta: number | null;
-  /** Same unit: pp difference vs N-1. */
   yoyMargeDelta: number | null;
   yoyAvailable: boolean;
   partial?: boolean;
@@ -54,10 +53,10 @@ export function MarginBreakdown({
   margeSnackingHT,
   margeEpicerieHT,
   margeMerchHT,
-  fromagerieCAHT,
-  snackingCAHT,
-  epicerieCAHT,
-  merchCAHT,
+  margeCoveredFromagerieCAHT,
+  margeCoveredSnackingCAHT,
+  margeCoveredEpicerieCAHT,
+  margeCoveredMerchCAHT,
   margeDelta,
   yoyMargeDelta,
   yoyAvailable,
@@ -113,17 +112,37 @@ export function MarginBreakdown({
           </div>
         ) : null}
       </div>
-      {margeFromagerieHT !== 0 && fromagerieCAHT > 0 && (
-        <MargeRow label="Fromagerie" color="var(--color-dark)" marge={margeFromagerieHT} caHT={fromagerieCAHT} />
+      {margeFromagerieHT !== 0 && margeCoveredFromagerieCAHT > 0 && (
+        <MargeRow
+          label="Fromagerie"
+          color="var(--color-dark)"
+          marge={margeFromagerieHT}
+          coveredCA={margeCoveredFromagerieCAHT}
+        />
       )}
-      {margeSnackingHT !== 0 && snackingCAHT > 0 && (
-        <MargeRow label="Snacking" color="var(--color-coral)" marge={margeSnackingHT} caHT={snackingCAHT} />
+      {margeSnackingHT !== 0 && margeCoveredSnackingCAHT > 0 && (
+        <MargeRow
+          label="Snacking"
+          color="var(--color-coral)"
+          marge={margeSnackingHT}
+          coveredCA={margeCoveredSnackingCAHT}
+        />
       )}
-      {margeEpicerieHT !== 0 && epicerieCAHT > 0 && (
-        <MargeRow label="Épicerie" color="#1A5EA8" marge={margeEpicerieHT} caHT={epicerieCAHT} />
+      {margeEpicerieHT !== 0 && margeCoveredEpicerieCAHT > 0 && (
+        <MargeRow
+          label="Épicerie"
+          color="#1A5EA8"
+          marge={margeEpicerieHT}
+          coveredCA={margeCoveredEpicerieCAHT}
+        />
       )}
-      {margeMerchHT !== 0 && merchCAHT > 0 && (
-        <MargeRow label="Merch" color="#7C3AED" marge={margeMerchHT} caHT={merchCAHT} />
+      {margeMerchHT !== 0 && margeCoveredMerchCAHT > 0 && (
+        <MargeRow
+          label="Merch"
+          color="#7C3AED"
+          marge={margeMerchHT}
+          coveredCA={margeCoveredMerchCAHT}
+        />
       )}
     </div>
   );
@@ -133,14 +152,14 @@ function MargeRow({
   label,
   color,
   marge,
-  caHT,
+  coveredCA,
 }: {
   label: string;
   color: string;
   marge: number;
-  caHT: number;
+  coveredCA: number;
 }) {
-  const rate = marge / caHT;
+  const rate = marge / coveredCA;
   return (
     <div
       style={{

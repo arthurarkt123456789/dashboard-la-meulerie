@@ -123,6 +123,10 @@ function rollupDay(
   let margeEpicerieHT = 0;
   let margeMerchHT = 0;
   let margeCoveredCAHT = 0;
+  let margeCoveredFromagerieCAHT = 0;
+  let margeCoveredSnackingCAHT = 0;
+  let margeCoveredEpicerieCAHT = 0;
+  let margeCoveredMerchCAHT = 0;
   for (const sale of sales) {
     let saleHasFromagerie = false;
     let saleHasSnacking = false;
@@ -162,10 +166,10 @@ function rollupDay(
         const lineMargeHT = amountHT - costHT;
         margeHT += lineMargeHT;
         margeCoveredCAHT += amountHT;
-        if (seg === "Fromagerie") margeFromagerieHT += lineMargeHT;
-        else if (seg === "Épicerie") margeEpicerieHT += lineMargeHT;
-        else if (seg === "Merch") margeMerchHT += lineMargeHT;
-        else margeSnackingHT += lineMargeHT;
+        if (seg === "Fromagerie") { margeFromagerieHT += lineMargeHT; margeCoveredFromagerieCAHT += amountHT; }
+        else if (seg === "Épicerie") { margeEpicerieHT += lineMargeHT; margeCoveredEpicerieCAHT += amountHT; }
+        else if (seg === "Merch") { margeMerchHT += lineMargeHT; margeCoveredMerchCAHT += amountHT; }
+        else { margeSnackingHT += lineMargeHT; margeCoveredSnackingCAHT += amountHT; }
       }
     }
     if (saleHasFromagerie) fromagerieTx++;
@@ -199,6 +203,10 @@ function rollupDay(
     margeEpicerieHT: Math.round(margeEpicerieHT * 100) / 100,
     margeMerchHT: Math.round(margeMerchHT * 100) / 100,
     margeCoveredCAHT: Math.round(margeCoveredCAHT * 100) / 100,
+    margeCoveredFromagerieCAHT: Math.round(margeCoveredFromagerieCAHT * 100) / 100,
+    margeCoveredSnackingCAHT: Math.round(margeCoveredSnackingCAHT * 100) / 100,
+    margeCoveredEpicerieCAHT: Math.round(margeCoveredEpicerieCAHT * 100) / 100,
+    margeCoveredMerchCAHT: Math.round(margeCoveredMerchCAHT * 100) / 100,
   };
 }
 

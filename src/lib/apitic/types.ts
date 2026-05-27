@@ -63,8 +63,13 @@ export type StoreDaily = {
   margeSnackingHT?: number;
   margeEpicerieHT?: number;
   margeMerchHT?: number;
-  /** CA HT of lines where purchase price is known (coverage denominator). */
+  /** CA HT of lines where purchase price is known (global coverage denominator). */
   margeCoveredCAHT?: number;
+  /** Per-segment covered CA HT (exact denominator for per-segment margin rates). */
+  margeCoveredFromagerieCAHT?: number;
+  margeCoveredSnackingCAHT?: number;
+  margeCoveredEpicerieCAHT?: number;
+  margeCoveredMerchCAHT?: number;
 };
 
 export type StoreHourly = {

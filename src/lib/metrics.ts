@@ -144,6 +144,10 @@ function sumRange(slice: StoreDaily[]): PeriodSum {
   const margeEpicerieHT = slice.reduce((s, d) => s + (d.margeEpicerieHT ?? 0), 0);
   const margeMerchHT = slice.reduce((s, d) => s + (d.margeMerchHT ?? 0), 0);
   const margeCoveredCAHT = slice.reduce((s, d) => s + (d.margeCoveredCAHT ?? 0), 0);
+  const margeCoveredFromagerieCAHT = slice.reduce((s, d) => s + (d.margeCoveredFromagerieCAHT ?? 0), 0);
+  const margeCoveredSnackingCAHT = slice.reduce((s, d) => s + (d.margeCoveredSnackingCAHT ?? 0), 0);
+  const margeCoveredEpicerieCAHT = slice.reduce((s, d) => s + (d.margeCoveredEpicerieCAHT ?? 0), 0);
+  const margeCoveredMerchCAHT = slice.reduce((s, d) => s + (d.margeCoveredMerchCAHT ?? 0), 0);
   return {
     ca,
     caHT,
@@ -166,6 +170,10 @@ function sumRange(slice: StoreDaily[]): PeriodSum {
     margeEpicerieHT,
     margeMerchHT,
     margeCoveredCAHT,
+    margeCoveredFromagerieCAHT,
+    margeCoveredSnackingCAHT,
+    margeCoveredEpicerieCAHT,
+    margeCoveredMerchCAHT,
     avgTicket: tx ? ca / tx : 0,
     avgTicketHT: tx ? caHT / tx : 0,
     avgTicketFromagerie: fromagerieTx ? fromagerieCA / fromagerieTx : 0,
@@ -204,6 +212,10 @@ type PeriodSum = {
   margeEpicerieHT: number;
   margeMerchHT: number;
   margeCoveredCAHT: number;
+  margeCoveredFromagerieCAHT: number;
+  margeCoveredSnackingCAHT: number;
+  margeCoveredEpicerieCAHT: number;
+  margeCoveredMerchCAHT: number;
   avgTicketFromagerie: number;
   avgTicketFromagerieHT: number;
   avgTicketSnacking: number;
@@ -238,6 +250,10 @@ export function sumPeriod(daily: StoreDaily[], days: number): PeriodSum {
   const margeEpicerieHT = slice.reduce((s, d) => s + (d.margeEpicerieHT ?? 0), 0);
   const margeMerchHT = slice.reduce((s, d) => s + (d.margeMerchHT ?? 0), 0);
   const margeCoveredCAHT = slice.reduce((s, d) => s + (d.margeCoveredCAHT ?? 0), 0);
+  const margeCoveredFromagerieCAHT = slice.reduce((s, d) => s + (d.margeCoveredFromagerieCAHT ?? 0), 0);
+  const margeCoveredSnackingCAHT = slice.reduce((s, d) => s + (d.margeCoveredSnackingCAHT ?? 0), 0);
+  const margeCoveredEpicerieCAHT = slice.reduce((s, d) => s + (d.margeCoveredEpicerieCAHT ?? 0), 0);
+  const margeCoveredMerchCAHT = slice.reduce((s, d) => s + (d.margeCoveredMerchCAHT ?? 0), 0);
   return {
     ca,
     caHT,
@@ -260,6 +276,10 @@ export function sumPeriod(daily: StoreDaily[], days: number): PeriodSum {
     margeEpicerieHT,
     margeMerchHT,
     margeCoveredCAHT,
+    margeCoveredFromagerieCAHT,
+    margeCoveredSnackingCAHT,
+    margeCoveredEpicerieCAHT,
+    margeCoveredMerchCAHT,
     avgTicket: tx ? ca / tx : 0,
     avgTicketHT: tx ? caHT / tx : 0,
     avgTicketFromagerie: fromagerieTx ? fromagerieCA / fromagerieTx : 0,
@@ -762,6 +782,10 @@ export function consolidateDaily(perStore: StoreDaily[][]): StoreDaily[] {
           margeEpicerieHT: d.margeEpicerieHT ?? 0,
           margeMerchHT: d.margeMerchHT ?? 0,
           margeCoveredCAHT: d.margeCoveredCAHT ?? 0,
+          margeCoveredFromagerieCAHT: d.margeCoveredFromagerieCAHT ?? 0,
+          margeCoveredSnackingCAHT: d.margeCoveredSnackingCAHT ?? 0,
+          margeCoveredEpicerieCAHT: d.margeCoveredEpicerieCAHT ?? 0,
+          margeCoveredMerchCAHT: d.margeCoveredMerchCAHT ?? 0,
           partial: d.partial,
         });
       } else {
@@ -786,6 +810,10 @@ export function consolidateDaily(perStore: StoreDaily[][]): StoreDaily[] {
         existing.margeEpicerieHT = (existing.margeEpicerieHT ?? 0) + (d.margeEpicerieHT ?? 0);
         existing.margeMerchHT = (existing.margeMerchHT ?? 0) + (d.margeMerchHT ?? 0);
         existing.margeCoveredCAHT = (existing.margeCoveredCAHT ?? 0) + (d.margeCoveredCAHT ?? 0);
+        existing.margeCoveredFromagerieCAHT = (existing.margeCoveredFromagerieCAHT ?? 0) + (d.margeCoveredFromagerieCAHT ?? 0);
+        existing.margeCoveredSnackingCAHT = (existing.margeCoveredSnackingCAHT ?? 0) + (d.margeCoveredSnackingCAHT ?? 0);
+        existing.margeCoveredEpicerieCAHT = (existing.margeCoveredEpicerieCAHT ?? 0) + (d.margeCoveredEpicerieCAHT ?? 0);
+        existing.margeCoveredMerchCAHT = (existing.margeCoveredMerchCAHT ?? 0) + (d.margeCoveredMerchCAHT ?? 0);
         if (d.partial) existing.partial = true;
       }
     }

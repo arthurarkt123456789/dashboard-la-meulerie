@@ -332,7 +332,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
       { label: "Snacking", color: "var(--color-coral)", share: (isHT ? m.snackingCAHT ?? 0 : m.snackingCA) / totalCA },
       { label: "Épicerie", color: "#1A5EA8", share: (isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA) / totalCA },
       { label: "Merch", color: "#7C3AED", share: (isHT ? m.merchCAHT ?? 0 : m.merchCA) / totalCA },
-    ].filter((s) => s.share > 0.005);
+    ].filter((s) => s.share > 0);
   }, [m, isHT]);
 
   const caPerDay = m.days > 0 ? (isHT ? m.caHT : m.ca) / m.days : 0;
@@ -352,7 +352,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
       { label: "Snacking", color: "var(--color-coral)", share: m.snackingTx / totalTx },
       { label: "Épicerie", color: "#1A5EA8", share: m.epicerieTx / totalTx },
       { label: "Merch", color: "#7C3AED", share: m.merchTx / totalTx },
-    ].filter((s) => s.share > 0.005);
+    ].filter((s) => s.share > 0);
   }, [m]);
 
   // Part réseau: this store's share of total network CA / Tx
@@ -452,10 +452,10 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           margeSnackingHT={m.margeSnackingHT}
           margeEpicerieHT={m.margeEpicerieHT}
           margeMerchHT={m.margeMerchHT}
-          fromagerieCAHT={m.fromagerieCAHT}
-          snackingCAHT={m.snackingCAHT}
-          epicerieCAHT={m.epicerieCAHT}
-          merchCAHT={m.merchCAHT}
+          margeCoveredFromagerieCAHT={m.margeCoveredFromagerieCAHT}
+          margeCoveredSnackingCAHT={m.margeCoveredSnackingCAHT}
+          margeCoveredEpicerieCAHT={m.margeCoveredEpicerieCAHT}
+          margeCoveredMerchCAHT={m.margeCoveredMerchCAHT}
           margeDelta={m.margeDelta}
           yoyMargeDelta={m.yoyAvailable ? m.yoyMargeDelta : null}
           yoyAvailable={m.yoyAvailable}

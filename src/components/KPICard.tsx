@@ -119,7 +119,7 @@ export function KPICard({
           <DeltaRow value={trendDelta} label={trendLabel || "vs. moyenne"} />
         )}
       </div>
-      {segments && segments.some((s) => s.share > 0.005) && (
+      {segments && segments.some((s) => s.share > 0) && (
         <div style={{ marginTop: 10 }}>
           <div style={{
             height: 7,
@@ -128,7 +128,7 @@ export function KPICard({
             overflow: "hidden",
             background: "var(--bg-subtle)",
           }}>
-            {segments.filter((s) => s.share > 0.005).map((s) => (
+            {segments.filter((s) => s.share > 0).map((s) => (
               <div
                 key={s.label}
                 style={{ width: `${s.share * 100}%`, background: s.color }}
@@ -142,12 +142,12 @@ export function KPICard({
             marginTop: 5,
             fontFamily: "var(--font-body)",
           }}>
-            {segments.filter((s) => s.share > 0.005).map((s) => (
+            {segments.filter((s) => s.share > 0).map((s) => (
               <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 10 }}>
                 <span style={{ width: 6, height: 6, background: s.color, borderRadius: 1, flexShrink: 0 }} />
                 <span style={{ color: "var(--fg-tertiary)" }}>{s.label}</span>
                 <span style={{ color: "var(--fg-secondary)", fontVariantNumeric: "tabular-nums" }}>
-                  {(s.share * 100).toFixed(0)}%
+                  {(s.share * 100).toFixed(1)}%
                 </span>
               </div>
             ))}
