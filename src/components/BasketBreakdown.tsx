@@ -1,4 +1,4 @@
-import { fmtPct } from "@/lib/format";
+import { fmtPct, fmtPctNoSign } from "@/lib/format";
 
 type SegmentValue = {
   value: number;
@@ -17,14 +17,11 @@ type Props = {
   yoyAvailable?: boolean;
   partial?: boolean;
   suffix?: string;
-  /** Absolute difference vs network avg basket (e.g. +1.2 or -0.8). Same unit as suffix. */
   networkBasketAbsolute?: number | null;
 };
 
 function fmtEur2(n: number): string {
-  return (Math.round(n * 100) / 100)
-    .toFixed(2)
-    .replace(".", ",");
+  return (Math.round(n * 100) / 100).toFixed(2).replace(".", ",");
 }
 
 function deltaClass(delta: number | null | undefined): string {
@@ -106,15 +103,15 @@ export function BasketBreakdown({
           </div>
         )}
       </div>
-      <SegmentRow label="Fromagerie" color="var(--color-dark)" b={fromagerie} suffix={suffix} />
-      <SegmentRow label="Snacking" color="var(--color-coral)" b={snacking} suffix={suffix} />
+      <SegmentRow label="Fromagerie" color="var(--color-dark)" b={fromagerie} suffix={suffix} yoyAvailable={yoyAvailable} />
+      <SegmentRow label="Snacking" color="var(--color-coral)" b={snacking} suffix={suffix} yoyAvailable={yoyAvailable} />
       {epicerie && epicerie.value > 0 ? (
-        <SegmentRow label="Épicerie" color="#1A5EA8" b={epicerie} suffix={suffix} />
+        <SegmentRow label="Épicerie" color="#1A5EA8" b={epicerie} suffix={suffix} yoyAvailable={yoyAvailable} />
       ) : epicerieCAShare != null && epicerieCAShare > 0 ? (
         <div style={{
           display: "grid",
           gridTemplateColumns: "8px 1fr auto",
-          gap: 8,
+          gap: "0 8px",
           alignItems: "center",
           marginTop: 8,
           paddingTop: 8,
@@ -131,7 +128,7 @@ export function BasketBreakdown({
         </div>
       ) : null}
       {merch && merch.value > 0 && (
-        <SegmentRow label="Merch" color="#7C3AED" b={merch} suffix={suffix} />
+        <SegmentRow label="Merch" color="#7C3AED" b={merch} suffix={suffix} yoyAvailable={yoyAvailable} />
       )}
     </div>
   );
@@ -142,87 +139,69 @@ function SegmentRow({
   color,
   b,
   suffix,
-  subNote,
+  yoyAvailable,
 }: {
   label: string;
   color: string;
-  b: { value: number; delta?: number | null };
+  b: SegmentValue;
   suffix: string;
-  subNote?: string;
+  yoyAvailable?: boolean;
 }) {
+  const hasDelta = typeof b.delta === "number" && isFinite(b.delta) && b.delta !== 0;
+  const hasYoy = yoyAvailable !== false && typeof b.yoyDelta === "number" && isFinite(b.yoyDelta);
+
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "8px 1fr auto",
-        gap: 8,
-        alignItems: "flex-start",
-        marginTop: 8,
-        paddingTop: 8,
-        borderTop: "1px solid var(--border-light)",
-      }}
-    >
-      <span
-        style={{
-          width: 8,
-          height: 8,
-          background: color,
-          borderRadius: 1,
-        }}
-      />
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "8px 1fr auto",
+      gap: "0 8px",
+      alignItems: "center",
+      marginTop: 8,
+      paddingTop: 8,
+      borderTop: "1px solid var(--border-light)",
+    }}>
+      <span style={{ width: 8, height: 8, background: color, borderRadius: 1, alignSelf: "flex-start", marginTop: 4 }} />
       <div>
-        <div
-          style={{
-            fontFamily: "var(--font-body)",
-            fontSize: 11,
-            color: "var(--fg-secondary)",
-            letterSpacing: 0.4,
-            textTransform: "uppercase",
-          }}
-        >
+        <div style={{
+          fontFamily: "var(--font-body)",
+          fontSize: 11,
+          color: "var(--fg-secondary)",
+          letterSpacing: 0.4,
+          textTransform: "uppercase",
+        }}>
           {label}
         </div>
-        {subNote && (
-          <div style={{ fontSize: 10, color: "var(--fg-tertiary)", fontFamily: "var(--font-body)" }}>
-            {subNote}
+        {(hasDelta || hasYoy) && (
+          <div style={{ display: "flex", gap: 6, marginTop: 3, flexWrap: "nowrap" }}>
+            {hasDelta && (
+              <span className={"lm-delta " + deltaClass(b.delta)} style={{ fontSize: 10, whiteSpace: "nowrap" }}>
+                {b.delta! > 0 ? "↑" : "↓"} {fmtPctNoSign(Math.abs(b.delta!))}
+                <span style={{ color: "var(--fg-tertiary)", fontWeight: 400, marginLeft: 2 }}>P-1</span>
+              </span>
+            )}
+            {hasYoy && (
+              <span className={"lm-delta " + deltaClass(b.yoyDelta)} style={{ fontSize: 10, whiteSpace: "nowrap" }}>
+                {b.yoyDelta! > 0 ? "↑" : b.yoyDelta! < 0 ? "↓" : "·"} {fmtPctNoSign(Math.abs(b.yoyDelta!))}
+                <span style={{ color: "var(--fg-tertiary)", fontWeight: 400, marginLeft: 2 }}>N-1</span>
+              </span>
+            )}
           </div>
         )}
       </div>
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "flex-end",
-          gap: 2,
-          fontFamily: "var(--font-body)",
-          fontVariantNumeric: "tabular-nums",
-        }}
-      >
-        {typeof b.delta === "number" && isFinite(b.delta) && b.delta !== 0 && (
-          <span className={"lm-delta " + deltaClass(b.delta)} style={{ fontSize: 11 }}>
-            {b.delta > 0 ? "↑" : "↓"} {fmtPct(b.delta).replace(/^[+-]/, "")}
-          </span>
-        )}
-        <span
-          style={{
-            fontFamily: "var(--font-display)",
-            fontWeight: 600,
-            fontSize: 18,
-            color: b.value > 0 ? "var(--fg-primary)" : "var(--fg-tertiary)",
-            letterSpacing: "-0.01em",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {b.value > 0 ? (
-            <>
-              {fmtEur2(b.value)}{" "}
-              <span style={{ fontSize: 12, color: "var(--fg-secondary)" }}>{suffix}</span>
-            </>
-          ) : (
-            "—"
-          )}
-        </span>
-      </div>
+      <span style={{
+        fontFamily: "var(--font-display)",
+        fontWeight: 600,
+        fontSize: 18,
+        color: b.value > 0 ? "var(--fg-primary)" : "var(--fg-tertiary)",
+        letterSpacing: "-0.01em",
+        whiteSpace: "nowrap",
+        fontVariantNumeric: "tabular-nums",
+        alignSelf: "center",
+      }}>
+        {b.value > 0 ? (
+          <>{fmtEur2(b.value)}{" "}<span style={{ fontSize: 12, color: "var(--fg-secondary)", fontFamily: "var(--font-body)", fontWeight: 400 }}>{suffix}</span></>
+        ) : "—"}
+      </span>
     </div>
   );
 }

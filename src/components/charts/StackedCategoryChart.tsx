@@ -10,9 +10,10 @@ type Props = {
   period: PeriodSelection;
   isHT: boolean;
   height?: number;
+  showMA?: boolean;
 };
 
-export function StackedCategoryChart({ daily, period, isHT, height = 300 }: Props) {
+export function StackedCategoryChart({ daily, period, isHT, height = 300, showMA = true }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [w, setW] = useState(960);
   const [hover, setHover] = useState<number | null>(null);
@@ -178,45 +179,17 @@ export function StackedCategoryChart({ daily, period, isHT, height = 300 }: Prop
         })}
 
         {/* 7-day MA lines */}
-        {frPath && (
-          <path
-            d={frPath}
-            fill="none"
-            stroke="var(--color-dark)"
-            strokeWidth="1.75"
-            strokeLinejoin="round"
-            strokeLinecap="round"
-          />
+        {showMA && frPath && (
+          <path d={frPath} fill="none" stroke="var(--color-dark)" strokeWidth="1.75" strokeLinejoin="round" strokeLinecap="round" />
         )}
-        {snPath && (
-          <path
-            d={snPath}
-            fill="none"
-            stroke="var(--color-coral)"
-            strokeWidth="1.75"
-            strokeLinejoin="round"
-            strokeLinecap="round"
-          />
+        {showMA && snPath && (
+          <path d={snPath} fill="none" stroke="var(--color-coral)" strokeWidth="1.75" strokeLinejoin="round" strokeLinecap="round" />
         )}
-        {epPath && (
-          <path
-            d={epPath}
-            fill="none"
-            stroke="#1A5EA8"
-            strokeWidth="1.75"
-            strokeLinejoin="round"
-            strokeLinecap="round"
-          />
+        {showMA && epPath && (
+          <path d={epPath} fill="none" stroke="#1A5EA8" strokeWidth="1.75" strokeLinejoin="round" strokeLinecap="round" />
         )}
-        {mrPath && (
-          <path
-            d={mrPath}
-            fill="none"
-            stroke="#7C3AED"
-            strokeWidth="1.75"
-            strokeLinejoin="round"
-            strokeLinecap="round"
-          />
+        {showMA && mrPath && (
+          <path d={mrPath} fill="none" stroke="#7C3AED" strokeWidth="1.75" strokeLinejoin="round" strokeLinecap="round" />
         )}
 
         {/* Hover crosshair */}
@@ -361,21 +334,14 @@ export function StackedCategoryChart({ daily, period, isHT, height = 300 }: Prop
             {label}
           </div>
         ))}
-        <div
-          style={{ display: "flex", alignItems: "center", gap: 6, opacity: 0.6 }}
-        >
-          <svg width="16" height="8" style={{ display: "inline-block" }}>
-            <line
-              x1="0"
-              y1="4"
-              x2="16"
-              y2="4"
-              stroke="currentColor"
-              strokeWidth="1.75"
-            />
-          </svg>
-          <span>Moy. 7j</span>
-        </div>
+        {showMA && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, opacity: 0.6 }}>
+            <svg width="16" height="8" style={{ display: "inline-block" }}>
+              <line x1="0" y1="4" x2="16" y2="4" stroke="currentColor" strokeWidth="1.75" />
+            </svg>
+            <span>Moy. 7j</span>
+          </div>
+        )}
       </div>
     </div>
   );

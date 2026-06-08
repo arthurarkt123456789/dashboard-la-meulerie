@@ -358,7 +358,7 @@ button { font-family: inherit; cursor: pointer; }
 .lm-kpis {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: 0.75fr 0.75fr 1.5fr 1fr 1fr;
   gap: 10px;
 }
 .lm-card {

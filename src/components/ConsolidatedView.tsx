@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { maybeBucket, type Granularity } from "@/lib/bucketing";
+import { maybeBucket, bucketByWeek, type Granularity } from "@/lib/bucketing";
 import { GranularityToggle } from "./GranularityToggle";
 import { N1Toggle } from "./N1Toggle";
 import { FormulesCard } from "./FormulesCard";
@@ -93,6 +93,7 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
     : "day";
   const isHT = amountMode === "HT";
   const [showN1, setShowN1] = useState(false);
+  const [catGranularity, setCatGranularity] = useState<"day" | "week">("day");
 
   const view = useMemo(() => {
     const consolidatedDaily = consolidateDaily(stores.map((s) => s.daily));
@@ -492,6 +493,7 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
                   return Math.round(v) + " €";
                 }}
                 shareLabel="du CA"
+                yoyAvailable={false}
               />
               <div style={{ borderTop: "1px solid var(--border-light)" }} />
               <CategorySplit
@@ -499,14 +501,31 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
                 segments={txSegs}
                 formatValue={(v) => (Math.round(v * 10) / 10).toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                 shareLabel="des tx"
+                yoyAvailable={false}
               />
             </div>
           );
         })()}
       </Card>
 
-      <Card title="CA par catégories" subtitle={`${isHT ? "HT" : "TTC"} · barres journalières · moyenne 7 jours`} span={3}>
-        <StackedCategoryChart daily={consolidatedPeriodSlice} period={period} isHT={isHT} height={300} />
+      <Card
+        title="CA par catégories"
+        subtitle={`${isHT ? "HT" : "TTC"} · ${catGranularity === "week" ? "barres hebdo." : "barres journalières · moyenne 7j"}`}
+        span={3}
+        action={
+          <div className="lm-segmented lm-segmented-sm">
+            <button className={"lm-seg-btn" + (catGranularity === "day" ? " active" : "")} onClick={() => setCatGranularity("day")}>Jour</button>
+            <button className={"lm-seg-btn" + (catGranularity === "week" ? " active" : "")} onClick={() => setCatGranularity("week")}>Semaine</button>
+          </div>
+        }
+      >
+        <StackedCategoryChart
+          daily={catGranularity === "week" ? bucketByWeek(consolidatedPeriodSlice) : consolidatedPeriodSlice}
+          period={period}
+          isHT={isHT}
+          height={300}
+          showMA={catGranularity === "day"}
+        />
       </Card>
 
       <Card

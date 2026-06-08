@@ -698,9 +698,10 @@ async function aggregateOneStore(
     };
   });
 
-  // 4. Intraday profile averaged over the last 30 closed days (yesterday and back).
-  //    Anchored on `today` exclusive, so yesterday is included in the average.
+  // 4. Intraday profiles: 7-day, 30-day (default), 90-day windows.
+  const hourly7d = rollupHourlyAverage(salesByDate, today, 7);
   const hourly = rollupHourlyAverage(salesByDate, today, 30);
+  const hourly90d = rollupHourlyAverage(salesByDate, today, 90);
 
   // 5. Top products + payments — both aggregate the last 30 closed days too.
   const topProducts = buildTopProducts(
@@ -740,6 +741,8 @@ async function aggregateOneStore(
     openedDate: effectiveOpenedDate,
     daily,
     hourly,
+    hourly7d,
+    hourly90d,
     topProducts,
     payments,
     formules,

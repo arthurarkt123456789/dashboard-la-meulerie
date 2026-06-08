@@ -373,6 +373,19 @@ export type StoreMetrics = PeriodSum & {
   yoyTicketHT: number;
   yoySlice: StoreDaily[];
   days: number;
+  // Per-segment yoy deltas
+  yoyTicketFromagerieDelta: number;
+  yoyTicketSnackingDelta: number;
+  yoyTicketEpicerieDelta: number;
+  yoyTicketMerchDelta: number;
+  yoyFromagerieCA: number;
+  yoySnackingCA: number;
+  yoyEpicerieCA: number;
+  yoyMerchCA: number;
+  yoyFromagerieTx: number;
+  yoySnackingTx: number;
+  yoyEpicerieTx: number;
+  yoyMerchTx: number;
 };
 
 export function periodMetrics(daily: StoreDaily[], period: PeriodKey): StoreMetrics {
@@ -448,6 +461,14 @@ export function periodMetricsForSelection(
       : 0;
   const yoyMargeRate = yoy.margeCoveredCAHT > 0 ? yoy.margeHT / yoy.margeCoveredCAHT : 0;
   const yoyMargeDelta = yoyAvailable ? curMargeRate - yoyMargeRate : 0;
+  const yoyTicketFromagerieDelta = yoyAvailable && yoy.avgTicketFromagerie
+    ? (cur.avgTicketFromagerie - yoy.avgTicketFromagerie) / yoy.avgTicketFromagerie : 0;
+  const yoyTicketSnackingDelta = yoyAvailable && yoy.avgTicketSnacking
+    ? (cur.avgTicketSnacking - yoy.avgTicketSnacking) / yoy.avgTicketSnacking : 0;
+  const yoyTicketEpicerieDelta = yoyAvailable && yoy.avgTicketEpicerie
+    ? (cur.avgTicketEpicerie - yoy.avgTicketEpicerie) / yoy.avgTicketEpicerie : 0;
+  const yoyTicketMerchDelta = yoyAvailable && yoy.avgTicketMerch
+    ? (cur.avgTicketMerch - yoy.avgTicketMerch) / yoy.avgTicketMerch : 0;
 
   return {
     ...cur,
@@ -471,6 +492,18 @@ export function periodMetricsForSelection(
     yoyTicketHT: yoy.avgTicketHT,
     yoySlice,
     days,
+    yoyTicketFromagerieDelta,
+    yoyTicketSnackingDelta,
+    yoyTicketEpicerieDelta,
+    yoyTicketMerchDelta,
+    yoyFromagerieCA: yoy.fromagerieCA,
+    yoySnackingCA: yoy.snackingCA,
+    yoyEpicerieCA: yoy.epicerieCA,
+    yoyMerchCA: yoy.merchCA,
+    yoyFromagerieTx: yoy.fromagerieTx,
+    yoySnackingTx: yoy.snackingTx,
+    yoyEpicerieTx: yoy.epicerieTx,
+    yoyMerchTx: yoy.merchTx,
   };
 }
 
@@ -575,6 +608,18 @@ export function consolidatedPeriodMetricsForSelection(
     totalStores: perStore.length,
     excludedStores,
     curScope,
+    yoyTicketFromagerieDelta: 0,
+    yoyTicketSnackingDelta: 0,
+    yoyTicketEpicerieDelta: 0,
+    yoyTicketMerchDelta: 0,
+    yoyFromagerieCA: 0,
+    yoySnackingCA: 0,
+    yoyEpicerieCA: 0,
+    yoyMerchCA: 0,
+    yoyFromagerieTx: 0,
+    yoySnackingTx: 0,
+    yoyEpicerieTx: 0,
+    yoyMerchTx: 0,
   };
 }
 
@@ -624,6 +669,15 @@ function periodMetricsFromRange(daily: StoreDaily[], days: number): StoreMetrics
     yoy.available && yoy.avgTicket ? (cur.avgTicket - yoy.avgTicket) / yoy.avgTicket : 0;
   const yoyMargeRate = yoyMargeCoveredCAHT > 0 ? yoyMargeHT / yoyMargeCoveredCAHT : 0;
   const yoyMargeDelta = yoy.available ? curMargeRate - yoyMargeRate : 0;
+  const yoyFull = sumRange(yoy.slice);
+  const yoyTicketFromagerieDelta = yoy.available && yoyFull.avgTicketFromagerie
+    ? (cur.avgTicketFromagerie - yoyFull.avgTicketFromagerie) / yoyFull.avgTicketFromagerie : 0;
+  const yoyTicketSnackingDelta = yoy.available && yoyFull.avgTicketSnacking
+    ? (cur.avgTicketSnacking - yoyFull.avgTicketSnacking) / yoyFull.avgTicketSnacking : 0;
+  const yoyTicketEpicerieDelta = yoy.available && yoyFull.avgTicketEpicerie
+    ? (cur.avgTicketEpicerie - yoyFull.avgTicketEpicerie) / yoyFull.avgTicketEpicerie : 0;
+  const yoyTicketMerchDelta = yoy.available && yoyFull.avgTicketMerch
+    ? (cur.avgTicketMerch - yoyFull.avgTicketMerch) / yoyFull.avgTicketMerch : 0;
   return {
     ...cur,
     caDelta,
@@ -646,6 +700,18 @@ function periodMetricsFromRange(daily: StoreDaily[], days: number): StoreMetrics
     yoyTicketHT: yoy.avgTicketHT,
     yoySlice: yoy.slice,
     days,
+    yoyTicketFromagerieDelta,
+    yoyTicketSnackingDelta,
+    yoyTicketEpicerieDelta,
+    yoyTicketMerchDelta,
+    yoyFromagerieCA: yoyFull.fromagerieCA,
+    yoySnackingCA: yoyFull.snackingCA,
+    yoyEpicerieCA: yoyFull.epicerieCA,
+    yoyMerchCA: yoyFull.merchCA,
+    yoyFromagerieTx: yoyFull.fromagerieTx,
+    yoySnackingTx: yoyFull.snackingTx,
+    yoyEpicerieTx: yoyFull.epicerieTx,
+    yoyMerchTx: yoyFull.merchTx,
   };
 }
 
@@ -744,6 +810,18 @@ export function consolidatedPeriodMetrics(
     totalStores: perStore.length,
     excludedStores,
     curScope,
+    yoyTicketFromagerieDelta: 0,
+    yoyTicketSnackingDelta: 0,
+    yoyTicketEpicerieDelta: 0,
+    yoyTicketMerchDelta: 0,
+    yoyFromagerieCA: 0,
+    yoySnackingCA: 0,
+    yoyEpicerieCA: 0,
+    yoyMerchCA: 0,
+    yoyFromagerieTx: 0,
+    yoySnackingTx: 0,
+    yoyEpicerieTx: 0,
+    yoyMerchTx: 0,
   };
 }
 

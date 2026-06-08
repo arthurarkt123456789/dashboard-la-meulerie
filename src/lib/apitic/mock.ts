@@ -320,6 +320,8 @@ function build() {
       ...store,
       daily: generateDaily(seed, today),
       hourly: generateHourly(seed),
+      hourly7d: generateHourly(seed),
+      hourly90d: generateHourly(seed),
       topProducts: generateTopProducts(seed),
       payments: generatePayments(seed),
       formules: {
