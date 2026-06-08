@@ -17,6 +17,7 @@ import { fmtEUR, fmtNum } from "@/lib/format";
 import { Card } from "./Card";
 import { KPICard } from "./KPICard";
 import { BasketBreakdown } from "./BasketBreakdown";
+import { CABreakdown } from "./CABreakdown";
 import { MarginBreakdown } from "./MarginBreakdown";
 import { LineChart } from "./charts/LineChart";
 import { HourlyBars } from "./charts/HourlyBars";
@@ -31,6 +32,7 @@ import { DavsoExtras } from "./DavsoExtras";
 import { WeekdayChart } from "./WeekdayChart";
 import { useStoreData } from "@/lib/queries";
 import { roll7 } from "@/lib/smoothing";
+import { bucketByWeek } from "@/lib/bucketing";
 
 type Props = {
   store: StoreData;
@@ -78,6 +80,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
   const isHT = amountMode === "HT";
   const [showN1, setShowN1] = useState(true);
   const [smoothCA, setSmoothCA] = useState(false);
+  const [catGranularity, setCatGranularity] = useState<"day" | "week">("day");
 
   const m = useMemo(
     () => periodMetricsForSelection(store.daily, period),
@@ -227,11 +230,26 @@ export function StoreView({ store, period, today, amountMode }: Props) {
 
 
 
-  const peakHour = store.hourly.reduce(
+  const hourlyForPeriod = (() => {
+    if (period.kind === "preset") {
+      if (period.key === "7d" || period.key === "today") return store.hourly7d ?? store.hourly;
+      if (period.key === "90d") return store.hourly90d ?? store.hourly;
+    }
+    return store.hourly;
+  })();
+  const hourlyWindowLabel = (() => {
+    if (period.kind === "preset") {
+      if (period.key === "7d" || period.key === "today") return "7 derniers jours";
+      if (period.key === "90d") return "90 derniers jours";
+    }
+    return "30 derniers jours";
+  })();
+
+  const peakHour = hourlyForPeriod.reduce(
     (a, b) => (b.ca > a.ca ? b : a),
-    store.hourly[0],
+    hourlyForPeriod[0],
   );
-  const doneHours = store.hourly.filter((h) => h.done);
+  const doneHours = hourlyForPeriod.filter((h) => h.done);
   const avgTxPerHour = doneHours.length
     ? Math.round(doneHours.reduce((s, h) => s + h.tx, 0) / doneHours.length)
     : 0;
@@ -411,20 +429,37 @@ export function StoreView({ store, period, today, amountMode }: Props) {
       </div>
 
       <div className="lm-kpis">
-        <KPICard
+        <CABreakdown
           label={"CA " + periodLabel}
-          value={fmtEUR(isHT ? m.caHT : m.ca).replace(" €", "")}
+          total={isHT ? m.caHT : m.ca}
           suffix={isHT ? "€ HT" : "€ TTC"}
           delta={m.caDelta}
           yoyDelta={m.yoyAvailable ? m.yoyCaDelta : undefined}
           yoyAvailable={m.yoyAvailable}
-          spark={sparkValues}
-          sparkColor="var(--color-coral)"
           trendDelta={trendComparison.caTrendDelta}
           trendLabel={trendComparison.trendLabel}
           networkShare={caNetworkShare}
           networkRank={networkComparisons.caRank}
-          accent
+          fromagerie={{
+            value: isHT ? m.fromagerieCAHT : m.fromagerieCA,
+            share: (isHT ? m.caHT : m.ca) > 0 ? (isHT ? m.fromagerieCAHT : m.fromagerieCA) / (isHT ? m.caHT : m.ca) : 0,
+            yoyDelta: m.yoyAvailable && m.yoyFromagerieCA ? ((isHT ? m.fromagerieCAHT : m.fromagerieCA) - m.yoyFromagerieCA) / m.yoyFromagerieCA : null,
+          }}
+          snacking={{
+            value: isHT ? m.snackingCAHT ?? 0 : m.snackingCA,
+            share: (isHT ? m.caHT : m.ca) > 0 ? (isHT ? m.snackingCAHT ?? 0 : m.snackingCA) / (isHT ? m.caHT : m.ca) : 0,
+            yoyDelta: m.yoyAvailable && m.yoySnackingCA ? ((isHT ? m.snackingCAHT ?? 0 : m.snackingCA) - m.yoySnackingCA) / m.yoySnackingCA : null,
+          }}
+          epicerie={{
+            value: isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA,
+            share: (isHT ? m.caHT : m.ca) > 0 ? (isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA) / (isHT ? m.caHT : m.ca) : 0,
+            yoyDelta: m.yoyAvailable && m.yoyEpicerieCA ? ((isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA) - m.yoyEpicerieCA) / m.yoyEpicerieCA : null,
+          }}
+          merch={{
+            value: isHT ? m.merchCAHT ?? 0 : m.merchCA,
+            share: (isHT ? m.caHT : m.ca) > 0 ? (isHT ? m.merchCAHT ?? 0 : m.merchCA) / (isHT ? m.caHT : m.ca) : 0,
+            yoyDelta: m.yoyAvailable && m.yoyMerchCA ? ((isHT ? m.merchCAHT ?? 0 : m.merchCA) - m.yoyMerchCA) / m.yoyMerchCA : null,
+          }}
         />
         <KPICard
           label="Transactions / jour"
@@ -448,19 +483,23 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           fromagerie={{
             value: isHT ? m.avgTicketFromagerieHT : m.avgTicketFromagerie,
             delta: m.ticketFromagerieDelta,
+            yoyDelta: m.yoyAvailable ? m.yoyTicketFromagerieDelta : null,
           }}
           snacking={{
             value: isHT ? m.avgTicketSnackingHT : m.avgTicketSnacking,
             delta: m.ticketSnackingDelta,
+            yoyDelta: m.yoyAvailable ? m.yoyTicketSnackingDelta : null,
           }}
           epicerie={{
             value: isHT ? m.avgTicketEpicerieHT : m.avgTicketEpicerie,
             delta: m.ticketEpicerieDelta,
+            yoyDelta: m.yoyAvailable ? m.yoyTicketEpicerieDelta : null,
           }}
           epicerieCAShare={epicerieCAShare}
           merch={{
             value: isHT ? m.avgTicketMerchHT : m.avgTicketMerch,
             delta: m.ticketMerchDelta,
+            yoyDelta: m.yoyAvailable ? m.yoyTicketMerchDelta : null,
           }}
           stdDev={stdDev}
           yoyAvailable={m.yoyAvailable}
@@ -496,7 +535,6 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           networkRefDelta={networkRefDelta}
           trendDelta={trendComparison.caTrendDelta}
           trendLabel={trendComparison.trendLabel}
-          segments={segmentShares}
           subValue={m.days > 1 ? `sur ${m.days} jours` : undefined}
         />
       </div>
@@ -552,9 +590,9 @@ export function StoreView({ store, period, today, amountMode }: Props) {
 
       <Card
         title="Affluence intraday"
-        subtitle="CA moyen (€) par tranche horaire · 30 derniers jours"
+        subtitle={`CA moyen (€) par tranche horaire · ${hourlyWindowLabel}`}
       >
-        <HourlyBars hourly={store.hourly} height={140} />
+        <HourlyBars hourly={hourlyForPeriod} height={140} />
         <div
           style={{
             marginTop: 20,
@@ -608,17 +646,18 @@ export function StoreView({ store, period, today, amountMode }: Props) {
       >
         {(() => {
           const totalCA = isHT ? m.caHT : m.ca;
+          const yoy = m.yoyAvailable;
           const caSegs = [
-            { label: "Fromagerie", color: "var(--color-dark)", value: isHT ? m.fromagerieCAHT : m.fromagerieCA, share: totalCA ? (isHT ? m.fromagerieCAHT : m.fromagerieCA) / totalCA : 0 },
-            { label: "Snacking",   color: "var(--color-coral)", value: isHT ? m.snackingCAHT ?? 0 : m.snackingCA, share: totalCA ? (isHT ? m.snackingCAHT ?? 0 : m.snackingCA) / totalCA : 0 },
-            { label: "Épicerie",   color: "#1A5EA8", value: isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA, share: totalCA ? (isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA) / totalCA : 0 },
-            { label: "Merch",      color: "#7C3AED", value: isHT ? m.merchCAHT ?? 0 : m.merchCA, share: totalCA ? (isHT ? m.merchCAHT ?? 0 : m.merchCA) / totalCA : 0 },
+            { label: "Fromagerie", color: "var(--color-dark)", value: isHT ? m.fromagerieCAHT : m.fromagerieCA, share: totalCA ? (isHT ? m.fromagerieCAHT : m.fromagerieCA) / totalCA : 0, yoyDelta: yoy && m.yoyFromagerieCA ? ((isHT ? m.fromagerieCAHT : m.fromagerieCA) - m.yoyFromagerieCA) / m.yoyFromagerieCA : null },
+            { label: "Snacking",   color: "var(--color-coral)", value: isHT ? m.snackingCAHT ?? 0 : m.snackingCA, share: totalCA ? (isHT ? m.snackingCAHT ?? 0 : m.snackingCA) / totalCA : 0, yoyDelta: yoy && m.yoySnackingCA ? ((isHT ? m.snackingCAHT ?? 0 : m.snackingCA) - m.yoySnackingCA) / m.yoySnackingCA : null },
+            { label: "Épicerie",   color: "#1A5EA8", value: isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA, share: totalCA ? (isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA) / totalCA : 0, yoyDelta: yoy && m.yoyEpicerieCA ? ((isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA) - m.yoyEpicerieCA) / m.yoyEpicerieCA : null },
+            { label: "Merch",      color: "#7C3AED", value: isHT ? m.merchCAHT ?? 0 : m.merchCA, share: totalCA ? (isHT ? m.merchCAHT ?? 0 : m.merchCA) / totalCA : 0, yoyDelta: yoy && m.yoyMerchCA ? ((isHT ? m.merchCAHT ?? 0 : m.merchCA) - m.yoyMerchCA) / m.yoyMerchCA : null },
           ];
           const txSegs = [
-            { label: "Fromagerie", color: "var(--color-dark)", value: m.days > 0 ? m.fromagerieTx / m.days : 0, share: m.tx ? m.fromagerieTx / m.tx : 0 },
-            { label: "Snacking",   color: "var(--color-coral)", value: m.days > 0 ? m.snackingTx / m.days : 0, share: m.tx ? m.snackingTx / m.tx : 0 },
-            { label: "Épicerie",   color: "#1A5EA8", value: m.days > 0 ? m.epicerieTx / m.days : 0, share: m.tx ? m.epicerieTx / m.tx : 0 },
-            { label: "Merch",      color: "#7C3AED", value: m.days > 0 ? m.merchTx / m.days : 0, share: m.tx ? m.merchTx / m.tx : 0 },
+            { label: "Fromagerie", color: "var(--color-dark)", value: m.days > 0 ? m.fromagerieTx / m.days : 0, share: m.tx ? m.fromagerieTx / m.tx : 0, yoyDelta: yoy && m.yoyFromagerieTx ? (m.fromagerieTx - m.yoyFromagerieTx) / m.yoyFromagerieTx : null },
+            { label: "Snacking",   color: "var(--color-coral)", value: m.days > 0 ? m.snackingTx / m.days : 0, share: m.tx ? m.snackingTx / m.tx : 0, yoyDelta: yoy && m.yoySnackingTx ? (m.snackingTx - m.yoySnackingTx) / m.yoySnackingTx : null },
+            { label: "Épicerie",   color: "#1A5EA8", value: m.days > 0 ? m.epicerieTx / m.days : 0, share: m.tx ? m.epicerieTx / m.tx : 0, yoyDelta: yoy && m.yoyEpicerieTx ? (m.epicerieTx - m.yoyEpicerieTx) / m.yoyEpicerieTx : null },
+            { label: "Merch",      color: "#7C3AED", value: m.days > 0 ? m.merchTx / m.days : 0, share: m.tx ? m.merchTx / m.tx : 0, yoyDelta: yoy && m.yoyMerchTx ? (m.merchTx - m.yoyMerchTx) / m.yoyMerchTx : null },
           ];
           return (
             <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -630,6 +669,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
                   return Math.round(v) + " €";
                 }}
                 shareLabel="du CA"
+                yoyAvailable={m.yoyAvailable}
               />
               <div style={{ borderTop: "1px solid var(--border-light)" }} />
               <CategorySplit
@@ -637,6 +677,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
                 segments={txSegs}
                 formatValue={(v) => (Math.round(v * 10) / 10).toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                 shareLabel="des tx"
+                yoyAvailable={m.yoyAvailable}
               />
             </div>
           );
@@ -651,8 +692,24 @@ export function StoreView({ store, period, today, amountMode }: Props) {
         <WeekdayChart daily={store.daily} period={period} isHT={isHT} height={220} />
       </Card>
 
-      <Card title="CA par catégories" subtitle={`${isHT ? "HT" : "TTC"} · barres journalières · moyenne 7 jours`} span={3}>
-        <StackedCategoryChart daily={periodSlice} period={period} isHT={isHT} height={300} />
+      <Card
+        title="CA par catégories"
+        subtitle={`${isHT ? "HT" : "TTC"} · ${catGranularity === "week" ? "barres hebdo." : "barres journalières · moyenne 7j"}`}
+        span={3}
+        action={
+          <div className="lm-segmented lm-segmented-sm">
+            <button className={"lm-seg-btn" + (catGranularity === "day" ? " active" : "")} onClick={() => setCatGranularity("day")}>Jour</button>
+            <button className={"lm-seg-btn" + (catGranularity === "week" ? " active" : "")} onClick={() => setCatGranularity("week")}>Semaine</button>
+          </div>
+        }
+      >
+        <StackedCategoryChart
+          daily={catGranularity === "week" ? bucketByWeek(periodSlice) : periodSlice}
+          period={period}
+          isHT={isHT}
+          height={300}
+          showMA={catGranularity === "day"}
+        />
       </Card>
 
       <Card
