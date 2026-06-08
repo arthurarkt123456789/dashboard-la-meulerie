@@ -121,6 +121,8 @@ export type FormuleStats = {
 export type StoreData = Store & {
   daily: StoreDaily[];
   hourly: StoreHourly[];
+  hourly7d?: StoreHourly[];
+  hourly90d?: StoreHourly[];
   topProducts: Product[];
   payments: PaymentSplit[];
   formules: FormuleStats;
