@@ -14,8 +14,14 @@ interface FiscalMonth {
   projCA: number;
   isActual: boolean;
   isCurrent: boolean;
+  prevNoData: boolean; // N-1 month predates earliest available APITIC data
   yoyPct: number | null;
 }
+
+const FR_MONTHS_LONG = [
+  "janv.", "févr.", "mars", "avr.", "mai", "juin",
+  "juil.", "août", "sept.", "oct.", "nov.", "déc.",
+];
 
 function buildFiscalData(daily: StoreDaily[], todayISO: string, isHT: boolean) {
   const todayYear = parseInt(todayISO.slice(0, 4), 10);
@@ -23,8 +29,13 @@ function buildFiscalData(daily: StoreDaily[], todayISO: string, isHT: boolean) {
   const curFYEnd = todayMonth >= 10 ? todayYear + 1 : todayYear;
   const prevFYEnd = curFYEnd - 1;
 
+  // Earliest date for which we actually have APITIC data (ignoring closed days)
+  const firstRealDay = daily.find((d) => !d.closed && d.ca > 0)?.date ?? daily[0]?.date ?? todayISO;
+  const firstDataYM = firstRealDay.slice(0, 7); // e.g. "2025-03"
+
   const byYM = new Map<string, number>();
   for (const d of daily) {
+    if (d.closed) continue;
     const ym = d.date.slice(0, 7);
     byYM.set(ym, (byYM.get(ym) ?? 0) + (isHT ? (d.caHT ?? 0) : d.ca));
   }
@@ -33,43 +44,57 @@ function buildFiscalData(daily: StoreDaily[], todayISO: string, isHT: boolean) {
     const prevCY = cm >= 10 ? prevFYEnd - 1 : prevFYEnd;
     const curCY = cm >= 10 ? curFYEnd - 1 : curFYEnd;
     const mm = String(cm).padStart(2, "0");
+    const prevYM = `${prevCY}-${mm}`;
+    const curYM = `${curCY}-${mm}`;
     const monthStart = `${curCY}-${mm}-01`;
     const lastDay = new Date(curCY, cm, 0).getDate();
     const monthEnd = `${curCY}-${mm}-${String(lastDay).padStart(2, "0")}`;
     const isFuture = monthStart > todayISO;
     const isPast = monthEnd < todayISO;
     const isCurrent = !isFuture && !isPast;
+    // N-1 month ends before our first data point → no data, not a 0 CA
+    const prevMonthEnd = `${prevCY}-${mm}-${String(new Date(prevCY, cm, 0).getDate()).padStart(2, "0")}`;
+    const prevNoData = prevMonthEnd < firstDataYM + "-01";
     return {
       label: MONTH_LABELS[i],
-      prevCA: byYM.get(`${prevCY}-${mm}`) ?? 0,
-      curCA: isPast ? (byYM.get(`${curCY}-${mm}`) ?? 0) : 0,
+      prevCA: prevNoData ? 0 : (byYM.get(prevYM) ?? 0),
+      curCA: isPast ? (byYM.get(curYM) ?? 0) : 0,
       projCA: 0,
       isActual: isPast,
       isCurrent,
+      prevNoData,
       yoyPct: null,
     };
   });
 
-  const completed = months.filter((m) => m.isActual && m.prevCA > 0);
+  // Only months where N-1 is available can contribute to the YoY average
+  const completed = months.filter((m) => m.isActual && !m.prevNoData && m.prevCA > 0);
   const avgYoY =
     completed.length > 0
       ? completed.reduce((s, m) => s + (m.curCA - m.prevCA) / m.prevCA, 0) / completed.length
       : 0;
 
   for (const m of months) {
-    if (m.isActual && m.prevCA > 0) {
+    if (m.isActual && !m.prevNoData && m.prevCA > 0) {
       m.yoyPct = (m.curCA - m.prevCA) / m.prevCA;
     }
-    if (!m.isActual && m.prevCA > 0) {
+    if (!m.isActual && !m.prevNoData && m.prevCA > 0) {
       m.projCA = m.prevCA * (1 + avgYoY);
       m.yoyPct = avgYoY;
     }
   }
 
-  const totalPrev = months.reduce((s, m) => s + m.prevCA, 0);
-  const totalActual = months.filter((m) => m.isActual).reduce((s, m) => s + m.curCA, 0);
+  const totalPrev = months.filter((m) => !m.prevNoData).reduce((s, m) => s + m.prevCA, 0);
+  const actualMonths = months.filter((m) => m.isActual);
+  const totalActual = actualMonths.reduce((s, m) => s + m.curCA, 0);
   const totalProj = months.reduce((s, m) => s + (m.isActual ? m.curCA : m.projCA), 0);
   const hasPrevData = totalPrev > 0;
+
+  // Human-readable first data month label, e.g. "mars 2025"
+  const firstDataMonthIdx = parseInt(firstDataYM.slice(5, 7), 10) - 1;
+  const firstDataYear = parseInt(firstDataYM.slice(0, 4), 10);
+  const firstDataLabel = `${FR_MONTHS_LONG[firstDataMonthIdx]} ${firstDataYear}`;
+  const prevPartial = months.some((m) => m.prevNoData);
 
   return {
     months,
@@ -79,8 +104,11 @@ function buildFiscalData(daily: StoreDaily[], todayISO: string, isHT: boolean) {
     totalProj,
     curFYEnd,
     prevFYEnd,
-    completedCount: completed.length,
+    actualMonthsCount: actualMonths.length,  // total months with real FY cur data
+    completedCount: completed.length,         // months with N-1 available (for projection)
     hasPrevData,
+    prevPartial,
+    firstDataLabel,
   };
 }
 
@@ -116,7 +144,7 @@ export function FiscalYearChart({ daily, todayISO, isHT }: Props) {
     return () => ro.disconnect();
   }, []);
 
-  const { months, avgYoY, totalPrev, totalActual, totalProj, curFYEnd, prevFYEnd, completedCount, hasPrevData } =
+  const { months, avgYoY, totalPrev, totalActual, totalProj, curFYEnd, prevFYEnd, actualMonthsCount, completedCount, hasPrevData, prevPartial, firstDataLabel } =
     buildFiscalData(daily, todayISO, isHT);
 
   const suffix = isHT ? "€ HT" : "€ TTC";
@@ -213,16 +241,24 @@ export function FiscalYearChart({ daily, todayISO, isHT }: Props) {
             const prevH2 = barH(m.prevCA);
             const topY = Math.min(m.prevCA > 0 ? yAt(m.prevCA) : height, curCAVal > 0 ? yAt(curCAVal) : height);
             const isHovered = tooltip?.month === m;
+            const midX = cx + groupW / 2;
 
             return (
               <g key={i} opacity={isHovered ? 1 : 0.88}>
-                {/* Prev FY bar */}
-                {m.prevCA > 0 && (
+                {/* Prev FY bar — or N/D indicator */}
+                {m.prevNoData ? (
+                  <>
+                    <line
+                      x1={prevX + 1} y1={PAD.top + innerH - 12} x2={prevX + barW - 1} y2={PAD.top + innerH - 12}
+                      stroke="var(--fg-tertiary)" strokeWidth={1} opacity={0.25} strokeDasharray="2 2"
+                    />
+                  </>
+                ) : m.prevCA > 0 ? (
                   <rect
                     x={prevX} y={yAt(m.prevCA)} width={barW} height={prevH2}
                     fill="var(--fg-tertiary)" opacity={0.3} rx={1}
                   />
-                )}
+                ) : null}
                 {/* Current FY bar */}
                 {curCAVal > 0 && (
                   <rect
@@ -232,10 +268,10 @@ export function FiscalYearChart({ daily, todayISO, isHT }: Props) {
                     rx={1}
                   />
                 )}
-                {/* % label */}
-                {m.yoyPct !== null && curCAVal > 0 && (
+                {/* % label — only when N-1 available */}
+                {m.yoyPct !== null && !m.prevNoData && curCAVal > 0 && (
                   <text
-                    x={cx + groupW / 2}
+                    x={midX}
                     y={topY - 4}
                     textAnchor="middle"
                     fontSize={8}
@@ -286,12 +322,14 @@ export function FiscalYearChart({ daily, todayISO, isHT }: Props) {
               <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 12 }}>
                 {m.label} {m.isActual ? "" : m.isCurrent ? "· en cours" : "· proj."}
               </div>
-              {m.prevCA > 0 && (
+              {m.prevNoData ? (
+                <div style={{ opacity: 0.55, fontSize: 10, fontStyle: "italic" }}>N-1 non disponible</div>
+              ) : m.prevCA > 0 ? (
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12, opacity: 0.75 }}>
                   <span>N-1</span>
                   <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmtEURshort(m.prevCA)}</span>
                 </div>
-              )}
+              ) : null}
               {curCAVal > 0 && (
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                   <span>{m.isActual ? "Réalisé" : "Projeté"}</span>
@@ -326,7 +364,9 @@ export function FiscalYearChart({ daily, todayISO, isHT }: Props) {
           </div>
           {hasPrevData ? (
             <>
-              <div style={{ fontSize: 11, color: "var(--fg-tertiary)", marginBottom: 3 }}>Total réalisé</div>
+              <div style={{ fontSize: 11, color: "var(--fg-tertiary)", marginBottom: 3 }}>
+                {prevPartial ? `Réalisé (dès ${firstDataLabel})` : "Total réalisé"}
+              </div>
               <div style={{
                 fontFamily: "var(--font-display)",
                 fontSize: 20,
@@ -337,7 +377,9 @@ export function FiscalYearChart({ daily, todayISO, isHT }: Props) {
               }}>
                 {fmtEURshort(totalPrev)}
               </div>
-              <div style={{ fontSize: 10, color: "var(--fg-tertiary)", marginTop: 1 }}>{suffix}</div>
+              <div style={{ fontSize: 10, color: "var(--fg-tertiary)", marginTop: 1 }}>
+                {prevPartial ? `données partielles · ${suffix}` : suffix}
+              </div>
             </>
           ) : (
             <div style={{ fontSize: 11, color: "var(--fg-tertiary)", fontStyle: "italic" }}>
@@ -356,7 +398,7 @@ export function FiscalYearChart({ daily, todayISO, isHT }: Props) {
           </div>
 
           <div style={{ fontSize: 11, color: "var(--fg-tertiary)", marginBottom: 3 }}>
-            Réalisé · {completedCount} mois
+            Réalisé · {actualMonthsCount} mois
           </div>
           <div style={{
             fontFamily: "var(--font-display)",
@@ -370,7 +412,7 @@ export function FiscalYearChart({ daily, todayISO, isHT }: Props) {
           </div>
           <div style={{ fontSize: 10, color: "var(--fg-tertiary)", marginTop: 1, marginBottom: 12 }}>{suffix}</div>
 
-          {hasPrevData && (
+          {hasPrevData && completedCount > 0 && (
             <>
               <div style={{ fontSize: 11, color: "var(--fg-tertiary)", marginBottom: 3 }}>
                 Projection fin d'ex.
@@ -400,8 +442,8 @@ export function FiscalYearChart({ daily, todayISO, isHT }: Props) {
                 {fmtPctShort(avgYoY)} YoY
               </div>
               <div style={{ fontSize: 9, color: "var(--fg-tertiary)", marginTop: 5, lineHeight: 1.4 }}>
-                Taux observé sur {completedCount} mois complet{completedCount > 1 ? "s" : ""}.
-                Projeté mois restants : CA N-1 × {(1 + avgYoY).toFixed(2).replace(".", ",")}
+                {completedCount} mois avec comparaison N-1 disponible.
+                Mois restants : CA N-1 × {(1 + avgYoY).toFixed(2).replace(".", ",")}
               </div>
             </>
           )}
