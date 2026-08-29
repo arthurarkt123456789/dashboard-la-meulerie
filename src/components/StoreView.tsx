@@ -30,9 +30,11 @@ import { BootstrapButton } from "./BootstrapButton";
 import { FinancialBlock } from "./FinancialBlock";
 import { DavsoExtras } from "./DavsoExtras";
 import { WeekdayChart } from "./WeekdayChart";
+import { FiscalYearChart } from "./charts/FiscalYearChart";
 import { useStoreData } from "@/lib/queries";
 import { roll7 } from "@/lib/smoothing";
 import { bucketByWeek } from "@/lib/bucketing";
+import { currentFiscalYearEnd } from "@/lib/metrics";
 
 type Props = {
   store: StoreData;
@@ -587,6 +589,20 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           granularity={effectiveGranularity}
         />
       </Card>
+
+      {(() => {
+        const todayISO = store.daily[store.daily.length - 1]?.date ?? "";
+        const fyEnd = currentFiscalYearEnd(new Date(`${todayISO}T12:00:00Z`));
+        return (
+          <Card
+            title="C.A. mensuel par exercice"
+            subtitle={`Ex. ${fyEnd - 1}–${fyEnd} vs. ex. ${fyEnd - 2}–${fyEnd - 1} · ${isHT ? "HT" : "TTC"} · barres hachurées = projection`}
+            span={3}
+          >
+            <FiscalYearChart daily={store.daily} todayISO={todayISO} isHT={isHT} />
+          </Card>
+        );
+      })()}
 
       <Card
         title="Affluence intraday"

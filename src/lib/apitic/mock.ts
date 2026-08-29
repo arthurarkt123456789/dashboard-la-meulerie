@@ -133,7 +133,7 @@ const CATALOG = [
   ...SNACKING_PRODUCTS.map((p) => ({ ...p, segment: "Snacking" as Segment })),
 ];
 
-const HISTORY_DAYS = 540;
+const HISTORY_DAYS = 596;
 
 // Anchored "today" so screenshots and tests are reproducible.
 // Override with the MOCK_TODAY env var on the server.
