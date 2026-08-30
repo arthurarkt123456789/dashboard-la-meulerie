@@ -232,9 +232,9 @@ export function FiscalYearChart({ daily, todayISO, isHT }: Props) {
   };
 
   return (
-    <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
+    <div style={{ display: "flex", gap: 20, alignItems: "flex-start", overflow: "hidden" }}>
       {/* Bar chart */}
-      <div ref={chartDivRef} style={{ flex: 1, minWidth: 0, position: "relative" }}>
+      <div ref={chartDivRef} style={{ flex: 1, minWidth: 0, position: "relative", overflow: "hidden" }}>
         <svg
           width={chartW}
           height={height}
