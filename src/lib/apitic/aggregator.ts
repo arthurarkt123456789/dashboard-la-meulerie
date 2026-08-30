@@ -772,6 +772,7 @@ export async function warmStore(
   storeId: string,
   fromDate: string,
   toDate: string,
+  opts: { force?: boolean } = {},
 ): Promise<{ storeId: string; fetched: number; skipped: number; failed: number; from: string; to: string }> {
   const link = getConfiguredStoreLinks().find((l) => l.storeId === storeId);
   if (!link) {
@@ -779,7 +780,7 @@ export async function warmStore(
   }
   const accountId = link.accountId;
   const dates = listDates(fromDate, toDate);
-  const cached = await listCachedDates(accountId, dates);
+  const cached = opts.force ? new Set<string>() : await listCachedDates(accountId, dates);
   let fetched = 0;
   let skipped = 0;
   let failed = 0;

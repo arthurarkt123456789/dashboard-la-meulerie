@@ -57,12 +57,14 @@ export async function GET(req: NextRequest) {
   const today = todayInParis();
   const to = url.searchParams.get("to") || today;
   const from = url.searchParams.get("from") || subtractDays(to, 29);
+  const force = url.searchParams.get("force") === "1";
 
   const start = Date.now();
   try {
-    const result = await warmStore(storeId, from, to);
+    const result = await warmStore(storeId, from, to, { force });
     return NextResponse.json({
       ...result,
+      force,
       elapsedMs: Date.now() - start,
     });
   } catch (err) {
