@@ -134,6 +134,7 @@ export async function fetchCancelledSalesForDate(
 export async function fetchSalesForDate(
   accountId: string,
   date: string, // YYYY-MM-DD
+  opts: { ignoreBlackout?: boolean } = {},
 ): Promise<ApiticSale[]> {
   const out: ApiticSale[] = [];
   let page = 1;
@@ -141,6 +142,7 @@ export async function fetchSalesForDate(
   while (page <= MAX_PAGES) {
     const json = (await apiticFetch(
       `/accounts/${accountId}/sales/${date}?page=${page}&size=100`,
+      { ignoreBlackout: opts.ignoreBlackout },
     )) as ApiticSalesResponse;
     out.push(...json.data);
     if (out.length >= json.total || json.data.length === 0) break;

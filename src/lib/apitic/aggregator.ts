@@ -772,7 +772,7 @@ export async function warmStore(
   storeId: string,
   fromDate: string,
   toDate: string,
-  opts: { force?: boolean } = {},
+  opts: { force?: boolean; ignoreBlackout?: boolean } = {},
 ): Promise<{ storeId: string; fetched: number; skipped: number; failed: number; from: string; to: string }> {
   const link = getConfiguredStoreLinks().find((l) => l.storeId === storeId);
   if (!link) {
@@ -791,7 +791,7 @@ export async function warmStore(
         return;
       }
       try {
-        const sales = await fetchSalesForDate(accountId, date);
+        const sales = await fetchSalesForDate(accountId, date, { ignoreBlackout: opts.ignoreBlackout });
         await writeSalesCache(accountId, date, sales);
         fetched++;
       } catch (err) {

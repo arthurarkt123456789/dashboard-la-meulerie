@@ -58,13 +58,17 @@ export async function GET(req: NextRequest) {
   const to = url.searchParams.get("to") || today;
   const from = url.searchParams.get("from") || subtractDays(to, 29);
   const force = url.searchParams.get("force") === "1";
+  // ignoreBlackout=1 bypasses our local blackout guard for historical date re-fetching.
+  // APITIC may still return errors if it is genuinely unreachable.
+  const ignoreBlackout = url.searchParams.get("ignoreBlackout") === "1";
 
   const start = Date.now();
   try {
-    const result = await warmStore(storeId, from, to, { force });
+    const result = await warmStore(storeId, from, to, { force, ignoreBlackout });
     return NextResponse.json({
       ...result,
       force,
+      ignoreBlackout,
       elapsedMs: Date.now() - start,
     });
   } catch (err) {
