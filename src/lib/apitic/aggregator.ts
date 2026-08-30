@@ -134,11 +134,10 @@ function rollupDay(
     let saleHasMerch = false;
     for (const line of sale.lines ?? []) {
       if (line.line_type !== "sale") continue;
-      // ati_price is already net of discount_ati_price.
-      // APITIC's price_excl_tax uses 10% VAT but French food VAT is 5.5%,
-      // so we recompute HT from TTC at the correct rate.
+      // ati_price is already net of discount_ati_price; same convention for
+      // price_excl_tax. Verified against the POS to the cent.
       const amountTTC = line.ati_price;
-      const amountHT = amountTTC / 1.055;
+      const amountHT = line.price_excl_tax;
       ca += amountTTC;
       caHT += amountHT;
       const product = productLookup.get(line.product_id);
