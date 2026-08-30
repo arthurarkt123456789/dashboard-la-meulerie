@@ -37,6 +37,8 @@ import { StackedCategoryChart } from "./charts/StackedCategoryChart";
 import { LegendInline } from "./LegendInline";
 import { SegmentFilterInline, useSegmentFilter } from "./SegmentFilter";
 import { MonitoringCharts } from "./MonitoringCharts";
+import { FiscalYearChart } from "./charts/FiscalYearChart";
+import { currentFiscalYearEnd } from "@/lib/metrics";
 
 const SERIES_COLORS = [
   "var(--color-coral)", // Davso       — coral brand
@@ -465,6 +467,77 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
         </div>
       </Card>
 
+      {(() => {
+        const todayISO = consolidatedDaily[consolidatedDaily.length - 1]?.date ?? "";
+        const fyEnd = currentFiscalYearEnd(new Date(`${todayISO}T12:00:00Z`));
+        return (
+          <Card
+            title="C.A. mensuel par exercice — groupe"
+            subtitle={`Ex. ${fyEnd - 1}–${fyEnd} vs. ex. ${fyEnd - 2}–${fyEnd - 1} · ${isHT ? "HT" : "TTC"} · barres hachurées = projection`}
+            span={3}
+          >
+            <FiscalYearChart daily={consolidatedDaily} todayISO={todayISO} isHT={isHT} />
+          </Card>
+        );
+      })()}
+
+      {(() => {
+        const todayISO = consolidatedDaily[consolidatedDaily.length - 1]?.date ?? "";
+        const fyEnd = currentFiscalYearEnd(new Date(`${todayISO}T12:00:00Z`));
+        return (
+          <Card
+            title="C.A. mensuel par exercice — par magasin"
+            subtitle={`Ex. ${fyEnd - 1}–${fyEnd} vs. ex. ${fyEnd - 2}–${fyEnd - 1} · ${isHT ? "HT" : "TTC"}`}
+            span={3}
+          >
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px 32px" }}>
+              {stores.map((s) => (
+                <div key={s.id}>
+                  <div style={{ fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 600, color: "var(--fg-secondary)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    {s.name}
+                  </div>
+                  <FiscalYearChart daily={s.daily} todayISO={todayISO} isHT={isHT} />
+                </div>
+              ))}
+            </div>
+          </Card>
+        );
+      })()}
+
+      <Card
+        title="CA par catégories"
+        subtitle={`${isHT ? "HT" : "TTC"} · ${catGranularity === "week" ? "barres hebdo." : "barres journalières · moyenne 7j"}`}
+        span={3}
+        action={
+          <div className="lm-segmented lm-segmented-sm">
+            <button className={"lm-seg-btn" + (catGranularity === "day" ? " active" : "")} onClick={() => setCatGranularity("day")}>Jour</button>
+            <button className={"lm-seg-btn" + (catGranularity === "week" ? " active" : "")} onClick={() => setCatGranularity("week")}>Semaine</button>
+          </div>
+        }
+      >
+        <StackedCategoryChart
+          daily={catGranularity === "week" ? bucketByWeek(consolidatedPeriodSlice) : consolidatedPeriodSlice}
+          period={period}
+          isHT={isHT}
+          height={300}
+          showMA={catGranularity === "day"}
+        />
+      </Card>
+
+      <Card
+        title="Top produits"
+        subtitle={`Classement par CA ${isHT ? "HT" : "TTC"} · ${periodLabel}`}
+        action={<SegmentFilterInline />}
+        span={2}
+      >
+        <TopProducts
+          products={consolidatedProducts}
+          period={period}
+          segmentFilter={segmentFilter}
+          amountMode={amountMode}
+        />
+      </Card>
+
       <Card
         title="Répartition des catégories"
         subtitle={`${periodLabel} · ${isHT ? "HT" : "TTC"}`}
@@ -509,42 +582,9 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
       </Card>
 
       <Card
-        title="CA par catégories"
-        subtitle={`${isHT ? "HT" : "TTC"} · ${catGranularity === "week" ? "barres hebdo." : "barres journalières · moyenne 7j"}`}
-        span={3}
-        action={
-          <div className="lm-segmented lm-segmented-sm">
-            <button className={"lm-seg-btn" + (catGranularity === "day" ? " active" : "")} onClick={() => setCatGranularity("day")}>Jour</button>
-            <button className={"lm-seg-btn" + (catGranularity === "week" ? " active" : "")} onClick={() => setCatGranularity("week")}>Semaine</button>
-          </div>
-        }
-      >
-        <StackedCategoryChart
-          daily={catGranularity === "week" ? bucketByWeek(consolidatedPeriodSlice) : consolidatedPeriodSlice}
-          period={period}
-          isHT={isHT}
-          height={300}
-          showMA={catGranularity === "day"}
-        />
-      </Card>
-
-      <Card
-        title="Top produits"
-        subtitle={`Classement par CA ${isHT ? "HT" : "TTC"} · ${periodLabel}`}
-        action={<SegmentFilterInline />}
-        span={2}
-      >
-        <TopProducts
-          products={consolidatedProducts}
-          period={period}
-          segmentFilter={segmentFilter}
-          amountMode={amountMode}
-        />
-      </Card>
-
-      <Card
         title="Formules lunch"
         subtitle={`${periodLabel} · part du CA et tickets snacking`}
+        span={3}
       >
         <FormulesCard
           formules={consolidatedFormules}

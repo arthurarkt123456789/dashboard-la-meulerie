@@ -590,20 +590,6 @@ export function StoreView({ store, period, today, amountMode }: Props) {
         />
       </Card>
 
-      {(() => {
-        const todayISO = store.daily[store.daily.length - 1]?.date ?? "";
-        const fyEnd = currentFiscalYearEnd(new Date(`${todayISO}T12:00:00Z`));
-        return (
-          <Card
-            title="C.A. mensuel par exercice"
-            subtitle={`Ex. ${fyEnd - 1}–${fyEnd} vs. ex. ${fyEnd - 2}–${fyEnd - 1} · ${isHT ? "HT" : "TTC"} · barres hachurées = projection`}
-            span={3}
-          >
-            <FiscalYearChart daily={store.daily} todayISO={todayISO} isHT={isHT} />
-          </Card>
-        );
-      })()}
-
       <Card
         title="Affluence intraday"
         subtitle={`CA moyen (€) par tranche horaire · ${hourlyWindowLabel}`}
@@ -707,6 +693,20 @@ export function StoreView({ store, period, today, amountMode }: Props) {
       >
         <WeekdayChart daily={store.daily} period={period} isHT={isHT} height={220} />
       </Card>
+
+      {(() => {
+        const todayISO = store.daily[store.daily.length - 1]?.date ?? "";
+        const fyEnd = currentFiscalYearEnd(new Date(`${todayISO}T12:00:00Z`));
+        return (
+          <Card
+            title="C.A. mensuel par exercice"
+            subtitle={`Ex. ${fyEnd - 1}–${fyEnd} vs. ex. ${fyEnd - 2}–${fyEnd - 1} · ${isHT ? "HT" : "TTC"} · barres hachurées = projection`}
+            span={3}
+          >
+            <FiscalYearChart daily={store.daily} todayISO={todayISO} isHT={isHT} />
+          </Card>
+        );
+      })()}
 
       <Card
         title="CA par catégories"
