@@ -80,29 +80,43 @@ export async function GET(req: NextRequest) {
   }
 
   // 3. Optionally probe APITIC live to compare totals
+  let rawResponseShape: Record<string, unknown> | undefined;
   if (probe && process.env.APITIC_ENABLED === "true") {
     for (const row of rows) {
       try {
         // Page 1 to read the `total` field
-        const p1 = (await apiticFetch(
+        const rawP1 = (await apiticFetch(
           `/accounts/${accountId}/sales/${row.date}?page=1&size=100`,
           { ignoreBlackout: true, maxAttempts: 2 },
-        )) as ApiticSalesResponse;
+        )) as Record<string, unknown>;
 
+        // Capture raw response shape once (to verify field names)
+        if (!rawResponseShape) {
+          rawResponseShape = Object.fromEntries(
+            Object.entries(rawP1).map(([k, v]) =>
+              k === "data" ? [k, `Array(${Array.isArray(v) ? v.length : 0})`] : [k, v],
+            ),
+          );
+        }
+
+        const p1 = rawP1 as ApiticSalesResponse;
         const reportedTotal = p1.total;
         const page1Items = p1.data.length;
 
-        // Walk all pages to get actual TTC and real tx count
+        // Walk all pages — use empty-page guard since total field may be unreliable
         let allSales = [...p1.data];
         let page = 2;
-        while (allSales.length < p1.total && page <= 50) {
-          const pn = (await apiticFetch(
+        const maxPages = Math.ceil(reportedTotal / 100) + 2; // extra buffer
+        while (page <= Math.max(maxPages, 5)) {
+          const rawPn = (await apiticFetch(
             `/accounts/${accountId}/sales/${row.date}?page=${page}&size=100`,
             { ignoreBlackout: true, maxAttempts: 2 },
-          )) as ApiticSalesResponse;
+          )) as Record<string, unknown>;
+          const pn = rawPn as ApiticSalesResponse;
           if (pn.data.length === 0) break;
           allSales = allSales.concat(pn.data);
           page++;
+          if (allSales.length >= reportedTotal && pn.data.length < 100) break;
         }
 
         let apiTTC = 0;
@@ -148,6 +162,7 @@ export async function GET(req: NextRequest) {
       totalTTC: totalCacheTTCRounded,
     },
     ...(apiSummary ? { apiSummary } : {}),
+    ...(rawResponseShape ? { rawResponseShape } : {}),
     days: rows,
   });
 }
