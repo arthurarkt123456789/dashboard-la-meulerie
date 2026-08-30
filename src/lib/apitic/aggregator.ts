@@ -581,12 +581,12 @@ async function aggregateOneStore(
   for (const [date, sales] of cacheBatch) salesByDate.set(date, sales);
 
   if (mode.kind === "read") {
-    // Auto-fetch any missing date in the last 30 days. The bootstrap warms
+    // Auto-fetch any missing date in the last 45 days. The bootstrap warms
     // older history; new days (= "yesterday" each morning, plus anything
     // that failed during a previous blackout) are picked up here. We cap at
-    // 30 days so the request doesn't accidentally hammer APITIC if the
+    // 45 days so the request doesn't accidentally hammer APITIC if the
     // cache was wiped.
-    const tailWindowDays = 30;
+    const tailWindowDays = 45;
     const tailFromDate = subtractDays(lastDay, tailWindowDays - 1);
     const missingTail = dates.filter(
       (d) => d >= tailFromDate && !salesByDate.has(d),
