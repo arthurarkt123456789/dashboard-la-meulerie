@@ -232,7 +232,7 @@ export function FiscalYearChart({ daily, todayISO, isHT }: Props) {
   };
 
   return (
-    <div style={{ display: "flex", gap: 20, alignItems: "flex-start", overflow: "hidden" }}>
+    <div className="fy-chart-outer" style={{ display: "flex", gap: 20, alignItems: "flex-start", overflow: "hidden" }}>
       {/* Bar chart */}
       <div ref={chartDivRef} style={{ flex: 1, minWidth: 0, position: "relative", overflow: "hidden" }}>
         <svg
@@ -446,7 +446,7 @@ export function FiscalYearChart({ daily, todayISO, isHT }: Props) {
       </div>
 
       {/* Summary panel */}
-      <div style={{ width: 172, flexShrink: 0, fontFamily: "var(--font-body)" }}>
+      <div className="fy-chart-stats" style={{ width: 172, flexShrink: 0, fontFamily: "var(--font-body)" }}>
         {/* N-1 FY */}
         <div style={{ marginBottom: 16 }}>
           <div className="lm-label" style={{ fontSize: 10, marginBottom: 8 }}>

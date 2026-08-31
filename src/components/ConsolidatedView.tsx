@@ -490,9 +490,9 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
             subtitle={`Ex. ${fyEnd - 1}–${fyEnd} vs. ex. ${fyEnd - 2}–${fyEnd - 1} · ${isHT ? "HT" : "TTC"}`}
             span={3}
           >
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px 32px" }}>
+            <div className="lm-store-fiscal-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px 32px" }}>
               {stores.map((s) => (
-                <div key={s.id}>
+                <div key={s.id} style={{ minWidth: 0 }}>
                   <div style={{ fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 600, color: "var(--fg-secondary)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     {s.name}
                   </div>

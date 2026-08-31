@@ -682,6 +682,10 @@ button { font-family: inherit; cursor: pointer; }
   .lm-card-body.padded { padding: 16px; }
   /* Card head wraps its action chip onto a new row when needed. */
   .lm-card-head { flex-wrap: wrap; }
+  /* Fiscal year charts: hide stats panel, single-column per-store grid */
+  .fy-chart-stats { display: none; }
+  .lm-store-fiscal-grid { grid-template-columns: 1fr !important; }
+  .lm-store-fiscal-grid > * { min-width: 0; }
 }
 
 /* Mobile portrait */
@@ -696,7 +700,6 @@ button { font-family: inherit; cursor: pointer; }
   .lm-header-top { flex-wrap: wrap; gap: 12px; }
   .lm-header-meta { gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
   .lm-date-block { display: none; }
-  .lm-header-meta .lm-icon-btn { display: none; }
   .lm-header-bottom {
     flex-direction: column;
     align-items: stretch;
