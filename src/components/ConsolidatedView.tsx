@@ -48,6 +48,11 @@ const SERIES_COLORS = [
   "#9333EA",           // République   — violet
 ];
 
+function StoreFiscalChart({ s, todayISO, isHT }: { s: StoreData; todayISO: string; isHT: boolean }) {
+  const proInvoices = useProInvoices(s.id).data?.months;
+  return <FiscalYearChart daily={s.daily} todayISO={todayISO} isHT={isHT} proInvoices={proInvoices} />;
+}
+
 function granularityAllowed(period: PeriodSelection): boolean {
   if (period.kind === "month") return true;
   if (period.kind === "fiscal-year-todate") return true;
@@ -498,7 +503,7 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
                   <div style={{ fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 600, color: "var(--fg-secondary)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     {s.name}
                   </div>
-                  <FiscalYearChart daily={s.daily} todayISO={todayISO} isHT={isHT} />
+                  <StoreFiscalChart s={s} todayISO={todayISO} isHT={isHT} />
                 </div>
               ))}
             </div>
