@@ -217,10 +217,12 @@ export async function fetchMonthlyProInvoices(
   params.set("sort", "date");
 
   let cursor: string | null = null;
+  let iterations = 0;
 
   do {
-    if (cursor) params.set("page[after]", cursor);
-    else params.delete("page[after]");
+    if (cursor) params.set("cursor", cursor);
+    else params.delete("cursor");
+    if (++iterations > 20) break; // safety: max 1000 invoices
 
     const res = await fetch(`${BASE}/customer_invoices?${params}`, {
       headers: { Authorization: `Bearer ${token}` },

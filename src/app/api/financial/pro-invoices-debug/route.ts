@@ -17,39 +17,80 @@ export async function GET(req: NextRequest) {
     const config = getPennylaneConfig(storeId);
     if (!config) return NextResponse.json({ error: `No Pennylane config for ${storeId}` }, { status: 404 });
 
-    const params = new URLSearchParams();
-    params.set("min_date", "2024-10-01");
-    params.set("max_date", "2026-09-30");
-    params.append("status[]", "paid");
-    params.append("status[]", "unpaid");
-    params.append("status[]", "late");
-    params.set("page[per_page]", "10");
+    // Fetch all pages with cursor param (matching trial_balance)
+    const allItems: Array<{ date: string; status: string; currency_amount: string; currency_amount_before_tax: string; invoice_number: string }> = [];
+    let cursor: string | null = null;
+    let pageCount = 0;
+    let hasMoreValues: unknown[] = [];
 
-    const res = await fetch(
-      `https://app.pennylane.com/api/external/v2/customer_invoices?${params}`,
-      {
-        headers: { Authorization: `Bearer ${config.token}` },
-        signal: AbortSignal.timeout(15000),
-      },
-    );
+    do {
+      const params = new URLSearchParams();
+      params.set("min_date", "2024-10-01");
+      params.set("max_date", "2026-09-30");
+      params.append("status[]", "paid");
+      params.append("status[]", "unpaid");
+      params.append("status[]", "late");
+      params.append("status[]", "upcoming");
+      params.set("limit", "100");
+      if (cursor) params.set("cursor", cursor);
 
-    const status = res.status;
-    const text = await res.text();
-    let json: unknown;
-    try { json = JSON.parse(text); } catch { json = text; }
+      const res = await fetch(
+        `https://app.pennylane.com/api/external/v2/customer_invoices?${params}`,
+        {
+          headers: { Authorization: `Bearer ${config.token}` },
+          signal: AbortSignal.timeout(12000),
+        },
+      );
 
-    // Extract key info from first item to see field names
-    const items = (json as Record<string, unknown>)?.items as unknown[] | undefined;
-    const firstItem = items?.[0] as Record<string, unknown> | undefined;
+      if (!res.ok) {
+        const body = await res.text();
+        return NextResponse.json({ error: `API ${res.status}: ${body}` });
+      }
+
+      const json = await res.json() as Record<string, unknown>;
+      const items = (Array.isArray(json.items) ? json.items : []) as Record<string, unknown>[];
+
+      hasMoreValues.push(json.has_more);
+      pageCount++;
+
+      for (const item of items) {
+        allItems.push({
+          date: String(item.date ?? ""),
+          status: String(item.status ?? ""),
+          currency_amount: String(item.currency_amount ?? "0"),
+          currency_amount_before_tax: String(item.currency_amount_before_tax ?? "0"),
+          invoice_number: String(item.invoice_number ?? ""),
+        });
+      }
+
+      const hasMeta = json.meta as { next_cursor?: string } | undefined;
+      cursor = json.has_more === false
+        ? null
+        : (json.next_cursor as string | undefined) ?? hasMeta?.next_cursor ?? null;
+
+      if (pageCount >= 5) break; // safety
+    } while (cursor);
+
+    // Group by month
+    const byMonth: Record<string, { ttc: number; ht: number; count: number }> = {};
+    for (const item of allItems) {
+      const month = item.date.slice(0, 7);
+      if (!month || month.length < 7) continue;
+      const ttc = parseFloat(item.currency_amount) || 0;
+      const ht = parseFloat(item.currency_amount_before_tax) || 0;
+      if (!byMonth[month]) byMonth[month] = { ttc: 0, ht: 0, count: 0 };
+      byMonth[month].ttc += ttc;
+      byMonth[month].ht += ht;
+      byMonth[month].count++;
+    }
 
     return NextResponse.json({
-      status,
       storeId,
-      itemCount: items?.length ?? 0,
-      topKeys: json && typeof json === "object" ? Object.keys(json as object) : [],
-      firstItemKeys: firstItem ? Object.keys(firstItem) : [],
-      firstItem,
-      raw: items?.slice(0, 3),
+      totalItems: allItems.length,
+      pageCount,
+      hasMoreValues,
+      byMonth,
+      allItems,
     });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
