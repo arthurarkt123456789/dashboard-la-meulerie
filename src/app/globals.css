@@ -682,8 +682,20 @@ button { font-family: inherit; cursor: pointer; }
   .lm-card-body.padded { padding: 16px; }
   /* Card head wraps its action chip onto a new row when needed. */
   .lm-card-head { flex-wrap: wrap; }
-  /* Fiscal year charts: hide stats panel, single-column per-store grid */
-  .fy-chart-stats { display: none; }
+  /* Fiscal year charts: stack stats below chart, side-by-side 2-col */
+  .fy-chart-outer { flex-direction: column; }
+  .fy-chart-stats {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 24px;
+    border-top: 1px solid var(--border-light);
+    padding-top: 16px;
+    margin-top: 4px;
+  }
+  .fy-stats-prev { margin-bottom: 0 !important; }
+  .fy-stats-cur { border-top: none !important; padding-top: 0 !important; }
+  /* Per-store grid: single column */
   .lm-store-fiscal-grid { grid-template-columns: 1fr !important; }
   .lm-store-fiscal-grid > * { min-width: 0; }
 }
@@ -768,4 +780,7 @@ button { font-family: inherit; cursor: pointer; }
   .lm-kpi-value { font-size: 26px; }
   .lm-brand-line { font-size: 16px; }
   .lm-avatar { width: 28px; height: 28px; font-size: 10px; }
+  /* Fiscal stats: single column on very narrow screens */
+  .fy-chart-stats { grid-template-columns: 1fr; }
+  .fy-stats-cur { border-top: 1px solid var(--border-light) !important; padding-top: 16px !important; }
 }

@@ -448,7 +448,7 @@ export function FiscalYearChart({ daily, todayISO, isHT }: Props) {
       {/* Summary panel */}
       <div className="fy-chart-stats" style={{ width: 172, flexShrink: 0, fontFamily: "var(--font-body)" }}>
         {/* N-1 FY */}
-        <div style={{ marginBottom: 16 }}>
+        <div className="fy-stats-prev" style={{ marginBottom: 16 }}>
           <div className="lm-label" style={{ fontSize: 10, marginBottom: 8 }}>
             Ex. {prevFYEnd - 1}–{prevFYEnd}
           </div>
@@ -475,7 +475,7 @@ export function FiscalYearChart({ daily, todayISO, isHT }: Props) {
         </div>
 
         {/* Current FY */}
-        <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: 16 }}>
+        <div className="fy-stats-cur" style={{ borderTop: "1px solid var(--border-light)", paddingTop: 16 }}>
           <div className="lm-label" style={{ fontSize: 10, marginBottom: 8 }}>
             Ex. {curFYEnd - 1}–{curFYEnd}
           </div>
