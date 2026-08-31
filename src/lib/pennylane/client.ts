@@ -208,10 +208,10 @@ export async function fetchMonthlyProInvoices(
   const byMonth = new Map<string, { ttc: number; ht: number }>();
 
   const params = new URLSearchParams();
-  params.set("filter[min_date]", fromDate);
-  params.set("filter[max_date]", toDate);
-  params.append("filter[status][]", "paid");
-  params.append("filter[status][]", "unpaid");
+  params.set("min_date", fromDate);
+  params.set("max_date", toDate);
+  params.append("status[]", "paid");
+  params.append("status[]", "unpaid");
   params.set("page[per_page]", "50");
   params.set("sort", "date");
 

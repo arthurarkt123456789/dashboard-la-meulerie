@@ -17,10 +17,10 @@ export async function GET(req: NextRequest) {
   if (!config) return NextResponse.json({ error: `No Pennylane config for ${storeId}` }, { status: 404 });
 
   const params = new URLSearchParams();
-  params.set("filter[min_date]", "2024-10-01");
-  params.set("filter[max_date]", "2025-09-30");
-  params.append("filter[status][]", "paid");
-  params.append("filter[status][]", "unpaid");
+  params.set("min_date", "2024-10-01");
+  params.set("max_date", "2025-09-30");
+  params.append("status[]", "paid");
+  params.append("status[]", "unpaid");
   params.set("page[per_page]", "5");
   params.set("sort", "date");
 
