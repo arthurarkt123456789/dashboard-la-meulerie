@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { StoreDaily } from "@/lib/apitic/types";
 import { fmtEURshort } from "@/lib/format";
+import type { ProInvoiceMonth } from "@/lib/queries";
 
 const FISCAL_MONTH_CALENDARS = [10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 const MONTH_LABELS = ["Oct", "Nov", "Déc", "Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Jul", "Aoû", "Sep"];
@@ -170,9 +171,10 @@ type Props = {
   daily: StoreDaily[];
   todayISO: string;
   isHT: boolean;
+  proInvoices?: ProInvoiceMonth[];
 };
 
-export function FiscalYearChart({ daily, todayISO, isHT }: Props) {
+export function FiscalYearChart({ daily, todayISO, isHT, proInvoices }: Props) {
   const chartDivRef = useRef<HTMLDivElement>(null);
   const [chartW, setChartW] = useState(520);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -210,10 +212,38 @@ export function FiscalYearChart({ daily, todayISO, isHT }: Props) {
   const innerW = chartW - PAD.left - PAD.right;
   const innerH = height - PAD.top - PAD.bottom;
 
-  const allCAs = months.flatMap((m) => [
-    m.prevCA,
-    m.isActual ? m.curCA : m.isCurrent ? (m.projCA || m.curActualCA) : m.projCA,
-  ]);
+  // Pro invoice lookup
+  const proByYM = useMemo(() => {
+    const map = new Map<string, ProInvoiceMonth>();
+    for (const inv of (proInvoices ?? [])) map.set(inv.month, inv);
+    return map;
+  }, [proInvoices]);
+
+  const getProCA = useCallback((ym: string) => {
+    const inv = proByYM.get(ym);
+    if (!inv) return 0;
+    return isHT ? (inv.amountHT > 0 ? inv.amountHT : inv.amountTTC / 1.1) : inv.amountTTC;
+  }, [proByYM, isHT]);
+
+  // Pre-compute pro amounts per fiscal month (cur FY + N-1)
+  const fiscalPro = useMemo(() =>
+    FISCAL_MONTH_CALENDARS.map((cm) => {
+      const mm = String(cm).padStart(2, "0");
+      const curY = cm >= 10 ? curFYEnd - 1 : curFYEnd;
+      const prevY = cm >= 10 ? prevFYEnd - 1 : prevFYEnd;
+      return { cur: getProCA(`${curY}-${mm}`), prev: getProCA(`${prevY}-${mm}`) };
+    }),
+  [curFYEnd, prevFYEnd, getProCA]);
+
+  const hasProData = fiscalPro.some((p) => p.cur > 0 || p.prev > 0);
+  const totalProCur = fiscalPro.reduce((s, p) => s + p.cur, 0);
+  const totalProPrev = fiscalPro.reduce((s, p) => s + p.prev, 0);
+
+  const allCAs = months.flatMap((m, i) => {
+    const pro = fiscalPro[i] ?? { cur: 0, prev: 0 };
+    const displayCA = m.isActual ? m.curCA : m.isCurrent ? (m.projCA || m.curActualCA) : m.projCA;
+    return [m.prevCA + pro.prev, displayCA + pro.cur];
+  });
   const maxCA = Math.max(...allCAs, 1);
   const yTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => f * maxCA);
 
@@ -283,6 +313,14 @@ export function FiscalYearChart({ daily, todayISO, isHT }: Props) {
             <text x={202} y={14} fontSize={9} fill="var(--fg-tertiary)" style={{ fontFamily: "var(--font-body)" }}>
               Projeté
             </text>
+            {hasProData && (
+              <>
+                <rect x={247} y={6} width={8} height={8} fill="#2563EB" opacity={0.85} rx={1} />
+                <text x={259} y={14} fontSize={9} fill="var(--fg-tertiary)" style={{ fontFamily: "var(--font-body)" }}>
+                  Cmdes pro
+                </text>
+              </>
+            )}
           </g>
 
           {/* Bars */}
@@ -293,6 +331,7 @@ export function FiscalYearChart({ daily, todayISO, isHT }: Props) {
             const curX = barsX + barW + barGap;
             const isHov = hoverIdx === i;
             const midX = cx + groupW / 2;
+            const pro = fiscalPro[i] ?? { cur: 0, prev: 0 };
 
             // Current FY: what to display in the bar
             const displayCA = m.isActual
@@ -302,8 +341,8 @@ export function FiscalYearChart({ daily, todayISO, isHT }: Props) {
               : m.projCA;
             const isProj = !m.isActual;
             const topY = Math.min(
-              m.prevCA > 0 ? yAt(m.prevCA) : height,
-              displayCA > 0 ? yAt(displayCA) : height,
+              m.prevCA + pro.prev > 0 ? yAt(m.prevCA + pro.prev) : height,
+              displayCA + pro.cur > 0 ? yAt(displayCA + pro.cur) : height,
             );
 
             return (
@@ -317,10 +356,18 @@ export function FiscalYearChart({ daily, todayISO, isHT }: Props) {
                     opacity={0.2} strokeDasharray="2 2"
                   />
                 ) : m.prevCA > 0 ? (
-                  <rect
-                    x={prevX} y={yAt(m.prevCA)} width={barW} height={bH(m.prevCA)}
-                    fill="var(--fg-tertiary)" opacity={0.3} rx={1}
-                  />
+                  <>
+                    <rect
+                      x={prevX} y={yAt(m.prevCA)} width={barW} height={bH(m.prevCA)}
+                      fill="var(--fg-tertiary)" opacity={0.3} rx={1}
+                    />
+                    {pro.prev > 0 && (
+                      <rect
+                        x={prevX} y={yAt(m.prevCA + pro.prev)} width={barW} height={bH(pro.prev)}
+                        fill="#2563EB" opacity={0.25} rx={1}
+                      />
+                    )}
+                  </>
                 ) : null}
 
                 {/* Current FY bar */}
@@ -344,6 +391,13 @@ export function FiscalYearChart({ daily, todayISO, isHT }: Props) {
                         fill={isProj ? "url(#fy-hatch)" : "var(--color-coral)"}
                         opacity={isProj ? 1 : 0.85}
                         rx={1}
+                      />
+                    )}
+                    {/* Pro invoices stacked on top */}
+                    {pro.cur > 0 && (
+                      <rect
+                        x={curX} y={yAt(displayCA + pro.cur)} width={barW} height={bH(pro.cur)}
+                        fill="#2563EB" opacity={0.85} rx={1}
                       />
                     )}
                   </>
@@ -379,6 +433,7 @@ export function FiscalYearChart({ daily, todayISO, isHT }: Props) {
         {/* HTML Tooltip */}
         {hoverIdx !== null && (() => {
           const m = months[hoverIdx];
+          const pro = fiscalPro[hoverIdx] ?? { cur: 0, prev: 0 };
           const cx = PAD.left + hoverIdx * groupW + groupW / 2;
           const left = Math.min(chartW - 152, Math.max(0, cx - 66));
           const displayCA = m.isActual ? m.curCA : m.isCurrent ? (m.projCA || m.curActualCA) : m.projCA;
@@ -399,23 +454,45 @@ export function FiscalYearChart({ daily, todayISO, isHT }: Props) {
               {m.prevNoData ? (
                 <div style={{ opacity: 0.55, fontSize: 10, fontStyle: "italic" }}>N-1 non disponible</div>
               ) : m.prevCA > 0 ? (
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, opacity: 0.75 }}>
-                  <span>N-1</span>
-                  <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmtEURshort(m.prevCA)}</span>
-                </div>
+                <>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, opacity: 0.75 }}>
+                    <span>N-1</span>
+                    <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmtEURshort(m.prevCA + pro.prev)}</span>
+                  </div>
+                  {pro.prev > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, opacity: 0.6 }}>
+                      <span style={{ color: "#93c5fd" }}>dont cmdes pro</span>
+                      <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmtEURshort(pro.prev)}</span>
+                    </div>
+                  )}
+                </>
               ) : null}
               {m.isActual && m.curCA > 0 && (
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                  <span>Réalisé</span>
-                  <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmtEURshort(m.curCA)}</span>
-                </div>
+                <>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                    <span>Réalisé</span>
+                    <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmtEURshort(m.curCA + pro.cur)}</span>
+                  </div>
+                  {pro.cur > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, opacity: 0.8 }}>
+                      <span style={{ color: "#93c5fd" }}>dont cmdes pro</span>
+                      <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmtEURshort(pro.cur)}</span>
+                    </div>
+                  )}
+                </>
               )}
               {m.isCurrent && m.curActualCA > 0 && (
                 <>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                     <span>Réalisé à date</span>
-                    <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmtEURshort(m.curActualCA)}</span>
+                    <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmtEURshort(m.curActualCA + pro.cur)}</span>
                   </div>
+                  {pro.cur > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, opacity: 0.8 }}>
+                      <span style={{ color: "#93c5fd" }}>dont cmdes pro</span>
+                      <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmtEURshort(pro.cur)}</span>
+                    </div>
+                  )}
                   {m.projCA > 0 && (
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 12, opacity: 0.8 }}>
                       <span>Proj. fin mois</span>
@@ -461,11 +538,16 @@ export function FiscalYearChart({ daily, todayISO, isHT }: Props) {
                 fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 700,
                 color: "var(--fg-secondary)", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em",
               }}>
-                {fmtEURshort(totalPrev)}
+                {fmtEURshort(totalPrev + totalProPrev)}
               </div>
               <div style={{ fontSize: 10, color: "var(--fg-tertiary)", marginTop: 1 }}>
                 {prevPartial ? `données partielles · ${suffix}` : suffix}
               </div>
+              {hasProData && totalProPrev > 0 && (
+                <div style={{ fontSize: 10, color: "#2563EB", marginTop: 3 }}>
+                  dont pro : {fmtEURshort(totalProPrev)}
+                </div>
+              )}
             </>
           ) : (
             <div style={{ fontSize: 11, color: "var(--fg-tertiary)", fontStyle: "italic" }}>
@@ -488,11 +570,16 @@ export function FiscalYearChart({ daily, todayISO, isHT }: Props) {
             fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 700,
             color: "var(--fg-primary)", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em",
           }}>
-            {fmtEURshort(totalActualWithCurrent)}
+            {fmtEURshort(totalActualWithCurrent + totalProCur)}
           </div>
-          <div style={{ fontSize: 10, color: "var(--fg-tertiary)", marginTop: 1, marginBottom: 12 }}>
+          <div style={{ fontSize: 10, color: "var(--fg-tertiary)", marginTop: 1, marginBottom: hasProData && totalProCur > 0 ? 4 : 12 }}>
             réalisé à date · {suffix}
           </div>
+          {hasProData && totalProCur > 0 && (
+            <div style={{ fontSize: 10, color: "#2563EB", marginBottom: 12 }}>
+              dont pro : {fmtEURshort(totalProCur)}
+            </div>
+          )}
 
           {totalProj > totalActualWithCurrent && (
             <>

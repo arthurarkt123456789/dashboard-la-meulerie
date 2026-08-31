@@ -3,6 +3,12 @@
 import { useQuery } from "@tanstack/react-query";
 import type { Store, StoreData } from "./apitic/types";
 
+export type ProInvoiceMonth = {
+  month: string;
+  amountTTC: number;
+  amountHT: number;
+};
+
 async function fetchJson<T>(url: string): Promise<T> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`${url} failed: ${res.status}`);
@@ -33,5 +39,18 @@ export function useToday() {
     queryKey: ["today"],
     queryFn: () => fetchJson<{ iso: string }>("/api/today"),
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useProInvoices(storeId: string | null) {
+  return useQuery({
+    queryKey: ["pro-invoices", storeId],
+    queryFn: () =>
+      fetchJson<{ months: ProInvoiceMonth[] }>(
+        `/api/financial/pro-invoices?storeId=${storeId}&months=24`,
+      ),
+    enabled: !!storeId,
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
   });
 }

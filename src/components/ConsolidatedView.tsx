@@ -37,6 +37,7 @@ import { StackedCategoryChart } from "./charts/StackedCategoryChart";
 import { LegendInline } from "./LegendInline";
 import { SegmentFilterInline, useSegmentFilter } from "./SegmentFilter";
 import { MonitoringCharts } from "./MonitoringCharts";
+import { useProInvoices } from "@/lib/queries";
 import { FiscalYearChart } from "./charts/FiscalYearChart";
 import { currentFiscalYearEnd } from "@/lib/metrics";
 
@@ -77,6 +78,7 @@ type Props = {
 
 export function ConsolidatedView({ stores, period, amountMode }: Props) {
   const [segmentFilter] = useSegmentFilter();
+  const proInvoices = useProInvoices("all").data?.months;
   const allowWeekly = granularityAllowed(period);
   const allowMonth = monthGranularityAllowed(period);
   const [granularity, setGranularity] = useState<Granularity>(
@@ -476,7 +478,7 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
             subtitle={`Ex. ${fyEnd - 1}–${fyEnd} vs. ex. ${fyEnd - 2}–${fyEnd - 1} · ${isHT ? "HT" : "TTC"} · barres hachurées = projection`}
             span={3}
           >
-            <FiscalYearChart daily={consolidatedDaily} todayISO={todayISO} isHT={isHT} />
+            <FiscalYearChart daily={consolidatedDaily} todayISO={todayISO} isHT={isHT} proInvoices={proInvoices} />
           </Card>
         );
       })()}

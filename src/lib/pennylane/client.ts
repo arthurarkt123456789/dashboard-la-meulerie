@@ -192,3 +192,80 @@ export async function getFinancialData(
   };
 }
 
+// ─── Customer Invoices (Commandes Pro) ───────────────────────────────────────
+
+export type ProInvoiceMonth = {
+  month: string;       // YYYY-MM
+  amountTTC: number;
+  amountHT: number;
+};
+
+export async function fetchMonthlyProInvoices(
+  token: string,
+  fromDate: string,
+  toDate: string,
+): Promise<ProInvoiceMonth[]> {
+  const byMonth = new Map<string, { ttc: number; ht: number }>();
+
+  const params = new URLSearchParams();
+  params.set("filter[min_date]", fromDate);
+  params.set("filter[max_date]", toDate);
+  params.append("filter[status][]", "paid");
+  params.append("filter[status][]", "unpaid");
+  params.set("page[per_page]", "50");
+  params.set("sort", "date");
+
+  let cursor: string | null = null;
+
+  do {
+    if (cursor) params.set("page[after]", cursor);
+    else params.delete("page[after]");
+
+    const res = await fetch(`${BASE}/customer_invoices?${params}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      next: { revalidate: 0 },
+    });
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`Pennylane customer_invoices ${res.status}: ${body}`);
+    }
+
+    const json = await res.json() as Record<string, unknown>;
+
+    const rawRows: unknown[] =
+      (Array.isArray(json.customer_invoices) ? json.customer_invoices : null) ??
+      (Array.isArray(json.items) ? json.items : null) ??
+      (Array.isArray(json.data) ? json.data : null) ??
+      [];
+
+    for (const raw of rawRows) {
+      const row = raw as Record<string, unknown>;
+      const date = String(row.date ?? row.invoice_date ?? row.emission_date ?? "");
+      if (!date || date.length < 7) continue;
+      const month = date.slice(0, 7);
+
+      const toNum = (v: unknown) =>
+        typeof v === "number" ? v : parseFloat(String(v ?? "0")) || 0;
+      const ttc = toNum(row.currency_amount ?? row.amount ?? row.total_amount ?? 0);
+      const ht = toNum(row.currency_amount_before_tax ?? row.amount_before_tax ?? row.total_before_tax ?? 0);
+
+      const existing = byMonth.get(month) ?? { ttc: 0, ht: 0 };
+      byMonth.set(month, { ttc: existing.ttc + ttc, ht: existing.ht + ht });
+    }
+
+    const meta = json.meta as { next_cursor?: string } | undefined;
+    cursor = json.has_more === false
+      ? null
+      : (json.next_cursor as string | undefined) ?? meta?.next_cursor ?? null;
+  } while (cursor);
+
+  return Array.from(byMonth.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, { ttc, ht }]) => ({
+      month,
+      amountTTC: Math.round(ttc * 100) / 100,
+      amountHT: Math.round(ht * 100) / 100,
+    }));
+}
+

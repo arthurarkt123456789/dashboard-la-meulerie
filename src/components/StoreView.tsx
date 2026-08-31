@@ -31,7 +31,7 @@ import { FinancialBlock } from "./FinancialBlock";
 import { DavsoExtras } from "./DavsoExtras";
 import { WeekdayChart } from "./WeekdayChart";
 import { FiscalYearChart } from "./charts/FiscalYearChart";
-import { useStoreData } from "@/lib/queries";
+import { useStoreData, useProInvoices } from "@/lib/queries";
 import { roll7 } from "@/lib/smoothing";
 import { bucketByWeek } from "@/lib/bucketing";
 import { currentFiscalYearEnd } from "@/lib/metrics";
@@ -258,6 +258,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
 
   // ── Network comparison & advanced KPI metrics ──────────────────────────
   const allStores = useStoreData();
+  const proInvoices = useProInvoices(store.id).data?.months;
 
   const networkComparisons = useMemo(() => {
     const empty = { caPerDay: null, totalCA: null, totalTx: null, avgBasket: null, caRank: null, txRank: null };
@@ -703,7 +704,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
             subtitle={`Ex. ${fyEnd - 1}–${fyEnd} vs. ex. ${fyEnd - 2}–${fyEnd - 1} · ${isHT ? "HT" : "TTC"} · barres hachurées = projection`}
             span={3}
           >
-            <FiscalYearChart daily={store.daily} todayISO={todayISO} isHT={isHT} />
+            <FiscalYearChart daily={store.daily} todayISO={todayISO} isHT={isHT} proInvoices={proInvoices} />
           </Card>
         );
       })()}
