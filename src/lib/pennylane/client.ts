@@ -212,6 +212,7 @@ export async function fetchMonthlyProInvoices(
   params.set("max_date", toDate);
   params.append("status[]", "paid");
   params.append("status[]", "unpaid");
+  params.append("status[]", "late");
   params.set("page[per_page]", "50");
   params.set("sort", "date");
 
