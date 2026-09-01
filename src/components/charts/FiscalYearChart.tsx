@@ -590,7 +590,7 @@ export function FiscalYearChart({ daily, todayISO, isHT, proInvoices }: Props) {
                 fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 700,
                 color: "var(--fg-primary)", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em",
               }}>
-                {fmtEURshort(totalProj)}
+                {fmtEURshort(totalProj + totalProCur)}
               </div>
               <div style={{ fontSize: 10, color: "var(--fg-tertiary)", marginTop: 1, marginBottom: 8 }}>
                 {suffix}
