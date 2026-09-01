@@ -28,9 +28,16 @@ interface FiscalMonth {
 }
 
 function buildFiscalData(daily: StoreDaily[], todayISO: string, isHT: boolean) {
-  const todayYear = parseInt(todayISO.slice(0, 4), 10);
-  const todayMonth = parseInt(todayISO.slice(5, 7), 10);
-  const todayDay = parseInt(todayISO.slice(8, 10), 10);
+  // If the actual client date is ahead of the last APITIC data point, use it.
+  // This prevents the last completed month from showing as "projected" when
+  // APITIC hasn't yet delivered the following day's data (e.g. Aug 31 data
+  // still present on Sep 1 morning → Aug would wrongly appear as current).
+  const clientToday = new Date().toISOString().slice(0, 10);
+  const effectiveTodayISO = clientToday > todayISO ? clientToday : todayISO;
+
+  const todayYear = parseInt(effectiveTodayISO.slice(0, 4), 10);
+  const todayMonth = parseInt(effectiveTodayISO.slice(5, 7), 10);
+  const todayDay = parseInt(effectiveTodayISO.slice(8, 10), 10);
   const curFYEnd = todayMonth >= 10 ? todayYear + 1 : todayYear;
   const prevFYEnd = curFYEnd - 1;
 
@@ -59,8 +66,8 @@ function buildFiscalData(daily: StoreDaily[], todayISO: string, isHT: boolean) {
     const daysInMonth = new Date(curCY, cm, 0).getDate();
     const monthStart = `${curCY}-${mm}-01`;
     const monthEnd = `${curCY}-${mm}-${String(daysInMonth).padStart(2, "0")}`;
-    const isFuture = monthStart > todayISO;
-    const isPast = monthEnd < todayISO;
+    const isFuture = monthStart > effectiveTodayISO;
+    const isPast = monthEnd < effectiveTodayISO;
     const isCurrent = !isFuture && !isPast;
 
     // N-1: month in previous FY
