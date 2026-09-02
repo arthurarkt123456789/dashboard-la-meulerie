@@ -39,6 +39,7 @@ import { SegmentFilterInline, useSegmentFilter } from "./SegmentFilter";
 import { MonitoringCharts } from "./MonitoringCharts";
 import { useProInvoices } from "@/lib/queries";
 import { FiscalYearChart } from "./charts/FiscalYearChart";
+import { SignatureKPIs } from "./SignatureKPIs";
 import { currentFiscalYearEnd } from "@/lib/metrics";
 
 const SERIES_COLORS = [
@@ -353,6 +354,8 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
           segments={segmentShares}
         />
       </div>
+
+      <SignatureKPIs products={consolidatedProducts} />
 
       <Card
         title="Évolution du chiffre d'affaires"

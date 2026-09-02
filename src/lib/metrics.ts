@@ -940,6 +940,9 @@ export function consolidateProducts(perStore: Product[][]): Product[] {
         existing.revenue30d += p.revenue30d;
         existing.revenue7dHT = (existing.revenue7dHT ?? 0) + (p.revenue7dHT ?? 0);
         existing.revenue30dHT = (existing.revenue30dHT ?? 0) + (p.revenue30dHT ?? 0);
+        existing.units90d = (existing.units90d ?? 0) + (p.units90d ?? 0);
+        existing.revenue90d = (existing.revenue90d ?? 0) + (p.revenue90d ?? 0);
+        existing.revenue90dHT = (existing.revenue90dHT ?? 0) + (p.revenue90dHT ?? 0);
         // Promote unit to "au poids" if any store sells it by weight.
         if (p.unit === "au poids") existing.unit = "au poids";
       }

@@ -275,16 +275,21 @@ function buildTopProducts(
     revenue30d: number;
     revenue7dHT: number;
     revenue30dHT: number;
+    units90d: number;
+    revenue90d: number;
+    revenue90dHT: number;
     hasFractionalQty: boolean;
   };
   const totals = new Map<number, Agg>();
 
   const cutoff7 = subtractDays(today, 6);
   const cutoff30 = subtractDays(today, 29);
+  const cutoff90 = subtractDays(today, 89);
 
   for (const [date, sales] of salesByDate) {
     const inLast7 = date >= cutoff7;
     const inLast30 = date >= cutoff30;
+    const inLast90 = date >= cutoff90;
     const isToday = date === today;
     for (const sale of sales) {
       for (const line of sale.lines ?? []) {
@@ -297,6 +302,9 @@ function buildTopProducts(
           revenue30d: 0,
           revenue7dHT: 0,
           revenue30dHT: 0,
+          units90d: 0,
+          revenue90d: 0,
+          revenue90dHT: 0,
           hasFractionalQty: false,
         };
         const qty = line.quantity;
@@ -314,6 +322,11 @@ function buildTopProducts(
           t.units30d += qty;
           t.revenue30d += amountTTC;
           t.revenue30dHT += amountHT;
+        }
+        if (inLast90) {
+          t.units90d += qty;
+          t.revenue90d += amountTTC;
+          t.revenue90dHT += amountHT;
         }
         totals.set(line.product_id, t);
       }
@@ -339,6 +352,9 @@ function buildTopProducts(
       revenue30d: Math.round(agg.revenue30d),
       revenue7dHT: Math.round(agg.revenue7dHT),
       revenue30dHT: Math.round(agg.revenue30dHT),
+      units90d: agg.units90d,
+      revenue90d: Math.round(agg.revenue90d),
+      revenue90dHT: Math.round(agg.revenue90dHT),
     });
   }
   return out.sort((a, b) => b.revenue30d - a.revenue30d);

@@ -22,21 +22,27 @@ export function TopProducts({
 }: Props) {
   const isHT = amountMode === "HT";
   const presetKey =
-    period.kind === "preset" ? period.key : "30d"; // month → use 30d aggregates
-  const revenueKey: "revenue7d" | "revenue30d" | "revenue7dHT" | "revenue30dHT" =
-    presetKey === "30d" || presetKey === "90d"
+    period.kind === "preset" ? period.key : "30d"; // month/range/fiscal → use 30d aggregates
+  const revenueKey: "revenue7d" | "revenue30d" | "revenue7dHT" | "revenue30dHT" | "revenue90d" | "revenue90dHT" =
+    presetKey === "90d"
       ? isHT
-        ? "revenue30dHT"
-        : "revenue30d"
-      : isHT
-        ? "revenue7dHT"
-        : "revenue7d";
-  const unitsKey: "unitsToday" | "units7d" | "units30d" =
+        ? "revenue90dHT"
+        : "revenue90d"
+      : presetKey === "30d"
+        ? isHT
+          ? "revenue30dHT"
+          : "revenue30d"
+        : isHT
+          ? "revenue7dHT"
+          : "revenue7d";
+  const unitsKey: "unitsToday" | "units7d" | "units30d" | "units90d" =
     presetKey === "today"
       ? "unitsToday"
-      : presetKey === "30d" || presetKey === "90d"
-        ? "units30d"
-        : "units7d";
+      : presetKey === "90d"
+        ? "units90d"
+        : presetKey === "30d"
+          ? "units30d"
+          : "units7d";
 
   let list = products;
   if (segmentFilter !== "all") {

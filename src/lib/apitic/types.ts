@@ -92,6 +92,9 @@ export type Product = {
   revenue30d: number;    // TTC
   revenue7dHT: number;
   revenue30dHT: number;
+  units90d: number;
+  revenue90d: number;
+  revenue90dHT: number;
 };
 
 export type PaymentMethod = "Carte bancaire" | "Virement" | "Espèces" | "Tickets resto";

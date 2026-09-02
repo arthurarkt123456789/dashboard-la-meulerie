@@ -32,6 +32,7 @@ import { DavsoExtras } from "./DavsoExtras";
 import { WeekdayChart } from "./WeekdayChart";
 import { FiscalYearChart } from "./charts/FiscalYearChart";
 import { useStoreData, useProInvoices } from "@/lib/queries";
+import { SignatureKPIs } from "./SignatureKPIs";
 import { roll7 } from "@/lib/smoothing";
 import { bucketByWeek } from "@/lib/bucketing";
 import { currentFiscalYearEnd } from "@/lib/metrics";
@@ -541,6 +542,8 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           subValue={m.days > 1 ? `sur ${m.days} jours` : undefined}
         />
       </div>
+
+      <SignatureKPIs products={store.topProducts} />
 
       <Card
         title="Évolution du chiffre d'affaires"

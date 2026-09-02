@@ -273,10 +273,13 @@ function generateTopProducts(store: StoreSeed): Product[] {
       unitsToday: Math.max(1, Math.round(units * 0.78)),
       units7d: Math.max(2, units * 7),
       units30d: Math.max(8, units * 30),
+      units90d: Math.max(24, units * 90),
       revenue7d: Math.round(units * 7 * p.price),
       revenue30d: Math.round(units * 30 * p.price),
       revenue7dHT: Math.round((units * 7 * p.price) / 1.1),
       revenue30dHT: Math.round((units * 30 * p.price) / 1.1),
+      revenue90d: Math.round(units * 90 * p.price),
+      revenue90dHT: Math.round((units * 90 * p.price) / 1.1),
     };
   });
   return products.sort((a, b) => b.revenue30d - a.revenue30d);
