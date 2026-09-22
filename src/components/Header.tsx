@@ -63,18 +63,16 @@ export function Header({
     <header className="lm-header">
       <div className="lm-header-top">
         <div className="lm-brand">
-          <div className="lm-brand-name">
-            <img
-              src="/logo-la-meulerie.png"
-              alt="La Meulerie"
-              style={{ height: 36, width: "auto", display: "block" }}
-            />
-            <div className="lm-brand-sub">Pilotage des ventes</div>
-          </div>
+          <img
+            src="/logo-la-meulerie.png"
+            alt="La Meulerie"
+            style={{ height: 52, width: "auto", display: "block" }}
+          />
         </div>
 
         <div className="lm-header-meta">
           <div className="lm-date-block">
+            <div className="lm-brand-sub" style={{ marginBottom: 2 }}>Pilotage des ventes</div>
             <div className="lm-date-day">{dateStr}</div>
             <div className="lm-date-time">
               <span className="lm-status-dot" /> APITIC · données arrêtées au {lastDayStr}
