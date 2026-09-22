@@ -105,7 +105,6 @@ export function Header({
               />
             </svg>
           </button>
-          <div className="lm-avatar">CV</div>
         </div>
       </div>
 
