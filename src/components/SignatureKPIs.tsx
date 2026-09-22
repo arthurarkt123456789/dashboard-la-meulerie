@@ -88,7 +88,7 @@ export function SignatureKPIs({ products }: Props) {
                   marginTop: 6,
                   fontSize: 11,
                   fontWeight: 600,
-                  color: trend >= 0 ? "#16a34a" : "#dc2626",
+                  color: trend >= 0 ? "#16a34a" : "#002FA7",
                 }}>
                   {fmtPct(trend)}{" "}
                   <span style={{ fontWeight: 400, color: "var(--fg-tertiary)", fontSize: 10 }}>

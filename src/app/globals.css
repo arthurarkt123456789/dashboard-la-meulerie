@@ -7,9 +7,9 @@
 
 :root {
   /* Brand */
-  --color-coral:         #FF4433;
-  --color-coral-hover:   #E03020;
-  --color-coral-muted:   #FF443320;
+  --color-coral:         #002FA7;
+  --color-coral-hover:   #0025A0;
+  --color-coral-muted:   #002FA720;
 
   /* Neutrals */
   --color-warm-gray:     #E8E8E6;
@@ -431,7 +431,7 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--fg-secondary);
 }
 .lm-tag-live {
-  background: rgba(255, 68, 51, 0.08);
+  background: rgba(0, 47, 167, 0.08);
   color: var(--color-coral);
 }
 .lm-tag-live::before {

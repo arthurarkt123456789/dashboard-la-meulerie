@@ -51,10 +51,10 @@ type Props = { storeId: string; daily: StoreDaily[]; period: PeriodSelection; op
 
 const COLORS = {
   cm:       "#2A2A2A",  // --color-dark   (dominant base cost)
-  ms:       "#FF4433",  // --color-coral  (main accent, same as CA line)
+  ms:       "#002FA7",  // --color-coral  (main accent, same as CA line)
   ch:       "#D4820A",  // --status-warning amber
   marge:    "#2D8A4E",  // --status-success green
-  margeNeg: "#C03020",  // dark coral (costs > CA)
+  margeNeg: "#001A6E",  // dark klein blue (costs > CA)
 };
 const TARGETS = { cm: 45, ms: 20, ch: 15 } as const;
 

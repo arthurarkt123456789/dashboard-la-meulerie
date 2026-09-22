@@ -322,7 +322,7 @@ export function FiscalYearChart({ daily, todayISO, isHT, proInvoices }: Props) {
             </text>
             {hasProData && (
               <>
-                <rect x={247} y={6} width={8} height={8} fill="#2563EB" opacity={0.85} rx={1} />
+                <rect x={247} y={6} width={8} height={8} fill="#E91E8C" opacity={0.85} rx={1} />
                 <text x={259} y={14} fontSize={9} fill="var(--fg-tertiary)" style={{ fontFamily: "var(--font-body)" }}>
                   Cmdes pro
                 </text>
@@ -371,7 +371,7 @@ export function FiscalYearChart({ daily, todayISO, isHT, proInvoices }: Props) {
                     {pro.prev > 0 && (
                       <rect
                         x={prevX} y={yAt(m.prevCA + pro.prev)} width={barW} height={bH(pro.prev)}
-                        fill="#2563EB" opacity={0.25} rx={1}
+                        fill="#E91E8C" opacity={0.25} rx={1}
                       />
                     )}
                   </>
@@ -404,7 +404,7 @@ export function FiscalYearChart({ daily, todayISO, isHT, proInvoices }: Props) {
                     {pro.cur > 0 && (
                       <rect
                         x={curX} y={yAt(displayCA + pro.cur)} width={barW} height={bH(pro.cur)}
-                        fill="#2563EB" opacity={0.85} rx={1}
+                        fill="#E91E8C" opacity={0.85} rx={1}
                       />
                     )}
                   </>
@@ -415,7 +415,7 @@ export function FiscalYearChart({ daily, todayISO, isHT, proInvoices }: Props) {
                   <text
                     x={midX} y={topY - 4}
                     textAnchor="middle" fontSize={8} fontWeight={500}
-                    fill={m.yoyPct >= 0 ? "#16a34a" : "#dc2626"}
+                    fill={m.yoyPct >= 0 ? "#16a34a" : "#002FA7"}
                     opacity={m.isActual ? 1 : 0.75}
                     style={{ fontFamily: "var(--font-body)", fontVariantNumeric: "tabular-nums" }}
                   >
@@ -468,7 +468,7 @@ export function FiscalYearChart({ daily, todayISO, isHT, proInvoices }: Props) {
                   </div>
                   {pro.prev > 0 && (
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 12, opacity: 0.6 }}>
-                      <span style={{ color: "#93c5fd" }}>dont cmdes pro</span>
+                      <span style={{ color: "#f472b6" }}>dont cmdes pro</span>
                       <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmtEURshort(pro.prev)}</span>
                     </div>
                   )}
@@ -482,7 +482,7 @@ export function FiscalYearChart({ daily, todayISO, isHT, proInvoices }: Props) {
                   </div>
                   {pro.cur > 0 && (
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 12, opacity: 0.8 }}>
-                      <span style={{ color: "#93c5fd" }}>dont cmdes pro</span>
+                      <span style={{ color: "#f472b6" }}>dont cmdes pro</span>
                       <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmtEURshort(pro.cur)}</span>
                     </div>
                   )}
@@ -496,7 +496,7 @@ export function FiscalYearChart({ daily, todayISO, isHT, proInvoices }: Props) {
                   </div>
                   {pro.cur > 0 && (
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 12, opacity: 0.8 }}>
-                      <span style={{ color: "#93c5fd" }}>dont cmdes pro</span>
+                      <span style={{ color: "#f472b6" }}>dont cmdes pro</span>
                       <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmtEURshort(pro.cur)}</span>
                     </div>
                   )}
@@ -518,7 +518,7 @@ export function FiscalYearChart({ daily, todayISO, isHT, proInvoices }: Props) {
                 <div style={{
                   marginTop: 4, paddingTop: 4,
                   borderTop: "1px solid rgba(255,255,255,0.15)",
-                  color: m.yoyPct >= 0 ? "#86efac" : "#fca5a5",
+                  color: m.yoyPct >= 0 ? "#86efac" : "#93c5fd",
                   fontWeight: 500,
                 }}>
                   {fmtPctShort(m.yoyPct)} vs N-1{!m.isActual ? " (proj.)" : ""}
@@ -551,7 +551,7 @@ export function FiscalYearChart({ daily, todayISO, isHT, proInvoices }: Props) {
                 {prevPartial ? `données partielles · ${suffix}` : suffix}
               </div>
               {hasProData && totalProPrev > 0 && (
-                <div style={{ fontSize: 10, color: "#2563EB", marginTop: 3 }}>
+                <div style={{ fontSize: 10, color: "#E91E8C", marginTop: 3 }}>
                   dont pro : {fmtEURshort(totalProPrev)}
                 </div>
               )}
@@ -583,7 +583,7 @@ export function FiscalYearChart({ daily, todayISO, isHT, proInvoices }: Props) {
             réalisé à date · {suffix}
           </div>
           {hasProData && totalProCur > 0 && (
-            <div style={{ fontSize: 10, color: "#2563EB", marginBottom: 12 }}>
+            <div style={{ fontSize: 10, color: "#E91E8C", marginBottom: 12 }}>
               dont pro : {fmtEURshort(totalProCur)}
             </div>
           )}
@@ -606,8 +606,8 @@ export function FiscalYearChart({ daily, todayISO, isHT, proInvoices }: Props) {
                 <>
                   <div style={{
                     display: "inline-flex", alignItems: "center", gap: 4,
-                    background: avgYoY >= 0 ? "rgba(22,163,74,0.1)" : "rgba(220,38,38,0.1)",
-                    color: avgYoY >= 0 ? "#16a34a" : "#dc2626",
+                    background: avgYoY >= 0 ? "rgba(22,163,74,0.1)" : "rgba(0,47,167,0.1)",
+                    color: avgYoY >= 0 ? "#16a34a" : "#002FA7",
                     borderRadius: 4, padding: "3px 7px", fontSize: 11, fontWeight: 600,
                   }}>
                     {fmtPctShort(avgYoY)} YoY

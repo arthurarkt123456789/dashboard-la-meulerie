@@ -36,6 +36,7 @@ import { SignatureKPIs } from "./SignatureKPIs";
 import { roll7 } from "@/lib/smoothing";
 import { bucketByWeek } from "@/lib/bucketing";
 import { currentFiscalYearEnd } from "@/lib/metrics";
+import { AIInsightsBlock } from "./AIInsightsBlock";
 
 type Props = {
   store: StoreData;
@@ -778,6 +779,20 @@ export function StoreView({ store, period, today, amountMode }: Props) {
       {store.id === "davso" && (
         <DavsoExtras store={store} period={period} amountMode={amountMode} />
       )}
+
+      <AIInsightsBlock
+        storeName={store.name}
+        caTotal={isHT ? m.caHT : m.ca}
+        caDelta={m.caDelta}
+        yoyCaDelta={m.yoyAvailable ? m.yoyCaDelta : null}
+        yoyAvailable={m.yoyAvailable}
+        avgTicket={isHT ? m.avgTicketHT : m.avgTicket}
+        txPerDay={m.days > 0 ? m.tx / m.days : 0}
+        fromagerieShare={(isHT ? m.caHT : m.ca) > 0 ? (isHT ? m.fromagerieCAHT : m.fromagerieCA) / (isHT ? m.caHT : m.ca) : 0}
+        snackingShare={(isHT ? m.caHT : m.ca) > 0 ? (isHT ? m.snackingCAHT ?? 0 : m.snackingCA) / (isHT ? m.caHT : m.ca) : 0}
+        caPerDay={caPerDay}
+        periodLabel={periodLabel}
+      />
     </div>
   );
 }

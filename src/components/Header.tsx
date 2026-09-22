@@ -63,26 +63,12 @@ export function Header({
     <header className="lm-header">
       <div className="lm-header-top">
         <div className="lm-brand">
-          <div className="lm-brand-mark">
-            <svg
-              viewBox="0 0 24 24"
-              width="20"
-              height="20"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-            >
-              <circle cx="12" cy="12" r="10" />
-              <path
-                d="M6 12 Q 12 6 18 12 Q 12 18 6 12 Z"
-                fill="currentColor"
-                opacity="0.15"
-              />
-              <circle cx="12" cy="12" r="2.2" fill="currentColor" />
-            </svg>
-          </div>
           <div className="lm-brand-name">
-            <div className="lm-brand-line">LA MEULERIE</div>
+            <img
+              src="/logo-la-meulerie.png"
+              alt="La Meulerie"
+              style={{ height: 36, width: "auto", display: "block" }}
+            />
             <div className="lm-brand-sub">Pilotage des ventes</div>
           </div>
         </div>

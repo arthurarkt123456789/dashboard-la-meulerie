@@ -41,6 +41,7 @@ import { useProInvoices } from "@/lib/queries";
 import { FiscalYearChart } from "./charts/FiscalYearChart";
 import { SignatureKPIs } from "./SignatureKPIs";
 import { currentFiscalYearEnd } from "@/lib/metrics";
+import { AIInsightsBlock } from "./AIInsightsBlock";
 
 const SERIES_COLORS = [
   "var(--color-coral)", // Davso       — coral brand
@@ -625,6 +626,20 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
         allowWeekly={allowWeekly}
         allowMonth={allowMonth}
         onGranularity={setGranularity}
+      />
+
+      <AIInsightsBlock
+        storeName="Réseau"
+        caTotal={isHT ? m.caHT : m.ca}
+        caDelta={m.caDelta}
+        yoyCaDelta={m.yoyAvailable ? m.yoyCaDelta : null}
+        yoyAvailable={m.yoyAvailable}
+        avgTicket={isHT ? m.avgTicketHT : m.avgTicket}
+        txPerDay={m.days > 0 ? m.tx / m.days : 0}
+        fromagerieShare={(isHT ? m.caHT : m.ca) > 0 ? (isHT ? m.fromagerieCAHT : m.fromagerieCA) / (isHT ? m.caHT : m.ca) : 0}
+        snackingShare={(isHT ? m.caHT : m.ca) > 0 ? (isHT ? (m.snackingCAHT ?? 0) : m.snackingCA) / (isHT ? m.caHT : m.ca) : 0}
+        caPerDay={caPerDay}
+        periodLabel={periodLabel}
       />
     </div>
   );
