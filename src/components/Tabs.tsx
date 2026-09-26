@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import type { Store } from "@/lib/apitic/types";
 
 type Props = { value: string; stores: Store[] };
@@ -25,12 +24,13 @@ export function Tabs({ value, stores }: Props) {
           <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
             {it.label}
             {UE_STORE_IDS.has(it.id) && (
-              <Image
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
                 src="/uber-eats.avif"
                 alt="Uber Eats"
                 width={14}
                 height={14}
-                style={{ borderRadius: 3, flexShrink: 0 }}
+                style={{ borderRadius: 3, flexShrink: 0, display: "block" }}
               />
             )}
           </span>
