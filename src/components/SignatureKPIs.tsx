@@ -39,71 +39,67 @@ export function SignatureKPIs({ products }: Props) {
   });
 
   return (
-    <div style={{
-      display: "grid",
-      gridTemplateColumns: "repeat(4, 1fr)",
-      gap: 12,
-      marginBottom: 12,
-    }}>
-      {slots.map(({ label, avg30, avg7, trend, hasData }) => (
-        <div
-          key={label}
-          style={{
-            background: "var(--bg-card)",
-            border: "1px solid var(--border-light)",
-            borderRadius: "var(--radius-md)",
-            padding: "12px 14px",
-            fontFamily: "var(--font-body)",
-          }}
-        >
-          <div style={{
-            fontSize: 10,
-            fontWeight: 600,
-            textTransform: "uppercase",
-            letterSpacing: "0.06em",
-            color: "var(--fg-tertiary)",
-            marginBottom: 6,
-          }}>
-            {label}
-          </div>
-
-          {hasData ? (
-            <>
+    <div className="lm-card" style={{ gridColumn: "1 / -1" }}>
+      <div className="lm-card-head">
+        <div>
+          <h3 className="lm-card-title">Consommation Snacking</h3>
+          <div className="lm-card-subtitle">Ventes moyennes / jour · moy. 30j vs 7j</div>
+        </div>
+      </div>
+      <div className="lm-card-body padded">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+          {slots.map(({ label, avg30, avg7, trend, hasData }) => (
+            <div key={label} style={{ fontFamily: "var(--font-body)" }}>
               <div style={{
-                fontFamily: "var(--font-display)",
-                fontSize: 26,
-                fontWeight: 700,
-                color: "var(--fg-primary)",
-                fontVariantNumeric: "tabular-nums",
-                letterSpacing: "-0.02em",
-                lineHeight: 1,
+                fontSize: 10,
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                color: "var(--fg-tertiary)",
+                marginBottom: 6,
               }}>
-                {fmt1(avg30)}
+                {label}
               </div>
-              <div style={{ fontSize: 10, color: "var(--fg-tertiary)", marginTop: 3 }}>
-                ventes / jour · moy. 30j
-              </div>
-              {trend !== null && (
-                <div style={{
-                  marginTop: 6,
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: trend >= 0 ? "#16a34a" : "#002FA7",
-                }}>
-                  {fmtPct(trend)}{" "}
-                  <span style={{ fontWeight: 400, color: "var(--fg-tertiary)", fontSize: 10 }}>
-                    vs moy. 7j ({fmt1(avg7)}/j)
-                  </span>
+
+              {hasData ? (
+                <>
+                  <div style={{
+                    fontFamily: "var(--font-display)",
+                    fontSize: 26,
+                    fontWeight: 700,
+                    color: "var(--fg-primary)",
+                    fontVariantNumeric: "tabular-nums",
+                    letterSpacing: "-0.02em",
+                    lineHeight: 1,
+                  }}>
+                    {fmt1(avg30)}
+                  </div>
+                  <div style={{ fontSize: 10, color: "var(--fg-tertiary)", marginTop: 3 }}>
+                    ventes / jour · moy. 30j
+                  </div>
+                  {trend !== null && (
+                    <div style={{
+                      marginTop: 6,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: trend >= 0 ? "#16a34a" : "#002FA7",
+                    }}>
+                      {fmtPct(trend)}{" "}
+                      <span style={{ fontWeight: 400, color: "var(--fg-tertiary)", fontSize: 10 }}>
+                        vs moy. 7j ({fmt1(avg7)}/j)
+                      </span>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{ fontSize: 12, color: "var(--fg-tertiary)", fontStyle: "italic" }}>
+                  Pas de données
                 </div>
               )}
-            </>
-          ) : (
-            <div style={{ fontSize: 12, color: "var(--fg-tertiary)", fontStyle: "italic" }}>
-              Pas de données
             </div>
-          )}
+          ))}
         </div>
-      ))}
+      </div>
     </div>
   );
 }

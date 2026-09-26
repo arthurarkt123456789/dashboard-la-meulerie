@@ -15,7 +15,7 @@ const SERIES_COLORS = [
   "#9333EA",
 ];
 
-const MAX_DAYS = 60;
+const MAX_DAYS = 400;
 const pctFmt = (n: number) => n.toFixed(1).replace(".", ",") + " %";
 
 function datesInRange(from: string, to: string): string[] {

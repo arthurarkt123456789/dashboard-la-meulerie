@@ -522,6 +522,65 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
         );
       })()}
 
+      {(() => {
+        const todayISO = consolidatedDaily[consolidatedDaily.length - 1]?.date ?? "";
+        const { from, to } = rangeForSelection(period, todayISO);
+        return (
+          <Card
+            title="Évolution du C.A. par magasin"
+            subtitle={`${periodLabel} · ${isHT ? "HT" : "TTC"}`}
+            span={3}
+          >
+            <div
+              className="lm-store-fiscal-grid"
+              style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px 32px" }}
+            >
+              {stores.map((s, i) => {
+                const storeLineData = s.daily
+                  .filter((d) => d.date >= from && d.date <= to)
+                  .map((d) => ({
+                    date: d.date,
+                    ca: isHT ? (d.caHT ?? 0) : d.ca,
+                    partial: d.partial,
+                  }));
+                return (
+                  <div key={s.id} style={{ minWidth: 0 }}>
+                    <div style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      fontFamily: "var(--font-body)",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: "var(--fg-secondary)",
+                      marginBottom: 4,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                    }}>
+                      <span style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: 1,
+                        background: SERIES_COLORS[i] ?? "var(--fg-secondary)",
+                        flexShrink: 0,
+                      }} />
+                      {s.name}
+                    </div>
+                    <LineChart
+                      data={storeLineData}
+                      series={[{ key: "ca", label: s.name, color: SERIES_COLORS[i] ?? "var(--fg-secondary)" }]}
+                      height={160}
+                      period={period}
+                      granularity={effectiveGranularity}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        );
+      })()}
+
       <Card
         title="CA par catégories"
         subtitle={`${isHT ? "HT" : "TTC"} · ${catGranularity === "week" ? "barres hebdo." : "barres journalières · moyenne 7j"}`}

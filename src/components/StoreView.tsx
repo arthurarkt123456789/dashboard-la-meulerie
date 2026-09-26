@@ -19,7 +19,7 @@ import { KPICard } from "./KPICard";
 import { BasketBreakdown } from "./BasketBreakdown";
 import { CABreakdown } from "./CABreakdown";
 import { MarginBreakdown } from "./MarginBreakdown";
-import { LineChart } from "./charts/LineChart";
+import { LineChart, type LineSeries, type LinePoint } from "./charts/LineChart";
 import { HourlyBars } from "./charts/HourlyBars";
 import { TopProducts } from "./TopProducts";
 import { PaymentsCard } from "./PaymentsCard";
@@ -86,6 +86,14 @@ export function StoreView({ store, period, today, amountMode }: Props) {
   const [showN1, setShowN1] = useState(true);
   const [smoothCA, setSmoothCA] = useState(false);
   const [catGranularity, setCatGranularity] = useState<"day" | "week">("day");
+  const [showCompare, setShowCompare] = useState(false);
+
+  const STORE_COLORS: Record<string, string> = {
+    davso: "var(--color-coral)",
+    endoume: "#2563EB",
+    malmousque: "#059669",
+    republique: "#9333EA",
+  };
 
   const m = useMemo(
     () => periodMetricsForSelection(store.daily, period),
@@ -259,16 +267,47 @@ export function StoreView({ store, period, today, amountMode }: Props) {
     ? Math.round(doneHours.reduce((s, h) => s + h.tx, 0) / doneHours.length)
     : 0;
 
+  // ── Network comparison & advanced KPI metrics ──────────────────────────
+  const allStores = useStoreData();
+  const uberEatsMonths = useUberEatsMonths(store.id === "endoume");
+  const proInvoices = useProInvoices(store.id).data?.months;
+
+  const compareLineData = useMemo(() => {
+    if (!showCompare || !allStores.data?.length) return null;
+    const todayISO = store.daily[store.daily.length - 1]?.date ?? "";
+    const { from, to } = rangeForSelection(period, todayISO);
+    return store.daily
+      .filter((d) => d.date >= from && d.date <= to)
+      .map((d) => {
+        const row: LinePoint = {
+          date: d.date,
+          partial: d.partial,
+          [store.id]: isHT ? (d.caHT ?? 0) : d.ca,
+        };
+        for (const s of allStores.data ?? []) {
+          if (s.id === store.id) continue;
+          const day = s.daily.find((dd) => dd.date === d.date);
+          row[s.id] = day && !day.closed ? (isHT ? (day.caHT ?? 0) : day.ca) : null;
+        }
+        return row;
+      });
+  }, [showCompare, allStores.data, store.daily, store.id, period, isHT]);
+
+  const compareSeries = useMemo((): LineSeries[] | null => {
+    if (!showCompare || !allStores.data?.length) return null;
+    const all = [store, ...allStores.data.filter((s) => s.id !== store.id)];
+    return all.map((s) => ({
+      key: s.id,
+      label: s.name,
+      color: STORE_COLORS[s.id] ?? "var(--fg-secondary)",
+    }));
+  }, [showCompare, allStores.data, store]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Uber Eats flag: is any day in the selected period enriched with UE data?
   const hasUberEats = useMemo(
     () => periodSlice.some((d) => (d.uberEatsCa ?? 0) > 0),
     [periodSlice],
   );
-
-  // ── Network comparison & advanced KPI metrics ──────────────────────────
-  const allStores = useStoreData();
-  const uberEatsMonths = useUberEatsMonths(store.id === "endoume");
-  const proInvoices = useProInvoices(store.id).data?.months;
 
   const networkComparisons = useMemo(() => {
     const empty = { caPerDay: null, totalCA: null, totalTx: null, avgBasket: null, caRank: null, txRank: null };
@@ -565,43 +604,54 @@ export function StoreView({ store, period, today, amountMode }: Props) {
         }
         action={
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            {allowWeekly && (
+            {allowWeekly && !showCompare && (
               <GranularityToggle
                 value={granularity}
                 onChange={setGranularity}
                 allowMonth={allowMonth}
               />
             )}
-            <N1Toggle
-              value={showN1}
-              onChange={setShowN1}
-              disabled={!m.yoyAvailable}
-            />
+            {!showCompare && (
+              <N1Toggle
+                value={showN1}
+                onChange={setShowN1}
+                disabled={!m.yoyAvailable}
+              />
+            )}
+            {!showCompare && (
+              <button
+                className={"lm-seg-btn" + (smoothCA ? " active" : "")}
+                style={{ fontSize: 11, padding: "2px 8px", lineHeight: "20px" }}
+                onClick={() => setSmoothCA((v) => !v)}
+                title="Moyenne glissante 7 jours"
+              >
+                ~7j
+              </button>
+            )}
             <button
-              className={"lm-seg-btn" + (smoothCA ? " active" : "")}
+              className={"lm-seg-btn" + (showCompare ? " active" : "")}
               style={{ fontSize: 11, padding: "2px 8px", lineHeight: "20px" }}
-              onClick={() => setSmoothCA((v) => !v)}
-              title="Moyenne glissante 7 jours"
+              onClick={() => setShowCompare((v) => !v)}
+              title="Comparer avec les autres magasins"
             >
-              ~7j
+              Comparer
             </button>
           </div>
         }
         span={2}
       >
         <LineChart
-          data={chartData}
-          series={[
-            {
-              key: "ca",
-              label: `CA ${new Date().getFullYear()}`,
-              color: "var(--color-coral)",
-            },
-          ]}
-          yoyData={showN1 ? yoyChartData : null}
+          data={showCompare && compareLineData ? compareLineData : chartData}
+          series={
+            showCompare && compareSeries
+              ? compareSeries
+              : [{ key: "ca", label: `CA ${new Date().getFullYear()}`, color: "var(--color-coral)" }]
+          }
+          yoyData={showCompare ? null : showN1 ? yoyChartData : null}
           height={280}
           period={period}
           granularity={effectiveGranularity}
+          showLegend={showCompare}
         />
       </Card>
 
