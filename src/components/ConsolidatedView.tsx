@@ -540,8 +540,15 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
         return (
           <Card
             title="Évolution du C.A. par magasin"
-            subtitle={`${periodLabel} · ${isHT ? "HT" : "TTC"}`}
+            subtitle={`${periodLabel} · ${isHT ? "HT" : "TTC"} · N-1 en pointillé`}
             span={3}
+            action={allowWeekly && (
+              <GranularityToggle
+                value={granularity}
+                onChange={setGranularity}
+                allowMonth={allowMonth}
+              />
+            )}
           >
             <div
               className="lm-store-fiscal-grid"
@@ -549,6 +556,7 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
             >
               {stores.map((s, i) => {
                 const hasUE = s.daily.some((d) => d.date >= from && d.date <= to && (d.uberEatsCa ?? 0) > 0);
+                const storeByDate = new Map(s.daily.map((d) => [d.date, d]));
                 const storeLineData = s.daily
                   .filter((d) => d.date >= from && d.date <= to)
                   .map((d) => ({
@@ -557,6 +565,18 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
                     partial: d.partial,
                     uberEatsCa: d.uberEatsCa ?? 0,
                   }));
+                // N-1: 364-day offset (52 × 7 = same day of week)
+                const storeYoy = storeLineData.map((ld) => {
+                  const n1d = new Date(`${ld.date}T00:00:00Z`);
+                  n1d.setUTCDate(n1d.getUTCDate() - 364);
+                  const n1Date = n1d.toISOString().slice(0, 10);
+                  const n1day = storeByDate.get(n1Date);
+                  return {
+                    date: ld.date,
+                    ca: n1day && !n1day.closed ? (isHT ? n1day.caHT ?? 0 : n1day.ca) : 0,
+                  };
+                });
+                const hasYoy = storeYoy.some((d) => d.ca > 0);
                 return (
                   <div key={s.id} style={{ minWidth: 0 }}>
                     <div style={{
@@ -583,6 +603,7 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
                     <LineChart
                       data={storeLineData}
                       series={[{ key: "ca", label: s.name, color: SERIES_COLORS[i] ?? "var(--fg-secondary)" }]}
+                      yoyData={hasYoy ? storeYoy : null}
                       height={160}
                       period={period}
                       granularity={effectiveGranularity}

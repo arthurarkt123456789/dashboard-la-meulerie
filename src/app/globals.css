@@ -400,13 +400,13 @@ button { font-family: inherit; cursor: pointer; }
 /* ------------------------------------------------------------
    KPI CARDS
    ------------------------------------------------------------ */
-.lm-kpi { padding: 16px 18px 14px; gap: 0; }
+.lm-kpi { padding: 12px 16px 12px; gap: 0; }
 .lm-kpi-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 .lm-label {
   font-family: var(--font-body);
@@ -454,7 +454,7 @@ button { font-family: inherit; cursor: pointer; }
 }
 .lm-kpi-value {
   font-family: var(--font-display);
-  font-size: 34px;
+  font-size: 30px;
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1;
@@ -470,10 +470,10 @@ button { font-family: inherit; cursor: pointer; }
 }
 .lm-kpi-spark { flex-shrink: 0; opacity: 0.85; }
 .lm-kpi-deltas {
-  margin-top: 12px;
+  margin-top: 8px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 .lm-kpi-delta-row {
   display: flex;
@@ -714,10 +714,17 @@ button { font-family: inherit; cursor: pointer; }
   .lm-date-block { display: none; }
   .lm-header-bottom { padding: 0 12px 2px; flex-direction: column; align-items: stretch; gap: 0; }
 
-  /* Tabs scrollable */
-  .lm-tabs { overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  /* Tabs scrollable — horizontal only, no vertical bleed */
+  .lm-tabs {
+    overflow-x: auto;
+    overflow-y: hidden;
+    width: 100%;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
   .lm-tabs::-webkit-scrollbar { display: none; }
-  .lm-tab { padding: 10px 4px; margin-right: 14px; font-size: 13px; flex-shrink: 0; }
+  .lm-tab { padding: 10px 4px; margin-right: 14px; font-size: 13px; flex-shrink: 0; white-space: nowrap; }
 
   /* Controls (AmountMode + Period) scrollable */
   .lm-header-controls {

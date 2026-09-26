@@ -10,12 +10,13 @@ export default function LoginPage({
   return (
     <div
       style={{
-        minHeight: "100vh",
+        minHeight: "100dvh",
         display: "flex",
+        flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
         background: "var(--bg-subtle)",
-        padding: 16,
+        padding: "24px 16px",
       }}
     >
       <div
@@ -23,54 +24,32 @@ export default function LoginPage({
           background: "var(--color-white)",
           border: "1px solid var(--border-light)",
           borderRadius: "var(--radius-md)",
-          padding: 28,
+          padding: "32px 28px",
           width: "100%",
-          maxWidth: 360,
+          maxWidth: 380,
           boxShadow: "var(--shadow-sm)",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+        {/* Logo */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 28, gap: 8 }}>
+          <img
+            src="/logo-la-meulerie.png"
+            alt="La Meulerie"
+            style={{ height: 64, width: "auto", display: "block" }}
+          />
           <div
             style={{
-              width: 36,
-              height: 36,
-              background: "var(--color-dark)",
-              color: "var(--color-coral)",
-              borderRadius: "var(--radius-sm)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              fontFamily: "var(--font-body)",
+              fontSize: 12,
+              color: "var(--fg-tertiary)",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
             }}
           >
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6">
-              <circle cx="12" cy="12" r="10" />
-              <path d="M6 12 Q 12 6 18 12 Q 12 18 6 12 Z" fill="currentColor" opacity="0.15" />
-              <circle cx="12" cy="12" r="2.2" fill="currentColor" />
-            </svg>
-          </div>
-          <div>
-            <div
-              style={{
-                fontFamily: "var(--font-display)",
-                fontWeight: 700,
-                fontSize: 18,
-                letterSpacing: "0.04em",
-                color: "var(--fg-primary)",
-              }}
-            >
-              LA MEULERIE
-            </div>
-            <div
-              style={{
-                fontFamily: "var(--font-body)",
-                fontSize: 11,
-                color: "var(--fg-secondary)",
-              }}
-            >
-              Pilotage des ventes
-            </div>
+            Pilotage des ventes
           </div>
         </div>
+
         <LoginForm next={searchParams.next} hasError={searchParams.error === "1"} />
       </div>
     </div>

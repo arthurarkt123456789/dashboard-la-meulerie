@@ -36,12 +36,12 @@ export function LoginForm({ next, hasError: initialError }: Props) {
   }
 
   return (
-    <form onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <label style={{ display: "grid", gap: 4 }}>
+    <form onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <label style={{ display: "grid", gap: 6 }}>
         <span
           style={{
             fontFamily: "var(--font-body)",
-            fontSize: 11,
+            fontSize: 12,
             color: "var(--fg-secondary)",
             textTransform: "uppercase",
             letterSpacing: "0.08em",
@@ -57,13 +57,16 @@ export function LoginForm({ next, hasError: initialError }: Props) {
           onChange={(e) => setPassword(e.target.value)}
           autoComplete="current-password"
           style={{
-            padding: "10px 12px",
+            padding: "14px 16px",
             border: "1px solid var(--border-light)",
             borderRadius: "var(--radius-sm)",
             fontFamily: "var(--font-body)",
-            fontSize: 14,
+            fontSize: 16,
             color: "var(--fg-primary)",
             background: "var(--color-white)",
+            outline: "none",
+            width: "100%",
+            boxSizing: "border-box",
           }}
         />
       </label>
@@ -71,7 +74,7 @@ export function LoginForm({ next, hasError: initialError }: Props) {
         <div
           style={{
             fontFamily: "var(--font-body)",
-            fontSize: 12,
+            fontSize: 13,
             color: "var(--color-coral)",
           }}
         >
@@ -82,19 +85,21 @@ export function LoginForm({ next, hasError: initialError }: Props) {
         type="submit"
         disabled={submitting || !password}
         style={{
-          padding: "10px 12px",
-          background: "var(--color-coral)",
+          padding: "14px 16px",
+          background: "var(--color-dark)",
           color: "var(--color-white)",
           border: 0,
           borderRadius: "var(--radius-sm)",
           fontFamily: "var(--font-body)",
-          fontSize: 14,
-          fontWeight: 500,
+          fontSize: 15,
+          fontWeight: 600,
           cursor: submitting || !password ? "not-allowed" : "pointer",
-          opacity: submitting || !password ? 0.6 : 1,
+          opacity: submitting || !password ? 0.5 : 1,
+          letterSpacing: "0.02em",
+          transition: "opacity 0.15s",
         }}
       >
-        {submitting ? "Connexion…" : "Se connecter"}
+        {submitting ? "Connexion…" : "Accéder au tableau de bord"}
       </button>
     </form>
   );

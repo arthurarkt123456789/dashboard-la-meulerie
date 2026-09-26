@@ -51,7 +51,12 @@ function fmtPct(v: number): string {
 }
 
 type Slot = ReturnType<typeof computeSlot>;
-type Props = { products: Product[]; period: PeriodSelection };
+type Props = {
+  products: Product[];
+  period: PeriodSelection;
+  /** Estimated daily sandwich units from Uber Eats (UE CA / 10 / days). Shows "Estimatif UE inclus" badge. */
+  uberEatsDailyUnits?: number;
+};
 
 type Window = "today" | "7d" | "30d" | "90d" | "exercice";
 
@@ -65,7 +70,7 @@ function resolveWindow(period: PeriodSelection): Window {
   return "90d";
 }
 
-export function SignatureKPIs({ products, period }: Props) {
+export function SignatureKPIs({ products, period, uberEatsDailyUnits = 0 }: Props) {
   const win = resolveWindow(period);
 
   const primaryLabel =
@@ -100,13 +105,27 @@ export function SignatureKPIs({ products, period }: Props) {
     return o > 0 ? (p - o) / o : null;
   }
 
-  const grandTotal = pickPrimary(gcTotal) + pickPrimary(bagTotal);
+  // UberEats estimate: split UE daily units by boutique GC/Baguette ratio
+  const gcBoutique  = pickPrimary(gcTotal);
+  const bagBoutique = pickPrimary(bagTotal);
+  const total = gcBoutique + bagBoutique;
+  const gcRatio  = total > 0 ? gcBoutique  / total : 0.5;
+  const bagRatio = total > 0 ? bagBoutique / total : 0.5;
+  const ueGc  = uberEatsDailyUnits * gcRatio;
+  const ueBag = uberEatsDailyUnits * bagRatio;
+  const hasUE = uberEatsDailyUnits > 0;
+
+  const grandTotal = pickPrimary(gcTotal) + pickPrimary(bagTotal) + (hasUE ? uberEatsDailyUnits : 0);
 
   // ── Big KPI block (totaux) ──────────────────────────────────────────────
-  function BigKPI({ label, slot }: { label: string; slot: Slot }) {
-    const primary = pickPrimary(slot);
+  function BigKPI({ label, slot, ueBonus = 0 }: { label: string; slot: Slot; ueBonus?: number }) {
+    const primary = pickPrimary(slot) + ueBonus;
     const other   = pickOther(slot);
-    const trend   = pickTrend(slot);
+    const boutique = pickPrimary(slot);
+    const trend   = (() => {
+      const o = pickOther(slot);
+      return o > 0 ? (primary - o) / o : null;
+    })();
     return (
       <div style={{ fontFamily: "var(--font-body)", minWidth: 110 }}>
         <div style={{
@@ -124,7 +143,12 @@ export function SignatureKPIs({ products, period }: Props) {
             }}>
               {fmtInt(primary)}
             </div>
-            <div style={{ fontSize: 10, color: "var(--fg-tertiary)", marginTop: 3 }}>{primaryLabel}</div>
+            {ueBonus > 0 && (
+              <div style={{ fontSize: 9, color: "#15803d", marginTop: 2, fontWeight: 500 }}>
+                {fmtInt(boutique)} boutique + {fmtInt(ueBonus)} UE est.
+              </div>
+            )}
+            <div style={{ fontSize: 10, color: "var(--fg-tertiary)", marginTop: ueBonus > 0 ? 2 : 3 }}>{primaryLabel}</div>
             {trend !== null && (
               <div style={{ marginTop: 6, fontSize: 11, fontWeight: 600, color: trend >= 0 ? "#08C167" : "#DC2626" }}>
                 {fmtPct(trend)}{" "}
@@ -191,14 +215,14 @@ export function SignatureKPIs({ products, period }: Props) {
 
           {/* ── Total Grilled Cheese ── */}
           <div className="snacking-total-item" style={{ padding: "16px 20px", flexShrink: 0 }}>
-            <BigKPI label="Total Grilled Cheese" slot={gcTotal} />
+            <BigKPI label="Total Grilled Cheese" slot={gcTotal} ueBonus={ueGc} />
           </div>
 
           <div className="snacking-sep" style={{ width: 1, background: "var(--border-light)", alignSelf: "stretch" }} />
 
           {/* ── Total Baguette ── */}
           <div className="snacking-total-item" style={{ padding: "16px 20px", flexShrink: 0 }}>
-            <BigKPI label="Total Baguette" slot={bagTotal} />
+            <BigKPI label="Total Baguette" slot={bagTotal} ueBonus={ueBag} />
           </div>
 
           <div className="snacking-sep" style={{ width: 1, background: "var(--border-light)", alignSelf: "stretch" }} />

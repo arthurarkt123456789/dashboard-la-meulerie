@@ -38,6 +38,7 @@ import { bucketByWeek } from "@/lib/bucketing";
 import { currentFiscalYearEnd } from "@/lib/metrics";
 import { AIInsightsBlock } from "./AIInsightsBlock";
 import { UberEatsImport } from "./UberEatsImport";
+import { MonthDailyBars } from "./charts/MonthDailyBars";
 
 type Props = {
   store: StoreData;
@@ -615,7 +616,15 @@ export function StoreView({ store, period, today, amountMode }: Props) {
         />
       </div>
 
-      <SignatureKPIs products={store.topProducts} period={period} />
+      <SignatureKPIs
+        products={store.topProducts}
+        period={period}
+        uberEatsDailyUnits={
+          periodSlice.length > 0
+            ? periodSlice.reduce((s, d) => s + (d.uberEatsCa ?? 0), 0) / 10 / periodSlice.length
+            : 0
+        }
+      />
 
       <Card
         title="Évolution du chiffre d'affaires"
@@ -723,6 +732,33 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           </div>
         </div>
       </Card>
+
+      {/* ── C.A. mensuel jour par jour — toujours le mois en cours ── */}
+      {(() => {
+        const todayISO = store.daily[store.daily.length - 1]?.date ?? "";
+        const year = Number(todayISO.slice(0, 4));
+        const month = Number(todayISO.slice(5, 7));
+        const todayDay = Number(todayISO.slice(8, 10));
+        const FR_MONTHS = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+        const monthName = FR_MONTHS[month - 1];
+        const storeColor = STORE_COLORS[store.id] ?? "var(--color-coral)";
+        return (
+          <Card
+            title={`C.A. de ${monthName} ${year} · jour par jour`}
+            subtitle={`Arrêté au ${todayDay} ${monthName} · ${isHT ? "HT" : "TTC"} · cliquer une barre pour le détail`}
+            span={3}
+          >
+            <div style={{ padding: "0 20px 20px" }}>
+              <MonthDailyBars
+                daily={store.daily}
+                todayISO={todayISO}
+                isHT={isHT}
+                storeColor={storeColor}
+              />
+            </div>
+          </Card>
+        );
+      })()}
 
       <Card
         title="Répartition des catégories"

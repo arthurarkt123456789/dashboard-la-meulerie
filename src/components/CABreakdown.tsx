@@ -106,7 +106,7 @@ export function CABreakdown({
           </span>
         </div>
       </div>
-      <div className="lm-kpi-deltas" style={{ marginTop: 20 }}>
+      <div className="lm-kpi-deltas" style={{ marginTop: 10 }}>
         {hasDelta && (
           <div className="lm-kpi-delta-row">
             <span className={"lm-delta " + deltaClass(delta)}>
@@ -189,8 +189,8 @@ function CARow({
         gridTemplateColumns: "8px 1fr auto",
         gap: "0 8px",
         alignItems: "center",
-        marginTop: 8,
-        paddingTop: 8,
+        marginTop: 6,
+        paddingTop: 6,
         borderTop: "1px solid var(--border-light)",
       }}
     >
