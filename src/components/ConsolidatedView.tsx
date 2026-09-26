@@ -536,12 +536,14 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
               style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px 32px" }}
             >
               {stores.map((s, i) => {
+                const hasUE = s.daily.some((d) => d.date >= from && d.date <= to && (d.uberEatsCa ?? 0) > 0);
                 const storeLineData = s.daily
                   .filter((d) => d.date >= from && d.date <= to)
                   .map((d) => ({
                     date: d.date,
                     ca: isHT ? (d.caHT ?? 0) : d.ca,
                     partial: d.partial,
+                    uberEatsCa: d.uberEatsCa ?? 0,
                   }));
                 return (
                   <div key={s.id} style={{ minWidth: 0 }}>
@@ -572,6 +574,7 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
                       height={160}
                       period={period}
                       granularity={effectiveGranularity}
+                      uberEatsKey={hasUE ? "uberEatsCa" : undefined}
                     />
                   </div>
                 );

@@ -48,6 +48,7 @@ function buildFiscalData(daily: StoreDaily[], todayISO: string, isHT: boolean) {
 
   // Monthly CA sums (skip closed/no-revenue days)
   const byYM = new Map<string, number>();
+  const ueByYM = new Map<string, number>();
   for (const d of daily) {
     if (d.closed) continue;
     const ym = d.date.slice(0, 7);
@@ -55,6 +56,10 @@ function buildFiscalData(daily: StoreDaily[], todayISO: string, isHT: boolean) {
       ? d.caHT != null ? d.caHT : d.ca / 1.1  // fallback if caHT absent
       : d.ca;
     byYM.set(ym, (byYM.get(ym) ?? 0) + val);
+    if (d.uberEatsCa) {
+      const ueVal = isHT ? Math.round((d.uberEatsCa / 1.1) * 100) / 100 : d.uberEatsCa;
+      ueByYM.set(ym, (ueByYM.get(ym) ?? 0) + ueVal);
+    }
   }
 
   // Pass 1 — raw month data (no projections yet)
@@ -165,6 +170,7 @@ function buildFiscalData(daily: StoreDaily[], todayISO: string, isHT: boolean) {
     prevPartial,
     firstDataLabel,
     currentMonth: currentM ?? null,
+    ueByYM,
   };
 }
 
@@ -211,6 +217,7 @@ export function FiscalYearChart({ daily, todayISO, isHT, proInvoices }: Props) {
     prevPartial,
     firstDataLabel,
     currentMonth,
+    ueByYM,
   } = buildFiscalData(daily, todayISO, isHT);
 
   const suffix = isHT ? "€ HT" : "€ TTC";
@@ -245,6 +252,18 @@ export function FiscalYearChart({ daily, todayISO, isHT, proInvoices }: Props) {
   const hasProData = fiscalPro.some((p) => p.cur > 0 || p.prev > 0);
   const totalProCur = fiscalPro.reduce((s, p) => s + p.cur, 0);
   const totalProPrev = fiscalPro.reduce((s, p) => s + p.prev, 0);
+
+  // Pre-compute Uber Eats amounts per fiscal month (cur FY only — UE data is recent)
+  const fiscalUE = useMemo(() =>
+    FISCAL_MONTH_CALENDARS.map((cm) => {
+      const mm = String(cm).padStart(2, "0");
+      const curY = cm >= 10 ? curFYEnd - 1 : curFYEnd;
+      return ueByYM.get(`${curY}-${mm}`) ?? 0;
+    }),
+  [curFYEnd, ueByYM]);
+
+  const hasUEData = fiscalUE.some((v) => v > 0);
+  const totalUECur = fiscalUE.reduce((s, v) => s + v, 0);
 
   const allCAs = months.flatMap((m, i) => {
     const pro = fiscalPro[i] ?? { cur: 0, prev: 0 };
@@ -328,6 +347,14 @@ export function FiscalYearChart({ daily, todayISO, isHT, proInvoices }: Props) {
                 </text>
               </>
             )}
+            {hasUEData && (
+              <>
+                <rect x={hasProData ? 312 : 247} y={6} width={8} height={8} fill="#16a34a" opacity={0.85} rx={1} />
+                <text x={hasProData ? 324 : 259} y={14} fontSize={9} fill="var(--fg-tertiary)" style={{ fontFamily: "var(--font-body)" }}>
+                  Uber Eats
+                </text>
+              </>
+            )}
           </g>
 
           {/* Bars */}
@@ -339,6 +366,7 @@ export function FiscalYearChart({ daily, todayISO, isHT, proInvoices }: Props) {
             const isHov = hoverIdx === i;
             const midX = cx + groupW / 2;
             const pro = fiscalPro[i] ?? { cur: 0, prev: 0 };
+            const ue = fiscalUE[i] ?? 0;
 
             // Current FY: what to display in the bar
             const displayCA = m.isActual
@@ -405,6 +433,13 @@ export function FiscalYearChart({ daily, todayISO, isHT, proInvoices }: Props) {
                       <rect
                         x={curX} y={yAt(displayCA + pro.cur)} width={barW} height={bH(pro.cur)}
                         fill="#E91E8C" opacity={0.85} rx={1}
+                      />
+                    )}
+                    {/* Uber Eats — green overlay within the bar (UE already counted in displayCA) */}
+                    {ue > 0 && ue <= displayCA && (
+                      <rect
+                        x={curX} y={yAt(ue)} width={barW} height={bH(ue)}
+                        fill="#16a34a" opacity={0.55} rx={1}
                       />
                     )}
                   </>
@@ -579,12 +614,17 @@ export function FiscalYearChart({ daily, todayISO, isHT, proInvoices }: Props) {
           }}>
             {fmtEURshort(totalActualWithCurrent + totalProCur)}
           </div>
-          <div style={{ fontSize: 10, color: "var(--fg-tertiary)", marginTop: 1, marginBottom: hasProData && totalProCur > 0 ? 4 : 12 }}>
+          <div style={{ fontSize: 10, color: "var(--fg-tertiary)", marginTop: 1, marginBottom: (hasProData && totalProCur > 0) || (hasUEData && totalUECur > 0) ? 4 : 12 }}>
             réalisé à date · {suffix}
           </div>
           {hasProData && totalProCur > 0 && (
-            <div style={{ fontSize: 10, color: "#E91E8C", marginBottom: 12 }}>
+            <div style={{ fontSize: 10, color: "#E91E8C", marginBottom: hasUEData && totalUECur > 0 ? 3 : 12 }}>
               dont pro : {fmtEURshort(totalProCur)}
+            </div>
+          )}
+          {hasUEData && totalUECur > 0 && (
+            <div style={{ fontSize: 10, color: "#16a34a", marginBottom: 12 }}>
+              dont Uber Eats : {fmtEURshort(totalUECur)}
             </div>
           )}
 

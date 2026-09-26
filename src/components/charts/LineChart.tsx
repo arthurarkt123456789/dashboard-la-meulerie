@@ -36,6 +36,8 @@ type Props = {
   showLegend?: boolean;
   yFormat?: (n: number) => string;
   highlightLast?: boolean;
+  /** Key in data points holding the Uber Eats portion (drawn as green band). Only used for single-series area mode. */
+  uberEatsKey?: string;
 };
 
 export function LineChart({
@@ -48,6 +50,7 @@ export function LineChart({
   showLegend = false,
   yFormat = fmtEURshort,
   highlightLast = true,
+  uberEatsKey,
 }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [w, setW] = useState(720);
@@ -216,6 +219,24 @@ export function LineChart({
           );
         })}
 
+        {/* Uber Eats green band — single-series area only */}
+        {uberEatsKey && series.length === 1 && (() => {
+          // Build two parallel paths: top = ca, bottom = ca - ue
+          const fwdPts: [number, number][] = [];
+          const bwdPts: [number, number][] = [];
+          data.forEach((d, i) => {
+            const ca = d[series[0].key];
+            const ue = d[uberEatsKey];
+            if (typeof ca !== "number" || typeof ue !== "number" || ue <= 0) return;
+            fwdPts.push([xAt(i), yAt(ca)]);
+            bwdPts.unshift([xAt(i), yAt(ca - ue)]);
+          });
+          if (fwdPts.length < 1) return null;
+          const pts = [...fwdPts, ...bwdPts];
+          const d = pts.map((p, idx) => `${idx === 0 ? "M" : "L"} ${p[0]} ${p[1]}`).join(" ") + " Z";
+          return <path d={d} fill="#16a34a" fillOpacity={0.35} />;
+        })()}
+
         {/* x-axis labels */}
         {data.map((d, i) => {
           if (i % labelEvery !== 0 && i !== data.length - 1) return null;
@@ -285,6 +306,7 @@ export function LineChart({
           padLeft={PAD.left}
           yFormat={yFormat}
           granularity={granularity}
+          uberEatsKey={uberEatsKey}
         />
       )}
 
@@ -332,6 +354,7 @@ function Tooltip({
   padLeft,
   yFormat,
   granularity,
+  uberEatsKey,
 }: {
   data: LinePoint[];
   series: LineSeries[];
@@ -342,6 +365,7 @@ function Tooltip({
   padLeft: number;
   yFormat: (n: number) => string;
   granularity: Granularity;
+  uberEatsKey?: string;
 }) {
   const left = Math.min(
     w - 200,
@@ -424,6 +448,19 @@ function Tooltip({
           </div>
         );
       })}
+      {uberEatsKey && (() => {
+        const ue = point[uberEatsKey];
+        if (typeof ue !== "number" || ue <= 0) return null;
+        return (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+            <span style={{ width: 8, height: 8, background: "#16a34a", display: "inline-block", borderRadius: 1 }} />
+            <span style={{ flex: 1 }}>dont Uber Eats</span>
+            <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 500, color: "#86efac" }}>
+              {yFormat(ue)}
+            </span>
+          </div>
+        );
+      })()}
       {yoyData && yoyData[hover] && (
         <div
           style={{

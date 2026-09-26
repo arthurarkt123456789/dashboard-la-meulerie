@@ -652,6 +652,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           period={period}
           granularity={effectiveGranularity}
           showLegend={showCompare}
+          uberEatsKey={!showCompare && hasUberEats ? "uberEatsCa" : undefined}
         />
       </Card>
 
