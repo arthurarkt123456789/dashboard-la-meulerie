@@ -6,8 +6,8 @@ import { rangeForSelection } from "@/lib/metrics";
 import { fmtEURshort } from "@/lib/format";
 
 const FR_DAYS = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
-// Mon=1 … Sat=6; skip Sun (usually closed)
-const WORKING_DAYS = [1, 2, 3, 4, 5, 6];
+// Mon=1 … Sat=6, Sun=0 at end — days with no data are filtered out automatically
+const WORKING_DAYS = [1, 2, 3, 4, 5, 6, 0];
 
 type Props = {
   daily: StoreDaily[];
