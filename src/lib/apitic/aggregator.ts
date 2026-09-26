@@ -6,6 +6,7 @@ import {
   readSalesCacheBatch,
   writeSalesCache,
 } from "./cache";
+import { UE_VAT_RATE, getUberEatsForStore } from "../uber-eats";
 import {
   fetchAccounts,
   fetchCategories,
@@ -713,6 +714,25 @@ async function aggregateOneStore(
       ticketsRestoAmount: Math.round(ticketsRestoAmount * 100) / 100,
     };
   });
+
+  // 3b. Inject Uber Eats data for Endoume (additive to POS data).
+  if (storeMeta.id === "endoume") {
+    const ueRows = await getUberEatsForStore(storeMeta.id, start, lastDay);
+    for (const d of daily) {
+      const ue = ueRows.get(d.date);
+      if (!ue || d.closed) continue;
+      const ueHT = Math.round((ue.salesTtc / (1 + UE_VAT_RATE)) * 100) / 100;
+      d.ca += Math.round(ue.salesTtc);
+      d.caHT += ueHT;
+      d.tx += ue.ticketCount;
+      d.snackingCA += Math.round(ue.salesTtc);
+      d.snackingCAHT = (d.snackingCAHT ?? 0) + ueHT;
+      d.avgTicket = d.tx ? d.ca / d.tx : 0;
+      d.avgTicketHT = d.tx ? d.caHT / d.tx : 0;
+      d.uberEatsCa = Math.round(ue.salesTtc);
+      d.uberEatsTx = ue.ticketCount;
+    }
+  }
 
   // 4. Intraday profiles: 7-day, 30-day (default), 90-day windows.
   const hourly7d = rollupHourlyAverage(salesByDate, today, 7);

@@ -57,6 +57,10 @@ export type StoreDaily = {
   virementAmount?: number;
   especesAmount?: number;
   ticketsRestoAmount?: number;
+  /** Uber Eats TTC already included in ca & snackingCA for this day. */
+  uberEatsCa?: number;
+  /** Uber Eats orders already included in tx for this day. */
+  uberEatsTx?: number;
   // Gross margin: only for sale lines where purchase_price_excl_tax > 0.
   margeHT?: number;
   margeFromagerieHT?: number;

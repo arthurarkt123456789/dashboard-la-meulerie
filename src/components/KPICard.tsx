@@ -29,6 +29,8 @@ type Props = {
   trendLabel?: string;
   /** Mini stacked bar showing segment shares. */
   segments?: SegmentShare[];
+  /** Small green badge shown next to the label (e.g. "UE" for Uber Eats). */
+  badge?: string;
 };
 
 function dc(v: number | null | undefined) {
@@ -73,12 +75,33 @@ export function KPICard({
   trendDelta,
   trendLabel,
   segments,
+  badge,
 }: Props) {
   return (
     <div className="lm-card lm-kpi">
       <div className="lm-kpi-head">
         <span className="lm-label">{label}</span>
-        {partial && <span className="lm-tag lm-tag-live">En cours</span>}
+        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+          {badge && (
+            <span
+              title="Inclut les ventes Uber Eats"
+              style={{
+                fontSize: 10,
+                fontFamily: "var(--font-body)",
+                fontWeight: 700,
+                color: "#15803d",
+                background: "#dcfce7",
+                border: "1px solid #bbf7d0",
+                borderRadius: 4,
+                padding: "1px 5px",
+                letterSpacing: 0.2,
+              }}
+            >
+              {badge}
+            </span>
+          )}
+          {partial && <span className="lm-tag lm-tag-live">En cours</span>}
+        </div>
       </div>
       <div className="lm-kpi-value-row">
         <div

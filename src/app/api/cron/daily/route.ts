@@ -13,7 +13,7 @@ import { getConfiguredStoreLinks } from "@/lib/apitic/mapping";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const DAYS_BACK = 3; // yesterday + 2-day safety buffer for missed nights
+const DAYS_BACK = 7; // safety buffer — catches up to a week of missed nights
 
 function todayInParis(): string {
   const parts = new Intl.DateTimeFormat("fr-CA", {
@@ -34,9 +34,11 @@ function subtractDays(date: string, days: number): string {
 function checkAuth(req: NextRequest): boolean {
   const secret = process.env.CRON_SECRET || process.env.ADMIN_TOKEN;
   if (!secret) return false;
+  // Accept Bearer header or ?token= query param (easier for Railway cron config)
   const auth = req.headers.get("authorization") ?? "";
-  const token = auth.replace(/^Bearer\s+/i, "").trim();
-  return token === secret;
+  const headerToken = auth.replace(/^Bearer\s+/i, "").trim();
+  const queryToken = new URL(req.url).searchParams.get("token") ?? "";
+  return headerToken === secret || queryToken === secret;
 }
 
 export async function GET(req: NextRequest) {
@@ -62,7 +64,7 @@ export async function GET(req: NextRequest) {
   // Sequential per store — avoids hammering APITIC concurrently across accounts.
   for (const { storeId } of links) {
     try {
-      const r = await warmStore(storeId, from, to);
+      const r = await warmStore(storeId, from, to, { ignoreBlackout: true });
       results[storeId] = { fetched: r.fetched, skipped: r.skipped, failed: r.failed };
     } catch (err) {
       results[storeId] = { fetched: 0, skipped: 0, failed: 1 };

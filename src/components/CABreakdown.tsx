@@ -22,6 +22,8 @@ type Props = {
   epicerie: SegmentCA;
   merch: SegmentCA;
   partial?: boolean;
+  /** True when the period includes at least one day with Uber Eats data. */
+  hasUberEats?: boolean;
 };
 
 function fmtEurCompact(n: number): string {
@@ -59,6 +61,7 @@ export function CABreakdown({
   epicerie,
   merch,
   partial,
+  hasUberEats,
 }: Props) {
   const hasDelta = typeof delta === "number" && isFinite(delta);
   const hasYoy = yoyAvailable !== false && typeof yoyDelta === "number" && isFinite(yoyDelta);
@@ -67,7 +70,31 @@ export function CABreakdown({
     <div className="lm-card lm-kpi" style={{ borderLeft: "3px solid var(--color-coral)" }}>
       <div className="lm-kpi-head">
         <span className="lm-label">{label}</span>
-        {partial && <span className="lm-tag lm-tag-live">En cours</span>}
+        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+          {hasUberEats && (
+            <span
+              title="Inclut les ventes Uber Eats"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 3,
+                fontSize: 10,
+                fontFamily: "var(--font-body)",
+                fontWeight: 700,
+                color: "#15803d",
+                background: "#dcfce7",
+                border: "1px solid #bbf7d0",
+                borderRadius: 4,
+                padding: "1px 5px",
+                letterSpacing: 0.2,
+                whiteSpace: "nowrap",
+              }}
+            >
+              UE
+            </span>
+          )}
+          {partial && <span className="lm-tag lm-tag-live">En cours</span>}
+        </div>
       </div>
       <div className="lm-kpi-value-row">
         <div className="lm-kpi-value">

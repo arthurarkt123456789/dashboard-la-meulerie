@@ -31,12 +31,13 @@ import { FinancialBlock } from "./FinancialBlock";
 import { DavsoExtras } from "./DavsoExtras";
 import { WeekdayChart } from "./WeekdayChart";
 import { FiscalYearChart } from "./charts/FiscalYearChart";
-import { useStoreData, useProInvoices } from "@/lib/queries";
+import { useStoreData, useProInvoices, useUberEatsMonths } from "@/lib/queries";
 import { SignatureKPIs } from "./SignatureKPIs";
 import { roll7 } from "@/lib/smoothing";
 import { bucketByWeek } from "@/lib/bucketing";
 import { currentFiscalYearEnd } from "@/lib/metrics";
 import { AIInsightsBlock } from "./AIInsightsBlock";
+import { UberEatsImport } from "./UberEatsImport";
 
 type Props = {
   store: StoreData;
@@ -258,8 +259,15 @@ export function StoreView({ store, period, today, amountMode }: Props) {
     ? Math.round(doneHours.reduce((s, h) => s + h.tx, 0) / doneHours.length)
     : 0;
 
+  // ── Uber Eats flag: is any day in the selected period enriched with UE data?
+  const hasUberEats = useMemo(
+    () => periodSlice.some((d) => (d.uberEatsCa ?? 0) > 0),
+    [periodSlice],
+  );
+
   // ── Network comparison & advanced KPI metrics ──────────────────────────
   const allStores = useStoreData();
+  const uberEatsMonths = useUberEatsMonths(store.id === "endoume");
   const proInvoices = useProInvoices(store.id).data?.months;
 
   const networkComparisons = useMemo(() => {
@@ -445,6 +453,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           trendLabel={trendComparison.trendLabel}
           networkShare={caNetworkShare}
           networkRank={networkComparisons.caRank}
+          hasUberEats={hasUberEats}
           fromagerie={{
             value: isHT ? m.fromagerieCAHT : m.fromagerieCA,
             share: (isHT ? m.caHT : m.ca) > 0 ? (isHT ? m.fromagerieCAHT : m.fromagerieCA) / (isHT ? m.caHT : m.ca) : 0,
@@ -478,6 +487,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           trendLabel={trendComparison.trendLabel}
           networkShare={txNetworkShare}
           networkRank={networkComparisons.txRank}
+          badge={hasUberEats ? "UE" : undefined}
         />
         <BasketBreakdown
           global={{
@@ -771,6 +781,12 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           period={period}
         />
       </Card>
+
+      {store.id === "endoume" && (
+        <div style={{ gridColumn: "1 / -1" }}>
+          <UberEatsImport importedMonths={uberEatsMonths.data?.months} />
+        </div>
+      )}
 
       {(store.id === "davso" || store.id === "malmousque" || store.id === "endoume" || store.id === "republique") && (
         <FinancialBlock storeId={store.id} daily={store.daily} period={period} openedDate={store.openedDate} />

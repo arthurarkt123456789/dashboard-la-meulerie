@@ -53,6 +53,16 @@ async function ensureSchema(): Promise<void> {
       primary key (account_id, kind)
     )
   `;
+  await s`
+    create table if not exists uber_eats_imports (
+      store_id text not null,
+      date date not null,
+      sales_ttc numeric not null,
+      ticket_count integer not null default 0,
+      imported_at timestamptz not null default now(),
+      primary key (store_id, date)
+    )
+  `;
 }
 
 export function getSql() {

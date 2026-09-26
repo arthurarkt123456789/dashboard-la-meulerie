@@ -262,6 +262,11 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
     return consolidatedDaily.filter((d) => d.date >= from && d.date <= to && !d.closed);
   }, [consolidatedDaily, period]);
 
+  const hasUberEats = useMemo(
+    () => consolidatedPeriodSlice.some((d) => (d.uberEatsCa ?? 0) > 0),
+    [consolidatedPeriodSlice],
+  );
+
   const yoyNote = m.yoyAvailable
     ? `vs N-1 · périmètre ${m.scopeStores}/${m.totalStores}`
     : "N-1 indisponible";
@@ -290,6 +295,7 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
           spark={sparkValues}
           sparkColor="var(--color-coral)"
           accent
+          badge={hasUberEats ? "UE" : undefined}
         />
         <KPICard
           label="Transactions / jour"
@@ -300,6 +306,7 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
           yoyAvailable={m.yoyAvailable}
           yoyNote={yoyNote}
           spark={consolidatedPeriodSlice.map((d) => d.tx)}
+          badge={hasUberEats ? "UE" : undefined}
         />
         <BasketBreakdown
           global={{

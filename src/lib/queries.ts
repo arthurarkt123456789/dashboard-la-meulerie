@@ -42,6 +42,18 @@ export function useToday() {
   });
 }
 
+export function useUberEatsMonths(enabled = true) {
+  return useQuery({
+    queryKey: ["uber-eats-months"],
+    queryFn: () =>
+      fetchJson<{ months: { month: string; totalSales: number; days: number }[] }>(
+        "/api/import/uber-eats",
+      ),
+    enabled,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useProInvoices(storeId: string | null) {
   return useQuery({
     queryKey: ["pro-invoices", storeId],

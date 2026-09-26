@@ -874,6 +874,8 @@ export function consolidateDaily(perStore: StoreDaily[][]): StoreDaily[] {
           virementAmount: d.virementAmount ?? 0,
           especesAmount: d.especesAmount ?? 0,
           ticketsRestoAmount: d.ticketsRestoAmount ?? 0,
+          uberEatsCa: d.uberEatsCa ?? 0,
+          uberEatsTx: d.uberEatsTx ?? 0,
           partial: d.partial,
         });
       } else {
@@ -912,6 +914,8 @@ export function consolidateDaily(perStore: StoreDaily[][]): StoreDaily[] {
         existing.virementAmount = (existing.virementAmount ?? 0) + (d.virementAmount ?? 0);
         existing.especesAmount = (existing.especesAmount ?? 0) + (d.especesAmount ?? 0);
         existing.ticketsRestoAmount = (existing.ticketsRestoAmount ?? 0) + (d.ticketsRestoAmount ?? 0);
+        existing.uberEatsCa = (existing.uberEatsCa ?? 0) + (d.uberEatsCa ?? 0);
+        existing.uberEatsTx = (existing.uberEatsTx ?? 0) + (d.uberEatsTx ?? 0);
         if (d.partial) existing.partial = true;
       }
     }
