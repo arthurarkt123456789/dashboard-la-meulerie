@@ -587,7 +587,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
         />
       </div>
 
-      <SignatureKPIs products={store.topProducts} />
+      <SignatureKPIs products={store.topProducts} period={period} />
 
       <Card
         title="Évolution du chiffre d'affaires"

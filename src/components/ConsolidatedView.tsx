@@ -364,7 +364,7 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
         />
       </div>
 
-      <SignatureKPIs products={consolidatedProducts} />
+      <SignatureKPIs products={consolidatedProducts} period={period} />
 
       <Card
         title="Évolution du chiffre d'affaires"

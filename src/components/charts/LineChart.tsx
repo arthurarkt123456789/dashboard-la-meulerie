@@ -163,29 +163,35 @@ export function LineChart({
           />
         )}
 
-        {/* Compare bars — behind main area */}
+        {/* Compare bars — behind main area, side-by-side */}
         {bars && (() => {
-          const barW = Math.max(3, (innerW / Math.max(1, data.length)) * 0.45);
-          return bars.map((b) => (
-            <g key={b.key} opacity={0.45}>
-              {data.map((d, i) => {
-                const v = d[b.key];
-                if (typeof v !== "number" || v <= 0) return null;
-                const bH = Math.max(1, ((v - min) / range) * innerH);
-                return (
-                  <rect
-                    key={i}
-                    x={xAt(i) - barW / 2}
-                    y={yAt(v)}
-                    width={barW}
-                    height={bH}
-                    fill={b.color}
-                    rx={1}
-                  />
-                );
-              })}
-            </g>
-          ));
+          const n = bars.length;
+          const slotW = innerW / Math.max(1, data.length);
+          const singleBarW = Math.max(2, slotW * 0.18);
+          const gap = Math.max(1, singleBarW * 0.4);
+          return bars.map((b, barIdx) => {
+            const offset = (barIdx - (n - 1) / 2) * (singleBarW + gap);
+            return (
+              <g key={b.key} opacity={0.5}>
+                {data.map((d, i) => {
+                  const v = d[b.key];
+                  if (typeof v !== "number" || v <= 0) return null;
+                  const bH = Math.max(1, ((v - min) / range) * innerH);
+                  return (
+                    <rect
+                      key={i}
+                      x={xAt(i) + offset - singleBarW / 2}
+                      y={yAt(v)}
+                      width={singleBarW}
+                      height={bH}
+                      fill={b.color}
+                      rx={1}
+                    />
+                  );
+                })}
+              </g>
+            );
+          });
         })()}
 
         {/* Uber Eats — green area at bottom (0→ue) + dark green stroke line */}
