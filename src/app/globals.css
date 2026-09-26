@@ -488,7 +488,7 @@ button { font-family: inherit; cursor: pointer; }
   letter-spacing: -0.005em;
 }
 .lm-delta.pos { color: var(--status-success); }
-.lm-delta.neg { color: var(--color-coral); }
+.lm-delta.neg { color: #DC2626; }
 .lm-delta.neu { color: var(--fg-tertiary); }
 .lm-delta-label { color: var(--fg-tertiary); }
 

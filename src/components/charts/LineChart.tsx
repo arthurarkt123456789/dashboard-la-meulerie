@@ -29,6 +29,8 @@ type YoyPoint = { date: string; ca: number };
 type Props = {
   data: LinePoint[];
   series?: LineSeries[];
+  /** Additional series drawn as colored bars behind the main area (compare mode). */
+  bars?: LineSeries[];
   yoyData?: YoyPoint[] | null;
   height?: number;
   period?: PeriodKey | PeriodSelection;
@@ -36,13 +38,14 @@ type Props = {
   showLegend?: boolean;
   yFormat?: (n: number) => string;
   highlightLast?: boolean;
-  /** Key in data points holding the Uber Eats portion (drawn as green band). Only used for single-series area mode. */
+  /** Key in data points holding the Uber Eats portion (drawn as green area at bottom). Only used for single-series area mode. */
   uberEatsKey?: string;
 };
 
 export function LineChart({
   data,
   series = [{ key: "ca", label: "CA", color: "var(--fg-accent)" }],
+  bars,
   yoyData = null,
   height = 280,
   period = "7d",
@@ -75,6 +78,12 @@ export function LineChart({
     for (const s of series) {
       const v = d[s.key];
       if (typeof v === "number") allVals.push(v);
+    }
+    if (bars) {
+      for (const b of bars) {
+        const v = d[b.key];
+        if (typeof v === "number") allVals.push(v);
+      }
     }
   }
   if (yoyData) for (const d of yoyData) allVals.push(d.ca || 0);
@@ -154,22 +163,77 @@ export function LineChart({
           />
         )}
 
-        {/* series */}
+        {/* Compare bars — behind main area */}
+        {bars && (() => {
+          const barW = Math.max(3, (innerW / Math.max(1, data.length)) * 0.45);
+          return bars.map((b) => (
+            <g key={b.key} opacity={0.45}>
+              {data.map((d, i) => {
+                const v = d[b.key];
+                if (typeof v !== "number" || v <= 0) return null;
+                const bH = Math.max(1, ((v - min) / range) * innerH);
+                return (
+                  <rect
+                    key={i}
+                    x={xAt(i) - barW / 2}
+                    y={yAt(v)}
+                    width={barW}
+                    height={bH}
+                    fill={b.color}
+                    rx={1}
+                  />
+                );
+              })}
+            </g>
+          ));
+        })()}
+
+        {/* Uber Eats — green area at bottom (0→ue) + dark green stroke line */}
+        {uberEatsKey && series.length === 1 && (() => {
+          const hasAnyUE = data.some((d) => {
+            const ue = d[uberEatsKey];
+            return typeof ue === "number" && ue > 0;
+          });
+          if (!hasAnyUE) return null;
+          let ueLine = ""; let ueInSeg = false;
+          let ueAreaPath = "";
+          data.forEach((d, i) => {
+            const ue = d[uberEatsKey];
+            const ueVal = typeof ue === "number" ? Math.max(0, ue) : 0;
+            const x = xAt(i); const y = yAt(ueVal);
+            ueAreaPath += i === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`;
+            if (ueVal > 0) {
+              ueLine += !ueInSeg ? ` M ${x} ${y}` : ` L ${x} ${y}`;
+              ueInSeg = true;
+            } else { ueInSeg = false; }
+          });
+          ueAreaPath += ` L ${xAt(data.length - 1)} ${yAt(0)} L ${xAt(0)} ${yAt(0)} Z`;
+          const ueGradId = `${gradIdBase}-ue`;
+          return (
+            <g>
+              <defs>
+                <linearGradient id={ueGradId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#08C167" stopOpacity="0.28" />
+                  <stop offset="100%" stopColor="#08C167" stopOpacity="0.02" />
+                </linearGradient>
+              </defs>
+              <path d={ueAreaPath} fill={`url(#${ueGradId})`} />
+              <path d={ueLine} fill="none" stroke="#08C167" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+            </g>
+          );
+        })()}
+
+        {/* series — main line + area (area closes along UE bottom when applicable) */}
         {series.map((s, sIdx) => {
-          // build path with null-aware segmentation
           let linePath = "";
           let inSegment = false;
           let firstPt: [number, number] | null = null;
           let lastPt: [number, number] | null = null;
           data.forEach((d, i) => {
             const v = d[s.key];
-            if (typeof v !== "number") {
-              inSegment = false;
-              return;
-            }
+            if (typeof v !== "number") { inSegment = false; return; }
             const cmd = inSegment ? "L" : "M";
-            const x = xAt(i);
-            const y = yAt(v);
+            const x = xAt(i); const y = yAt(v);
             linePath += ` ${cmd} ${x} ${y}`;
             inSegment = true;
             if (!firstPt) firstPt = [x, y];
@@ -177,11 +241,21 @@ export function LineChart({
           });
           if (!firstPt || !lastPt) return null;
           const isDashed = s.dashed === true;
-          const areaPath =
-            series.length === 1 && !isDashed
-              ? linePath +
-                ` L ${lastPt[0]} ${yAt(0)} L ${firstPt[0]} ${yAt(0)} Z`
-              : null;
+          let areaPath: string | null = null;
+          if (series.length === 1 && !isDashed) {
+            if (uberEatsKey) {
+              // Close along UE values so the main area shows only the "boutique" portion
+              let bottomPath = "";
+              for (let j = data.length - 1; j >= 0; j--) {
+                const ue = data[j][uberEatsKey];
+                const ueVal = typeof ue === "number" ? Math.max(0, ue) : 0;
+                bottomPath += ` L ${xAt(j)} ${yAt(ueVal)}`;
+              }
+              areaPath = linePath + bottomPath + " Z";
+            } else {
+              areaPath = linePath + ` L ${lastPt[0]} ${yAt(0)} L ${firstPt[0]} ${yAt(0)} Z`;
+            }
+          }
           const gradId = `${gradIdBase}-s${sIdx}`;
           return (
             <g key={s.key} opacity={isDashed ? 0.7 : 1}>
@@ -219,24 +293,6 @@ export function LineChart({
           );
         })}
 
-        {/* Uber Eats green band — single-series area only */}
-        {uberEatsKey && series.length === 1 && (() => {
-          // Build two parallel paths: top = ca, bottom = ca - ue
-          const fwdPts: [number, number][] = [];
-          const bwdPts: [number, number][] = [];
-          data.forEach((d, i) => {
-            const ca = d[series[0].key];
-            const ue = d[uberEatsKey];
-            if (typeof ca !== "number" || typeof ue !== "number" || ue <= 0) return;
-            fwdPts.push([xAt(i), yAt(ca)]);
-            bwdPts.unshift([xAt(i), yAt(ca - ue)]);
-          });
-          if (fwdPts.length < 1) return null;
-          const pts = [...fwdPts, ...bwdPts];
-          const d = pts.map((p, idx) => `${idx === 0 ? "M" : "L"} ${p[0]} ${p[1]}`).join(" ") + " Z";
-          return <path d={d} fill="#16a34a" fillOpacity={0.35} />;
-        })()}
-
         {/* x-axis labels */}
         {data.map((d, i) => {
           if (i % labelEvery !== 0 && i !== data.length - 1) return null;
@@ -272,24 +328,18 @@ export function LineChart({
               const v = data[hover][s.key];
               if (typeof v !== "number") return null;
               return (
-                <circle
-                  key={s.key}
-                  cx={xAt(hover)}
-                  cy={yAt(v)}
-                  r="4"
-                  fill="white"
-                  stroke={s.color}
-                  strokeWidth="2"
-                />
+                <circle key={s.key} cx={xAt(hover)} cy={yAt(v)} r="4" fill="white" stroke={s.color} strokeWidth="2" />
+              );
+            })}
+            {bars && bars.map((b) => {
+              const v = data[hover][b.key];
+              if (typeof v !== "number" || v <= 0) return null;
+              return (
+                <circle key={b.key} cx={xAt(hover)} cy={yAt(v)} r="3" fill={b.color} opacity={0.8} />
               );
             })}
             {yoyData && yoyData[hover] && (
-              <circle
-                cx={xAt(hover)}
-                cy={yAt(yoyData[hover].ca || 0)}
-                r="3"
-                fill="var(--fg-tertiary)"
-              />
+              <circle cx={xAt(hover)} cy={yAt(yoyData[hover].ca || 0)} r="3" fill="var(--fg-tertiary)" />
             )}
           </g>
         )}
@@ -299,6 +349,7 @@ export function LineChart({
         <Tooltip
           data={data}
           series={series}
+          bars={bars}
           yoyData={yoyData}
           hover={hover}
           w={w}
@@ -310,32 +361,29 @@ export function LineChart({
         />
       )}
 
-      {showLegend && (
+      {(showLegend || bars) && (
         <div
           style={{
             display: "flex",
             gap: 16,
-            marginTop: 4,
+            marginTop: 6,
             paddingLeft: PAD.left,
             fontFamily: "var(--font-body)",
             fontSize: 12,
             color: "var(--fg-secondary)",
+            flexWrap: "wrap",
           }}
         >
           {series.map((s) => (
-            <div
-              key={s.key}
-              style={{ display: "flex", alignItems: "center", gap: 6 }}
-            >
-              <span
-                style={{
-                  width: 10,
-                  height: 2,
-                  background: s.color,
-                  display: "inline-block",
-                }}
-              />
+            <div key={s.key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ width: 10, height: 2, background: s.color, display: "inline-block" }} />
               {s.label}
+            </div>
+          ))}
+          {bars && bars.map((b) => (
+            <div key={b.key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ width: 10, height: 8, background: b.color, display: "inline-block", borderRadius: 1, opacity: 0.7 }} />
+              {b.label}
             </div>
           ))}
         </div>
@@ -347,6 +395,7 @@ export function LineChart({
 function Tooltip({
   data,
   series,
+  bars,
   yoyData,
   hover,
   w,
@@ -358,6 +407,7 @@ function Tooltip({
 }: {
   data: LinePoint[];
   series: LineSeries[];
+  bars?: LineSeries[];
   yoyData: YoyPoint[] | null;
   hover: number;
   w: number;
@@ -449,18 +499,35 @@ function Tooltip({
         );
       })}
       {uberEatsKey && (() => {
+        const ca = point[series[0]?.key];
         const ue = point[uberEatsKey];
-        if (typeof ue !== "number" || ue <= 0) return null;
+        if (typeof ca !== "number" || typeof ue !== "number" || ue <= 0) return null;
         return (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
-            <span style={{ width: 8, height: 8, background: "#16a34a", display: "inline-block", borderRadius: 1 }} />
-            <span style={{ flex: 1 }}>dont Uber Eats</span>
-            <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 500, color: "#86efac" }}>
-              {yFormat(ue)}
-            </span>
-          </div>
+          <>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2, opacity: 0.85 }}>
+              <span style={{ width: 8, height: 8, background: "var(--fg-inverted-muted)", display: "inline-block", borderRadius: 1 }} />
+              <span style={{ flex: 1 }}>C.A. Boutique</span>
+              <span style={{ fontVariantNumeric: "tabular-nums" }}>{yFormat(ca - ue)}</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+              <span style={{ width: 8, height: 8, background: "#08C167", display: "inline-block", borderRadius: 1 }} />
+              <span style={{ flex: 1 }}>Uber Eats</span>
+              <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 500, color: "#6ee7b7" }}>{yFormat(ue)}</span>
+            </div>
+          </>
         );
       })()}
+      {bars && bars.map((b) => {
+        const v = point[b.key];
+        if (typeof v !== "number") return null;
+        return (
+          <div key={b.key} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2, opacity: 0.85 }}>
+            <span style={{ width: 8, height: 8, background: b.color, display: "inline-block", borderRadius: 1 }} />
+            <span style={{ flex: 1 }}>{b.label}</span>
+            <span style={{ fontVariantNumeric: "tabular-nums" }}>{typeof v === "number" ? yFormat(v) : "—"}</span>
+          </div>
+        );
+      })}
       {yoyData && yoyData[hover] && (
         <div
           style={{

@@ -349,7 +349,7 @@ export function FiscalYearChart({ daily, todayISO, isHT, proInvoices }: Props) {
             )}
             {hasUEData && (
               <>
-                <rect x={hasProData ? 312 : 247} y={6} width={8} height={8} fill="#16a34a" opacity={0.85} rx={1} />
+                <rect x={hasProData ? 312 : 247} y={6} width={8} height={8} fill="#08C167" opacity={0.85} rx={1} />
                 <text x={hasProData ? 324 : 259} y={14} fontSize={9} fill="var(--fg-tertiary)" style={{ fontFamily: "var(--font-body)" }}>
                   Uber Eats
                 </text>
@@ -439,7 +439,7 @@ export function FiscalYearChart({ daily, todayISO, isHT, proInvoices }: Props) {
                     {ue > 0 && ue <= displayCA && (
                       <rect
                         x={curX} y={yAt(ue)} width={barW} height={bH(ue)}
-                        fill="#16a34a" opacity={0.55} rx={1}
+                        fill="#08C167" opacity={0.55} rx={1}
                       />
                     )}
                   </>
@@ -450,7 +450,7 @@ export function FiscalYearChart({ daily, todayISO, isHT, proInvoices }: Props) {
                   <text
                     x={midX} y={topY - 4}
                     textAnchor="middle" fontSize={8} fontWeight={500}
-                    fill={m.yoyPct >= 0 ? "#16a34a" : "#002FA7"}
+                    fill={m.yoyPct >= 0 ? "#08C167" : "#DC2626"}
                     opacity={m.isActual ? 1 : 0.75}
                     style={{ fontFamily: "var(--font-body)", fontVariantNumeric: "tabular-nums" }}
                   >
@@ -623,7 +623,7 @@ export function FiscalYearChart({ daily, todayISO, isHT, proInvoices }: Props) {
             </div>
           )}
           {hasUEData && totalUECur > 0 && (
-            <div style={{ fontSize: 10, color: "#16a34a", marginBottom: 12 }}>
+            <div style={{ fontSize: 10, color: "#08C167", marginBottom: 12 }}>
               dont Uber Eats : {fmtEURshort(totalUECur)}
             </div>
           )}
@@ -647,7 +647,7 @@ export function FiscalYearChart({ daily, todayISO, isHT, proInvoices }: Props) {
                   <div style={{
                     display: "inline-flex", alignItems: "center", gap: 4,
                     background: avgYoY >= 0 ? "rgba(22,163,74,0.1)" : "rgba(0,47,167,0.1)",
-                    color: avgYoY >= 0 ? "#16a34a" : "#002FA7",
+                    color: avgYoY >= 0 ? "#08C167" : "#DC2626",
                     borderRadius: 4, padding: "3px 7px", fontSize: 11, fontWeight: 600,
                   }}>
                     {fmtPctShort(avgYoY)} YoY

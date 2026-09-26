@@ -272,36 +272,30 @@ export function StoreView({ store, period, today, amountMode }: Props) {
   const uberEatsMonths = useUberEatsMonths(store.id === "endoume");
   const proInvoices = useProInvoices(store.id).data?.months;
 
-  const compareLineData = useMemo(() => {
+  // compareChartData merges other-store CA values into the normal chartData (ca key stays)
+  const compareChartData = useMemo(() => {
     if (!showCompare || !allStores.data?.length) return null;
-    const todayISO = store.daily[store.daily.length - 1]?.date ?? "";
-    const { from, to } = rangeForSelection(period, todayISO);
-    return store.daily
-      .filter((d) => d.date >= from && d.date <= to)
-      .map((d) => {
-        const row: LinePoint = {
-          date: d.date,
-          partial: d.partial,
-          [store.id]: isHT ? (d.caHT ?? 0) : d.ca,
-        };
-        for (const s of allStores.data ?? []) {
-          if (s.id === store.id) continue;
-          const day = s.daily.find((dd) => dd.date === d.date);
-          row[s.id] = day && !day.closed ? (isHT ? (day.caHT ?? 0) : day.ca) : null;
-        }
-        return row;
-      });
-  }, [showCompare, allStores.data, store.daily, store.id, period, isHT]);
+    const otherStores = allStores.data.filter((s) => s.id !== store.id);
+    return chartData.map((d) => {
+      const merged: LinePoint = { ...d };
+      for (const s of otherStores) {
+        const day = s.daily.find((dd) => dd.date === d.date);
+        merged[s.id] = day && !day.closed ? (isHT ? (day.caHT ?? 0) : day.ca) : null;
+      }
+      return merged;
+    });
+  }, [showCompare, allStores.data, chartData, store.id, isHT]);
 
-  const compareSeries = useMemo((): LineSeries[] | null => {
+  const compareBars = useMemo((): LineSeries[] | null => {
     if (!showCompare || !allStores.data?.length) return null;
-    const all = [store, ...allStores.data.filter((s) => s.id !== store.id)];
-    return all.map((s) => ({
-      key: s.id,
-      label: s.name,
-      color: STORE_COLORS[s.id] ?? "var(--fg-secondary)",
-    }));
-  }, [showCompare, allStores.data, store]); // eslint-disable-line react-hooks/exhaustive-deps
+    return allStores.data
+      .filter((s) => s.id !== store.id)
+      .map((s) => ({
+        key: s.id,
+        label: s.name,
+        color: STORE_COLORS[s.id] ?? "var(--fg-secondary)",
+      }));
+  }, [showCompare, allStores.data, store.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Uber Eats flag: is any day in the selected period enriched with UE data?
   const hasUberEats = useMemo(
@@ -611,13 +605,11 @@ export function StoreView({ store, period, today, amountMode }: Props) {
                 allowMonth={allowMonth}
               />
             )}
-            {!showCompare && (
-              <N1Toggle
-                value={showN1}
-                onChange={setShowN1}
-                disabled={!m.yoyAvailable}
-              />
-            )}
+            <N1Toggle
+              value={showN1}
+              onChange={setShowN1}
+              disabled={!m.yoyAvailable}
+            />
             {!showCompare && (
               <button
                 className={"lm-seg-btn" + (smoothCA ? " active" : "")}
@@ -641,18 +633,14 @@ export function StoreView({ store, period, today, amountMode }: Props) {
         span={2}
       >
         <LineChart
-          data={showCompare && compareLineData ? compareLineData : chartData}
-          series={
-            showCompare && compareSeries
-              ? compareSeries
-              : [{ key: "ca", label: `CA ${new Date().getFullYear()}`, color: "var(--color-coral)" }]
-          }
-          yoyData={showCompare ? null : showN1 ? yoyChartData : null}
+          data={showCompare && compareChartData ? compareChartData : chartData}
+          series={[{ key: "ca", label: store.name, color: "var(--color-coral)" }]}
+          bars={showCompare && compareBars ? compareBars : undefined}
+          yoyData={showN1 ? yoyChartData : null}
           height={280}
           period={period}
           granularity={effectiveGranularity}
-          showLegend={showCompare}
-          uberEatsKey={!showCompare && hasUberEats ? "uberEatsCa" : undefined}
+          uberEatsKey={hasUberEats ? "uberEatsCa" : undefined}
         />
       </Card>
 
