@@ -84,6 +84,17 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Mobile redirect: send phone users to /mobile unless they opted out
+  if (pathname === "/") {
+    const forceDesktop = request.cookies.get("force-desktop")?.value;
+    if (!forceDesktop) {
+      const ua = request.headers.get("user-agent") ?? "";
+      if (/iPhone|Android.*Mobile|iPod/i.test(ua)) {
+        return NextResponse.redirect(new URL("/mobile", request.url));
+      }
+    }
+  }
+
   return NextResponse.next();
 }
 

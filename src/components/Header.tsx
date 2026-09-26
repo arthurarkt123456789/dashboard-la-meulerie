@@ -111,7 +111,13 @@ export function Header({
       <div className="lm-header-bottom">
         <Tabs value={activeTab} stores={stores} />
         <div className="lm-header-controls">
-          <a href="/mobile" className="lm-mobile-link">Vue app</a>
+          <button
+            className="lm-mobile-link"
+            onClick={() => {
+              document.cookie = "force-desktop=; path=/; max-age=0; SameSite=Lax";
+              window.location.href = "/mobile";
+            }}
+          >Vue app</button>
           <AmountModeToggle value={amountMode} onChange={onAmountMode} />
           <PeriodToggle value={period} onChange={onPeriod} />
         </div>

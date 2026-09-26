@@ -550,17 +550,20 @@ export function MobileDashboard() {
         </div>
 
         {/* ── Switch to full view ── */}
-        <a
-          href={`/${activeId === "all" ? "all" : activeId}`}
+        <button
+          onClick={() => {
+            document.cookie = "force-desktop=1; path=/; max-age=86400; SameSite=Lax";
+            window.location.href = `/${activeId === "all" ? "all" : activeId}`;
+          }}
           style={{
-            display: "block", textAlign: "center", padding: "14px 20px",
+            display: "block", width: "100%", textAlign: "center", padding: "14px 20px",
             background: "var(--color-dark)", color: "#fff", borderRadius: 12,
-            fontWeight: 600, fontSize: 15, textDecoration: "none",
+            fontWeight: 600, fontSize: 15, border: 0, cursor: "pointer",
             letterSpacing: "0.01em",
           }}
         >
           Ouvrir la vue complète →
-        </a>
+        </button>
       </div>
     </div>
   );
