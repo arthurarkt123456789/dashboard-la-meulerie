@@ -90,9 +90,9 @@ export function PaymentsCard({
   );
 
   return (
-    <div style={{ display: "flex", gap: 40, alignItems: "flex-start" }}>
+    <div className="lm-payments" style={{ display: "flex", gap: 40, alignItems: "flex-start" }}>
       {/* Donut + legend */}
-      <div style={{ display: "flex", alignItems: "center", gap: 32, flexShrink: 0 }}>
+      <div className="lm-payments-donut" style={{ display: "flex", alignItems: "center", gap: 32, flexShrink: 0 }}>
         <Donut data={payments} size={160} thickness={22} colors={COLORS} />
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {payments.map((p, i) => (

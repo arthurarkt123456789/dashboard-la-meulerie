@@ -110,7 +110,7 @@ export function Header({
 
       <div className="lm-header-bottom">
         <Tabs value={activeTab} stores={stores} />
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <div className="lm-header-controls">
           <AmountModeToggle value={amountMode} onChange={onAmountMode} />
           <PeriodToggle value={period} onChange={onPeriod} />
         </div>

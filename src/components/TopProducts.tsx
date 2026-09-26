@@ -60,6 +60,7 @@ export function TopProducts({
   const max = Math.max(...list.map((p) => p[revenueKey])) || 1;
 
   return (
+    <div className="lm-products-wrap">
     <div className="lm-products">
       <div className="lm-products-head">
         <div />
@@ -106,6 +107,7 @@ export function TopProducts({
           </div>
         );
       })}
+    </div>
     </div>
   );
 }

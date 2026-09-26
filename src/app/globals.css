@@ -665,24 +665,24 @@ button { font-family: inherit; cursor: pointer; }
 /* ------------------------------------------------------------
    RESPONSIVE
    ------------------------------------------------------------ */
+
+/* ── 1400px ── */
 @media (max-width: 1400px) {
   .lm-kpis { gap: 8px; }
 }
+
+/* ── 1100px ── */
 @media (max-width: 1100px) {
   .lm-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .lm-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  /* Wide cards span both available columns. */
   .lm-card[data-span] { grid-column: 1 / -1 !important; }
 }
 
-/* Tablet / small laptop */
+/* ── 900px : tablette ── */
 @media (max-width: 900px) {
   .lm-main { padding: 20px 20px 40px; }
-  .lm-card-head { padding: 14px 16px 10px; }
+  .lm-card-head { padding: 14px 16px 10px; flex-wrap: wrap; }
   .lm-card-body.padded { padding: 16px; }
-  /* Card head wraps its action chip onto a new row when needed. */
-  .lm-card-head { flex-wrap: wrap; }
-  /* Fiscal year charts: stack stats below chart, side-by-side 2-col */
   .fy-chart-outer { flex-direction: column; }
   .fy-chart-stats {
     width: 100%;
@@ -695,92 +695,131 @@ button { font-family: inherit; cursor: pointer; }
   }
   .fy-stats-prev { margin-bottom: 0 !important; }
   .fy-stats-cur { border-top: none !important; padding-top: 0 !important; }
-  /* Per-store grid: single column */
   .lm-store-fiscal-grid { grid-template-columns: 1fr !important; }
   .lm-store-fiscal-grid > * { min-width: 0; }
 }
 
-/* Mobile portrait */
+/* ── 720px : mobile portrait ── */
 @media (max-width: 720px) {
-  .lm-grid { grid-template-columns: 1fr; gap: 12px; }
-  .lm-kpis { grid-template-columns: 1fr 1fr; gap: 10px; }
-  .lm-main { padding: 12px 12px 32px; }
-  .lm-footer { padding: 16px 12px 20px; flex-direction: column; gap: 6px; text-align: center; }
+  /* Layout */
+  .lm-grid { grid-template-columns: 1fr; gap: 10px; }
+  .lm-kpis { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .lm-main { padding: 10px 10px 28px; }
+  .lm-footer { padding: 14px 10px 18px; flex-direction: column; gap: 4px; text-align: center; font-size: 11px; }
 
   /* Header */
-  .lm-header-top, .lm-header-bottom { padding: 12px 12px 10px; }
-  .lm-header-top { flex-wrap: wrap; gap: 12px; }
-  .lm-header-meta { gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .lm-header-top { padding: 10px 12px; gap: 10px; flex-wrap: wrap; }
+  .lm-brand img { height: 42px !important; }
+  .lm-header-meta { gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
   .lm-date-block { display: none; }
-  .lm-header-bottom {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 4px;
-    padding-bottom: 4px;
-  }
-  .lm-tabs { overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch; }
-  .lm-tab { padding: 10px 4px; margin-right: 16px; font-size: 13px; flex-shrink: 0; }
-  .lm-segmented {
-    overflow-x: auto;
-    max-width: 100%;
-    flex-wrap: nowrap;
-    -webkit-overflow-scrolling: touch;
-  }
-  .lm-seg-btn { flex-shrink: 0; padding: 6px 10px; font-size: 12px; }
+  .lm-header-bottom { padding: 0 12px 2px; flex-direction: column; align-items: stretch; gap: 0; }
 
-  /* Span 2/3 cards collapse to single column */
+  /* Tabs scrollable */
+  .lm-tabs { overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .lm-tabs::-webkit-scrollbar { display: none; }
+  .lm-tab { padding: 10px 4px; margin-right: 14px; font-size: 13px; flex-shrink: 0; }
+
+  /* Controls (AmountMode + Period) scrollable */
+  .lm-header-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 0 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .lm-header-controls::-webkit-scrollbar { display: none; }
+  .lm-segmented { flex-shrink: 0; overflow-x: auto; scrollbar-width: none; }
+  .lm-segmented::-webkit-scrollbar { display: none; }
+  .lm-seg-btn { flex-shrink: 0; padding: 5px 9px; font-size: 12px; }
+
+  /* Cards */
   .lm-card[data-span] { grid-column: 1 / -1 !important; }
   .lm-kpis { grid-column: 1 / -1; }
+  .lm-card-head { flex-direction: column; align-items: stretch; gap: 6px; padding: 12px 12px 8px; }
+  .lm-card-body.padded { padding: 12px; }
+  .lm-card-title { font-size: 15px; }
+  .lm-card-subtitle { font-size: 11px; }
 
   /* KPI cards */
-  .lm-kpi { padding: 14px 14px 12px; }
-  .lm-kpi-value { font-size: 28px; }
-  .lm-kpi-spark svg { width: 64px !important; height: 24px !important; }
-
-  /* Card head: title/action stack when narrow */
-  .lm-card-head {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-    padding: 14px 14px 10px;
-  }
-  .lm-card-body.padded { padding: 14px; }
-  .lm-card-title { font-size: 16px; }
+  .lm-kpi { padding: 12px 12px 10px; }
+  .lm-kpi-value { font-size: 26px; }
+  .lm-kpi-spark svg { width: 56px !important; height: 20px !important; }
+  .lm-kpi-delta-row { font-size: 11px; }
 
   /* Store header */
-  .lm-store-head { flex-direction: column; align-items: stretch; padding: 16px; gap: 10px; }
-  .lm-store-title { font-size: 22px; }
-  .lm-store-meta { font-size: 11px; gap: 6px; }
+  .lm-store-head { flex-direction: column; align-items: stretch; padding: 14px 12px; gap: 8px; }
+  .lm-store-title { font-size: 20px; }
+  .lm-store-meta { font-size: 11px; gap: 4px; }
 
-  /* HBar chart row: label shrinks, value reflow */
-  .lm-hbar-row { grid-template-columns: 88px 1fr 88px !important; gap: 10px !important; }
+  /* HBar */
+  .lm-hbar-row { grid-template-columns: 80px 1fr 80px !important; gap: 8px !important; font-size: 12px !important; }
 
-  /* Top products table: hide category column, tighten */
+  /* Top products — wrapper scroll */
+  .lm-products-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .lm-products-head,
   .lm-product-row {
-    grid-template-columns: 24px 1.4fr 0.6fr 1fr;
-    gap: 10px;
+    grid-template-columns: 22px 1.5fr 0.55fr 1fr;
+    gap: 8px;
     font-size: 12px;
+    min-width: 280px;
   }
   .lm-products-head > div:nth-child(3),
   .lm-product-row > .lm-product-cat { display: none; }
   .lm-product-meta { font-size: 10px; }
+  .lm-product-rank { font-size: 12px; }
 
-  /* Payments donut + legend → stack */
-  .lm-payments { flex-direction: column; align-items: flex-start !important; gap: 16px !important; }
-  .lm-payments > svg { align-self: center; }
+  /* Payments */
+  .lm-payments { flex-direction: column !important; gap: 16px !important; align-items: stretch !important; }
+  .lm-payments-donut { align-self: center; }
 
-  /* Per-store mini grid in consolidated view: 2 × 2 instead of 4 × 1 */
+  /* Snacking KPIs */
+  .snacking-outer { flex-direction: column !important; }
+  .snacking-sep { display: none !important; }
+  .snacking-grand { border-radius: 0 !important; }
+  .snacking-totals-row { display: none; } /* not used */
+  .snacking-total-item {
+    padding: 14px 14px !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border-light) !important;
+  }
+  .snacking-outer > .snacking-total-item:nth-child(1) { /* Total GC */ }
+  .snacking-outer > .snacking-total-item:nth-child(3) { border-bottom: none !important; } /* Total Baguette last before grand */
+  /* On mobile, show totals as 2-col grid */
+  .snacking-outer {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto auto;
+  }
+  .snacking-outer > :nth-child(1) { /* Total GC */ grid-column: 1; grid-row: 1; border-right: 1px solid var(--border-light) !important; border-bottom: 1px solid var(--border-light) !important; }
+  .snacking-outer > :nth-child(2) { display: none; } /* sep */
+  .snacking-outer > :nth-child(3) { /* Total Baguette */ grid-column: 2; grid-row: 1; border-bottom: 1px solid var(--border-light) !important; }
+  .snacking-outer > :nth-child(4) { display: none; } /* sep */
+  .snacking-outer > :nth-child(5) { /* Total Snacking grey */ grid-column: 1 / -1; grid-row: 2; }
+  .snacking-outer > :nth-child(6) { display: none; } /* sep */
+  .snacking-outer > :nth-child(7) { /* detail wrap */ grid-column: 1 / -1; grid-row: 3; }
+  .snacking-detail-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .snacking-detail-wrap::-webkit-scrollbar { display: none; }
+  .snacking-detail { min-width: max-content; }
+  .snacking-detail-item { padding: 12px 14px !important; min-width: 90px; flex: unset !important; }
+  .snacking-detail-item:last-child { border-right: none !important; }
+
+  /* Per-store mini grid consolidated */
   .lm-store-mini-grid { grid-template-columns: repeat(2, 1fr) !important; }
 }
 
-/* Mobile narrow */
+/* ── 480px : très étroit ── */
 @media (max-width: 480px) {
   .lm-kpis { grid-template-columns: 1fr; }
-  .lm-kpi-value { font-size: 26px; }
-  .lm-brand-line { font-size: 16px; }
-  .lm-avatar { width: 28px; height: 28px; font-size: 10px; }
-  /* Fiscal stats: single column on very narrow screens */
+  .lm-kpi-value { font-size: 24px; }
+  .lm-brand img { height: 36px !important; }
   .fy-chart-stats { grid-template-columns: 1fr; }
   .fy-stats-cur { border-top: 1px solid var(--border-light) !important; padding-top: 16px !important; }
+  /* Snacking : totaux en colonne à 480px */
+  .snacking-outer { grid-template-columns: 1fr !important; }
+  .snacking-outer > :nth-child(1) { grid-column: 1; border-right: none !important; }
+  .snacking-outer > :nth-child(3) { grid-column: 1; grid-row: 2; }
+  .snacking-outer > :nth-child(5) { grid-column: 1; grid-row: 3; }
+  .snacking-outer > :nth-child(7) { grid-column: 1; grid-row: 4; }
 }

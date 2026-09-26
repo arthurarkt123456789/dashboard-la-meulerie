@@ -186,29 +186,28 @@ export function SignatureKPIs({ products, period }: Props) {
           </div>
         </div>
       </div>
-      <div className="lm-card-body padded">
-        <div style={{ display: "flex", alignItems: "stretch", gap: 0 }}>
+      <div className="lm-card-body" style={{ padding: 0 }}>
+        <div className="snacking-outer" style={{ display: "flex", alignItems: "stretch" }}>
 
           {/* ── Total Grilled Cheese ── */}
-          <div style={{ paddingRight: 28, flexShrink: 0 }}>
+          <div className="snacking-total-item" style={{ padding: "16px 20px", flexShrink: 0 }}>
             <BigKPI label="Total Grilled Cheese" slot={gcTotal} />
           </div>
 
-          <div style={{ width: 1, background: "var(--border-light)", flexShrink: 0, alignSelf: "stretch" }} />
+          <div className="snacking-sep" style={{ width: 1, background: "var(--border-light)", alignSelf: "stretch" }} />
 
           {/* ── Total Baguette ── */}
-          <div style={{ paddingLeft: 28, paddingRight: 28, flexShrink: 0 }}>
+          <div className="snacking-total-item" style={{ padding: "16px 20px", flexShrink: 0 }}>
             <BigKPI label="Total Baguette" slot={bagTotal} />
           </div>
 
-          <div style={{ width: 1, background: "var(--border-light)", flexShrink: 0, alignSelf: "stretch" }} />
+          <div className="snacking-sep" style={{ width: 1, background: "var(--border-light)", alignSelf: "stretch" }} />
 
           {/* ── Total Snacking — fond gris ── */}
-          <div style={{
-            paddingLeft: 24, paddingRight: 24, flexShrink: 0,
-            background: "var(--bg-subtle)", borderRadius: 8,
+          <div className="snacking-grand" style={{
+            padding: "16px 20px", flexShrink: 0,
+            background: "var(--bg-subtle)",
             display: "flex", alignItems: "center",
-            margin: "-12px 0",
           }}>
             <div style={{ fontFamily: "var(--font-body)" }}>
               <div style={{
@@ -230,13 +229,21 @@ export function SignatureKPIs({ products, period }: Props) {
             </div>
           </div>
 
-          <div style={{ width: 1, background: "var(--border-light)", flexShrink: 0, alignSelf: "stretch", marginLeft: 8 }} />
+          <div className="snacking-sep" style={{ width: 1, background: "var(--border-light)", alignSelf: "stretch" }} />
 
           {/* ── Détail ── */}
-          <div style={{ display: "flex", gap: 20, paddingLeft: 24, flex: 1, alignItems: "flex-start" }}>
-            {details.map(({ label, ...slot }) => (
-              <SmallKPI key={label} label={label} slot={slot} />
-            ))}
+          <div className="snacking-detail-wrap" style={{ flex: 1, minWidth: 0 }}>
+            <div className="snacking-detail" style={{ display: "flex", height: "100%" }}>
+              {details.map(({ label, ...slot }) => (
+                <div key={label} className="snacking-detail-item" style={{
+                  padding: "16px 20px",
+                  borderRight: "1px solid var(--border-light)",
+                  flex: 1,
+                }}>
+                  <SmallKPI label={label} slot={slot} />
+                </div>
+              ))}
+            </div>
           </div>
 
         </div>
