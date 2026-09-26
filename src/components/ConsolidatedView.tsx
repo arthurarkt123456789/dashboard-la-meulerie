@@ -188,8 +188,10 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
       .sort((a, b) => b.value - a.value);
   }, [stores, period, isHT]);
 
+  // 364 = 52 × 7: same day-of-week alignment. Fiscal year uses 365 since it
+  // displays at monthly granularity (weekday alignment irrelevant there).
   const yoyOffsetDays =
-    period.kind === "month" || period.kind === "fiscal-year-todate" ? 365 : 364;
+    period.kind === "fiscal-year-todate" ? 365 : 364;
 
   const lineSeries: LineSeries[] = useMemo(() => {
     const base: LineSeries[] = stores.map((s, i) => ({
@@ -221,35 +223,43 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
       return dd.toISOString().slice(0, 10);
     }
 
-    return slice.map((d) => {
-      const row: {
-        date: string;
-        partial?: boolean;
-        [k: string]: string | number | boolean | null | undefined;
-      } = {
-        date: d.date,
-        partial: d.partial,
-      };
+    type Row = { date: string; partial?: boolean; [k: string]: string | number | boolean | null | undefined };
+
+    function buildRow(dateStr: string, isFuture: boolean): Row {
+      const row: Row = { date: dateStr, partial: isFuture || undefined };
       for (const s of stores) {
-        const day = s.daily.find((dd) => dd.date === d.date);
-        if (!day || day.closed) {
+        if (isFuture) {
           row[s.id] = null;
         } else {
-          row[s.id] = isHT ? (day.caHT ?? 0) : day.ca;
+          const day = s.daily.find((dd) => dd.date === dateStr);
+          row[s.id] = (!day || day.closed) ? null : (isHT ? (day.caHT ?? 0) : day.ca);
         }
         if (showN1) {
-          const yoyDate = subtractDaysISO(d.date, yoyOffsetDays);
+          const yoyDate = subtractDaysISO(dateStr, yoyOffsetDays);
           const yoyDay = s.daily.find((dd) => dd.date === yoyDate);
           row[s.id + "__yoy"] =
             yoyDay && !yoyDay.closed
-              ? isHT
-                ? yoyDay.caHT ?? 0
-                : yoyDay.ca
+              ? isHT ? yoyDay.caHT ?? 0 : yoyDay.ca
               : null;
         }
       }
       return row;
-    });
+    }
+
+    const result = slice.map((d) => buildRow(d.date, false));
+
+    // For month view: pad future days so the N-1 line extends to end of month.
+    if (period.kind === "month" && result.length > 0 && todayISO < to) {
+      const iter = new Date(`${result[result.length - 1].date}T00:00:00Z`);
+      while (true) {
+        iter.setUTCDate(iter.getUTCDate() + 1);
+        const dateStr = iter.toISOString().slice(0, 10);
+        if (dateStr > to) break;
+        result.push(buildRow(dateStr, true));
+      }
+    }
+
+    return result;
   }, [stores, consolidatedDaily, period, isHT, showN1, yoyOffsetDays]);
 
   const chartData = useMemo(

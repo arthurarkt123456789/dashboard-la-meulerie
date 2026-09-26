@@ -155,12 +155,24 @@ export function StoreView({ store, period, today, amountMode }: Props) {
   const lineData = useMemo(() => {
     const todayISO = store.daily[store.daily.length - 1]?.date ?? "";
     const { from, to } = rangeForSelection(period, todayISO);
-    return store.daily
+    const result = store.daily
       .filter((d) => d.date >= from && d.date <= to)
       .map((d) => ({
         ...d,
         ca: isHT ? d.caHT ?? 0 : d.ca,
       }));
+    // For month view: pad with skeleton entries for future days so the N-1
+    // dashed line can extend to the end of the month.
+    if (period.kind === "month" && result.length > 0 && todayISO < to) {
+      const iter = new Date(`${result[result.length - 1].date}T00:00:00Z`);
+      while (true) {
+        iter.setUTCDate(iter.getUTCDate() + 1);
+        const dateStr = iter.toISOString().slice(0, 10);
+        if (dateStr > to) break;
+        result.push({ ...result[result.length - 1], date: dateStr, ca: null as unknown as number, partial: true });
+      }
+    }
+    return result;
   }, [store.daily, period, isHT]);
 
   const chartData = useMemo(() => {
@@ -172,13 +184,29 @@ export function StoreView({ store, period, today, amountMode }: Props) {
 
   const yoyChartData = useMemo(() => {
     if (!m.yoyAvailable) return null;
+    // For month periods: date-based lookup with 364-day offset (52 × 7)
+    // so each day maps to the same day-of-week in N-1.
+    if (period.kind === "month") {
+      const dailyByDate = new Map(store.daily.map((d) => [d.date, d]));
+      const raw = lineData.map((ld) => {
+        const d = new Date(`${ld.date}T00:00:00Z`);
+        d.setUTCDate(d.getUTCDate() - 364);
+        const yoyDate = d.toISOString().slice(0, 10);
+        const yoyDay = dailyByDate.get(yoyDate);
+        return {
+          date: ld.date,
+          ca: yoyDay && !yoyDay.closed ? (isHT ? yoyDay.caHT ?? 0 : yoyDay.ca) : 0,
+        };
+      });
+      const bucketed = maybeBucket(raw, effectiveGranularity);
+      if (!smoothCA || effectiveGranularity !== "day") return bucketed;
+      const smoothed = roll7(bucketed.map((d) => d.ca ?? null));
+      return bucketed.map((d, i) => ({ ...d, ca: smoothed[i] ?? 0 }));
+    }
     const days = m.days;
-    // Use the same offset as the metrics layer (364 for daily-grain, 365 for
-    // monthly/fiscal-year). Computed from the selection kind.
-    const offset =
-      period.kind === "month" || period.kind === "fiscal-year-todate"
-        ? 365
-        : 364;
+    // 364 = 52 × 7 (same day-of-week, ~1 year ago). Fiscal year uses 365
+    // since it's displayed at monthly granularity (weekday alignment irrelevant).
+    const offset = period.kind === "fiscal-year-todate" ? 365 : 364;
     const start = store.daily.length - days - offset;
     const raw = store.daily.slice(start, start + days).map((d, i) => ({
       date: lineData[i]?.date ?? d.date,
