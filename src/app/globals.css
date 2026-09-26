@@ -293,6 +293,9 @@ button { font-family: inherit; cursor: pointer; }
   gap: 8px;
   flex-shrink: 0;
 }
+.lm-mobile-link {
+  display: none;
+}
 
 /* ------------------------------------------------------------
    TABS
@@ -743,6 +746,19 @@ button { font-family: inherit; cursor: pointer; }
     scrollbar-width: none;
   }
   .lm-header-controls::-webkit-scrollbar { display: none; }
+  .lm-mobile-link {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    padding: 5px 10px;
+    border-radius: 6px;
+    background: var(--fg-primary);
+    color: var(--bg-primary);
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+  }
   .lm-segmented { flex-shrink: 0; overflow-x: auto; scrollbar-width: none; }
   .lm-segmented::-webkit-scrollbar { display: none; }
   .lm-seg-btn { flex-shrink: 0; padding: 5px 9px; font-size: 12px; }

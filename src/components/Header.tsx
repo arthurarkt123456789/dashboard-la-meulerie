@@ -111,6 +111,7 @@ export function Header({
       <div className="lm-header-bottom">
         <Tabs value={activeTab} stores={stores} />
         <div className="lm-header-controls">
+          <a href="/mobile" className="lm-mobile-link">Vue app</a>
           <AmountModeToggle value={amountMode} onChange={onAmountMode} />
           <PeriodToggle value={period} onChange={onPeriod} />
         </div>

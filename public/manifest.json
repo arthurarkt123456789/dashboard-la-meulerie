@@ -1,0 +1,22 @@
+{
+  "name": "La Meulerie · Pilotage",
+  "short_name": "La Meulerie",
+  "description": "Pilotage des ventes",
+  "start_url": "/mobile",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1a1a1a",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo-la-meulerie.png",
+      "sizes": "any",
+      "type": "image/png"
+    }
+  ]
+}

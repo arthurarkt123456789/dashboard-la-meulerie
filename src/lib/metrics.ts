@@ -626,7 +626,15 @@ export function consolidatedPeriodMetricsForSelection(
 function periodMetricsFromRange(daily: StoreDaily[], days: number): StoreMetrics {
   const cur = sumPeriod(daily, days);
   const prev = sumPrev(daily, days);
-  const yoy = sumYoY(daily, days);
+
+  // Date-based YoY — avoids index-offset errors when daily is sparse (e.g. Sundays absent)
+  const todayISO = daily[daily.length - 1]?.date ?? "";
+  const yoySlice = todayISO
+    ? sliceByDate(daily, subtractDays(todayISO, days - 1 + 364), subtractDays(todayISO, 364))
+    : [];
+  const yoyFull = sumRange(yoySlice);
+  const yoyAvailable = yoyFull.ca > 0;
+
   // P-1 segment baskets
   const prevSlice = daily.slice(daily.length - days * 2, daily.length - days);
   const prevFromagerieCA = prevSlice.reduce((s, d) => s + d.fromagerieCA, 0);
@@ -658,25 +666,22 @@ function periodMetricsFromRange(daily: StoreDaily[], days: number): StoreMetrics
     : 0;
   const prevMargeHT = prevSlice.reduce((s, d) => s + (d.margeHT ?? 0), 0);
   const prevMargeCoveredCAHT = prevSlice.reduce((s, d) => s + (d.margeCoveredCAHT ?? 0), 0);
-  const yoyMargeHT = yoy.slice.reduce((s, d) => s + (d.margeHT ?? 0), 0);
-  const yoyMargeCoveredCAHT = yoy.slice.reduce((s, d) => s + (d.margeCoveredCAHT ?? 0), 0);
   const curMargeRate = cur.margeCoveredCAHT > 0 ? cur.margeHT / cur.margeCoveredCAHT : 0;
   const prevMargeRate = prevMargeCoveredCAHT > 0 ? prevMargeHT / prevMargeCoveredCAHT : 0;
   const margeDelta = curMargeRate - prevMargeRate;
-  const yoyCaDelta = yoy.available && yoy.ca ? (cur.ca - yoy.ca) / yoy.ca : 0;
-  const yoyTxDelta = yoy.available && yoy.tx ? (cur.tx - yoy.tx) / yoy.tx : 0;
-  const yoyTicketDelta =
-    yoy.available && yoy.avgTicket ? (cur.avgTicket - yoy.avgTicket) / yoy.avgTicket : 0;
-  const yoyMargeRate = yoyMargeCoveredCAHT > 0 ? yoyMargeHT / yoyMargeCoveredCAHT : 0;
-  const yoyMargeDelta = yoy.available ? curMargeRate - yoyMargeRate : 0;
-  const yoyFull = sumRange(yoy.slice);
-  const yoyTicketFromagerieDelta = yoy.available && yoyFull.avgTicketFromagerie
+  const yoyCaDelta = yoyAvailable ? (cur.ca - yoyFull.ca) / yoyFull.ca : 0;
+  const yoyTxDelta = yoyAvailable && yoyFull.tx ? (cur.tx - yoyFull.tx) / yoyFull.tx : 0;
+  const yoyTicketDelta = yoyAvailable && yoyFull.avgTicket
+    ? (cur.avgTicket - yoyFull.avgTicket) / yoyFull.avgTicket : 0;
+  const yoyMargeRate = yoyFull.margeCoveredCAHT > 0 ? yoyFull.margeHT / yoyFull.margeCoveredCAHT : 0;
+  const yoyMargeDelta = yoyAvailable ? curMargeRate - yoyMargeRate : 0;
+  const yoyTicketFromagerieDelta = yoyAvailable && yoyFull.avgTicketFromagerie
     ? (cur.avgTicketFromagerie - yoyFull.avgTicketFromagerie) / yoyFull.avgTicketFromagerie : 0;
-  const yoyTicketSnackingDelta = yoy.available && yoyFull.avgTicketSnacking
+  const yoyTicketSnackingDelta = yoyAvailable && yoyFull.avgTicketSnacking
     ? (cur.avgTicketSnacking - yoyFull.avgTicketSnacking) / yoyFull.avgTicketSnacking : 0;
-  const yoyTicketEpicerieDelta = yoy.available && yoyFull.avgTicketEpicerie
+  const yoyTicketEpicerieDelta = yoyAvailable && yoyFull.avgTicketEpicerie
     ? (cur.avgTicketEpicerie - yoyFull.avgTicketEpicerie) / yoyFull.avgTicketEpicerie : 0;
-  const yoyTicketMerchDelta = yoy.available && yoyFull.avgTicketMerch
+  const yoyTicketMerchDelta = yoyAvailable && yoyFull.avgTicketMerch
     ? (cur.avgTicketMerch - yoyFull.avgTicketMerch) / yoyFull.avgTicketMerch : 0;
   return {
     ...cur,
@@ -688,17 +693,17 @@ function periodMetricsFromRange(daily: StoreDaily[], days: number): StoreMetrics
     ticketEpicerieDelta,
     ticketMerchDelta,
     margeDelta,
-    yoyAvailable: yoy.available,
+    yoyAvailable,
     yoyCaDelta,
     yoyTxDelta,
     yoyTicketDelta,
     yoyMargeDelta,
-    yoyCa: yoy.ca,
-    yoyCaHT: yoy.caHT,
-    yoyTx: yoy.tx,
-    yoyTicket: yoy.avgTicket,
-    yoyTicketHT: yoy.avgTicketHT,
-    yoySlice: yoy.slice,
+    yoyCa: yoyFull.ca,
+    yoyCaHT: yoyFull.caHT,
+    yoyTx: yoyFull.tx,
+    yoyTicket: yoyFull.avgTicket,
+    yoyTicketHT: yoyFull.avgTicketHT,
+    yoySlice,
     days,
     yoyTicketFromagerieDelta,
     yoyTicketSnackingDelta,
