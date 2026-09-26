@@ -99,6 +99,16 @@ export type Product = {
   units90d: number;
   revenue90d: number;
   revenue90dHT: number;
+  // Fiscal-year totals (Oct 1 → yesterday of current FY)
+  unitsExercice: number;
+  revenueExercice: number;
+  revenueExerciceHT: number;
+  exerciceDays: number;      // nb de jours dans la fenêtre (pour calc moy./j)
+  // Prior fiscal year totals (Oct 1 N-1 → Sep 30 N-1), full year
+  unitsExerciceN1: number;
+  revenueExerciceN1: number;
+  revenueExerciceN1HT: number;
+  exerciceN1Days: number;
 };
 
 export type PaymentMethod = "Carte bancaire" | "Virement" | "Espèces" | "Tickets resto";

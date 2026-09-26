@@ -261,6 +261,21 @@ function rollupHourlyAverage(
 // Top products aggregation
 // ────────────────────────────────────────────────────────────────────────
 
+// Returns the Oct-1 start date of the fiscal year containing `date`.
+// FY runs Oct 1 → Sep 30.
+function fiscalYearStart(date: string): string {
+  const [y, m] = date.split("-").map(Number);
+  const fyYear = m >= 10 ? y : y - 1;
+  return `${fyYear}-10-01`;
+}
+
+// Count calendar days in [from, to] inclusive.
+function daysBetween(from: string, to: string): number {
+  const a = new Date(`${from}T00:00:00Z`);
+  const b = new Date(`${to}T00:00:00Z`);
+  return Math.max(1, Math.round((b.getTime() - a.getTime()) / 86400000) + 1);
+}
+
 function buildTopProducts(
   salesByDate: Map<string, ApiticSale[]>,
   productLookup: ProductLookup,
@@ -279,56 +294,60 @@ function buildTopProducts(
     units90d: number;
     revenue90d: number;
     revenue90dHT: number;
+    unitsExercice: number;
+    revenueExercice: number;
+    revenueExerciceHT: number;
+    unitsExerciceN1: number;
+    revenueExerciceN1: number;
+    revenueExerciceN1HT: number;
     hasFractionalQty: boolean;
   };
   const totals = new Map<number, Agg>();
 
-  const cutoff7 = subtractDays(today, 6);
+  const cutoff7  = subtractDays(today, 6);
   const cutoff30 = subtractDays(today, 29);
   const cutoff90 = subtractDays(today, 89);
 
+  // Current FY: Oct 1 of current year → yesterday
+  const fyStart  = fiscalYearStart(today);
+  const fyEnd    = today; // salesByDate keyed up to yesterday; today row won't exist
+  // Prior FY: Oct 1 N-1 → Sep 30 N-1 (full year)
+  const fyN1Start = fiscalYearStart(subtractDays(fyStart, 1)); // Oct 1 of prior FY
+  const fyN1End   = subtractDays(fyStart, 1);                  // Sep 30
+
+  const exerciceDays   = daysBetween(fyStart, today);
+  const exerciceN1Days = daysBetween(fyN1Start, fyN1End);
+
   for (const [date, sales] of salesByDate) {
-    const inLast7 = date >= cutoff7;
-    const inLast30 = date >= cutoff30;
-    const inLast90 = date >= cutoff90;
-    const isToday = date === today;
+    const inLast7       = date >= cutoff7;
+    const inLast30      = date >= cutoff30;
+    const inLast90      = date >= cutoff90;
+    const isToday       = date === today;
+    const inExercice    = date >= fyStart && date < fyEnd;
+    const inExerciceN1  = date >= fyN1Start && date <= fyN1End;
+
     for (const sale of sales) {
       for (const line of sale.lines ?? []) {
         if (line.line_type !== "sale") continue;
         const t: Agg = totals.get(line.product_id) ?? {
           unitsToday: 0,
-          units7d: 0,
-          units30d: 0,
-          revenue7d: 0,
-          revenue30d: 0,
-          revenue7dHT: 0,
-          revenue30dHT: 0,
-          units90d: 0,
-          revenue90d: 0,
-          revenue90dHT: 0,
+          units7d: 0, units30d: 0, units90d: 0,
+          revenue7d: 0, revenue30d: 0, revenue90d: 0,
+          revenue7dHT: 0, revenue30dHT: 0, revenue90dHT: 0,
+          unitsExercice: 0, revenueExercice: 0, revenueExerciceHT: 0,
+          unitsExerciceN1: 0, revenueExerciceN1: 0, revenueExerciceN1HT: 0,
           hasFractionalQty: false,
         };
         const qty = line.quantity;
-        // ati_price / price_excl_tax already net of any discount.
         const amountTTC = line.ati_price;
-        const amountHT = line.price_excl_tax;
+        const amountHT  = line.price_excl_tax;
         if (!Number.isInteger(qty)) t.hasFractionalQty = true;
         if (isToday) t.unitsToday += qty;
-        if (inLast7) {
-          t.units7d += qty;
-          t.revenue7d += amountTTC;
-          t.revenue7dHT += amountHT;
-        }
-        if (inLast30) {
-          t.units30d += qty;
-          t.revenue30d += amountTTC;
-          t.revenue30dHT += amountHT;
-        }
-        if (inLast90) {
-          t.units90d += qty;
-          t.revenue90d += amountTTC;
-          t.revenue90dHT += amountHT;
-        }
+        if (inLast7)  { t.units7d  += qty; t.revenue7d  += amountTTC; t.revenue7dHT  += amountHT; }
+        if (inLast30) { t.units30d += qty; t.revenue30d += amountTTC; t.revenue30dHT += amountHT; }
+        if (inLast90) { t.units90d += qty; t.revenue90d += amountTTC; t.revenue90dHT += amountHT; }
+        if (inExercice)   { t.unitsExercice   += qty; t.revenueExercice   += amountTTC; t.revenueExerciceHT   += amountHT; }
+        if (inExerciceN1) { t.unitsExerciceN1 += qty; t.revenueExerciceN1 += amountTTC; t.revenueExerciceN1HT += amountHT; }
         totals.set(line.product_id, t);
       }
     }
@@ -349,13 +368,21 @@ function buildTopProducts(
       unitsToday: agg.unitsToday,
       units7d: agg.units7d,
       units30d: agg.units30d,
-      revenue7d: Math.round(agg.revenue7d),
+      revenue7d:  Math.round(agg.revenue7d),
       revenue30d: Math.round(agg.revenue30d),
-      revenue7dHT: Math.round(agg.revenue7dHT),
+      revenue7dHT:  Math.round(agg.revenue7dHT),
       revenue30dHT: Math.round(agg.revenue30dHT),
       units90d: agg.units90d,
-      revenue90d: Math.round(agg.revenue90d),
-      revenue90dHT: Math.round(agg.revenue90dHT),
+      revenue90d:    Math.round(agg.revenue90d),
+      revenue90dHT:  Math.round(agg.revenue90dHT),
+      unitsExercice:    agg.unitsExercice,
+      revenueExercice:  Math.round(agg.revenueExercice),
+      revenueExerciceHT: Math.round(agg.revenueExerciceHT),
+      exerciceDays,
+      unitsExerciceN1:    agg.unitsExerciceN1,
+      revenueExerciceN1:  Math.round(agg.revenueExerciceN1),
+      revenueExerciceN1HT: Math.round(agg.revenueExerciceN1HT),
+      exerciceN1Days,
     });
   }
   return out.sort((a, b) => b.revenue30d - a.revenue30d);

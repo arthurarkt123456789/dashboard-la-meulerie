@@ -21,22 +21,24 @@ export function TopProducts({
   amountMode,
 }: Props) {
   const isHT = amountMode === "HT";
+  const isExercice = period.kind === "fiscal-year-todate";
   const presetKey =
-    period.kind === "preset" ? period.key : "30d"; // month/range/fiscal → use 30d aggregates
-  const revenueKey: "revenue7d" | "revenue30d" | "revenue7dHT" | "revenue30dHT" | "revenue90d" | "revenue90dHT" =
-    presetKey === "90d"
-      ? isHT
-        ? "revenue90dHT"
-        : "revenue90d"
+    period.kind === "preset" ? period.key : "30d";
+
+  type RevenueKey = "revenue7d" | "revenue30d" | "revenue7dHT" | "revenue30dHT" | "revenue90d" | "revenue90dHT" | "revenueExercice" | "revenueExerciceHT";
+  type UnitsKey = "unitsToday" | "units7d" | "units30d" | "units90d" | "unitsExercice";
+
+  const revenueKey: RevenueKey = isExercice
+    ? isHT ? "revenueExerciceHT" : "revenueExercice"
+    : presetKey === "90d"
+      ? isHT ? "revenue90dHT" : "revenue90d"
       : presetKey === "30d"
-        ? isHT
-          ? "revenue30dHT"
-          : "revenue30d"
-        : isHT
-          ? "revenue7dHT"
-          : "revenue7d";
-  const unitsKey: "unitsToday" | "units7d" | "units30d" | "units90d" =
-    presetKey === "today"
+        ? isHT ? "revenue30dHT" : "revenue30d"
+        : isHT ? "revenue7dHT" : "revenue7d";
+
+  const unitsKey: UnitsKey = isExercice
+    ? "unitsExercice"
+    : presetKey === "today"
       ? "unitsToday"
       : presetKey === "90d"
         ? "units90d"

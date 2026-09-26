@@ -264,6 +264,10 @@ function generateTopProducts(store: StoreSeed): Product[] {
     const pop = 0.3 + rng() * 1.4;
     const unitsBase = (store.baseCA * segShare * pop) / (p.price * 8);
     const units = Math.round(unitsBase * (0.7 + rng() * 0.6));
+    // Simulate exercice (Oct 1 → yesterday, ~270 days into FY) with slight
+    // N-1 growth factor so the trend display is meaningful in dev/mock.
+    const exerciceDays = 270;
+    const exerciceN1Days = 365;
     return {
       name: p.name,
       segment: p.segment,
@@ -280,6 +284,14 @@ function generateTopProducts(store: StoreSeed): Product[] {
       revenue30dHT: Math.round((units * 30 * p.price) / 1.1),
       revenue90d: Math.round(units * 90 * p.price),
       revenue90dHT: Math.round((units * 90 * p.price) / 1.1),
+      unitsExercice: Math.round(units * exerciceDays),
+      revenueExercice: Math.round(units * exerciceDays * p.price),
+      revenueExerciceHT: Math.round((units * exerciceDays * p.price) / 1.1),
+      exerciceDays,
+      unitsExerciceN1: Math.round(units * exerciceN1Days * 0.92), // N-1 légèrement inférieur
+      revenueExerciceN1: Math.round(units * exerciceN1Days * p.price * 0.92),
+      revenueExerciceN1HT: Math.round((units * exerciceN1Days * p.price * 0.92) / 1.1),
+      exerciceN1Days,
     };
   });
   return products.sort((a, b) => b.revenue30d - a.revenue30d);

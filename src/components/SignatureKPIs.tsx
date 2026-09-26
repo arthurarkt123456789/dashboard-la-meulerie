@@ -23,16 +23,27 @@ function match(products: Product[], terms: string[]): Product[] {
 
 function computeSlot(products: Product[], termGroups: string[][]) {
   let units7d = 0; let units30d = 0; let units90d = 0;
+  let unitsExercice = 0; let unitsExerciceN1 = 0;
+  let exerciceDays = 0; let exerciceN1Days = 0;
   for (const terms of termGroups) {
     const matched = match(products, terms);
     units7d  += matched.reduce((s, p) => s + (p.units7d  ?? 0), 0);
     units30d += matched.reduce((s, p) => s + (p.units30d ?? 0), 0);
     units90d += matched.reduce((s, p) => s + (p.units90d ?? 0), 0);
+    unitsExercice   += matched.reduce((s, p) => s + (p.unitsExercice   ?? 0), 0);
+    unitsExerciceN1 += matched.reduce((s, p) => s + (p.unitsExerciceN1 ?? 0), 0);
+    // exerciceDays is the same for all products — take max (they're identical)
+    if (matched.length > 0) {
+      exerciceDays   = Math.max(exerciceDays,   matched[0].exerciceDays   ?? 0);
+      exerciceN1Days = Math.max(exerciceN1Days, matched[0].exerciceN1Days ?? 0);
+    }
   }
-  const avg7  = units7d  / 7;
-  const avg30 = units30d / 30;
-  const avg90 = units90d / 90;
-  return { avg7, avg30, avg90, hasData: units30d > 0 };
+  const avg7      = units7d  / 7;
+  const avg30     = units30d / 30;
+  const avg90     = units90d / 90;
+  const avgExercice   = exerciceDays   > 0 ? unitsExercice   / exerciceDays   : 0;
+  const avgExerciceN1 = exerciceN1Days > 0 ? unitsExerciceN1 / exerciceN1Days : 0;
+  return { avg7, avg30, avg90, avgExercice, avgExerciceN1, hasData: units30d > 0 || unitsExercice > 0 };
 }
 
 function fmt1(n: number): string { return n.toFixed(1).replace(".", ","); }
@@ -45,22 +56,31 @@ function fmtPct(v: number): string {
 type Slot = ReturnType<typeof computeSlot>;
 type Props = { products: Product[]; period: PeriodSelection };
 
-type Window = "today" | "7d" | "30d" | "90d";
+type Window = "today" | "7d" | "30d" | "90d" | "exercice";
 
 function resolveWindow(period: PeriodSelection): Window {
+  if (period.kind === "fiscal-year-todate") return "exercice";
   if (period.kind === "preset") {
     if (period.key === "today") return "today";
     if (period.key === "7d")    return "7d";
     if (period.key === "30d")   return "30d";
   }
-  return "90d"; // 90d preset, exercice, month, range → use 90d window
+  return "90d"; // 90d preset, month, range → use 90d window
 }
 
 export function SignatureKPIs({ products, period }: Props) {
   const win = resolveWindow(period);
 
-  const primaryLabel = win === "today" ? "aujourd'hui" : win === "7d" ? "moy. 7j" : win === "30d" ? "moy. 30j" : "moy. 90j";
-  const trendRef     = win === "today" ? "vs moy. 7j" : win === "7d" ? "vs moy. 30j" : win === "30d" ? "vs moy. 90j" : "vs moy. 30j";
+  const primaryLabel =
+    win === "exercice" ? "moy./j exercice" :
+    win === "today"    ? "aujourd'hui" :
+    win === "7d"       ? "moy. 7j" :
+    win === "30d"      ? "moy. 30j" : "moy. 90j";
+  const trendRef =
+    win === "exercice" ? "vs exercice N-1" :
+    win === "today"    ? "vs moy. 7j" :
+    win === "7d"       ? "vs moy. 30j" :
+    win === "30d"      ? "vs moy. 90j" : "vs moy. 30j";
 
   const gcDetail  = GC_DETAIL.map(({ label, terms }) => ({ label, ...computeSlot(products, [terms]) }));
   const bagDetail = BAG_DETAIL.map(({ label, terms }) => ({ label, ...computeSlot(products, [terms]) }));
@@ -68,15 +88,17 @@ export function SignatureKPIs({ products, period }: Props) {
   const bagTotal  = computeSlot(products, BAG_TERMS);
 
   function pickPrimary(s: Slot) {
-    if (win === "today") return s.avg7; // no unitsToday in computeSlot, use avg7 as best proxy
-    if (win === "7d")    return s.avg7;
-    if (win === "30d")   return s.avg30;
+    if (win === "exercice") return s.avgExercice;
+    if (win === "today")    return s.avg7; // proxy — no unitsToday in computeSlot
+    if (win === "7d")       return s.avg7;
+    if (win === "30d")      return s.avg30;
     return s.avg90;
   }
   function pickOther(s: Slot) {
-    if (win === "today") return s.avg30;
-    if (win === "7d")    return s.avg30;
-    if (win === "30d")   return s.avg90;
+    if (win === "exercice") return s.avgExerciceN1;
+    if (win === "today")    return s.avg30;
+    if (win === "7d")       return s.avg30;
+    if (win === "30d")      return s.avg90;
     return s.avg30;
   }
   function pickTrend(s: Slot) {
