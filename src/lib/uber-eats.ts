@@ -14,7 +14,10 @@ export const UE_VAT_RATE = 0.10;
 
 function parseDate(raw: string): string | null {
   const r = raw.trim().replace(/^"|"$/g, "");
-  if (/^\d{4}-\d{2}-\d{2}$/.test(r)) return r;
+  // "2026-09-19 00:00:00.000" or "2026-09-19T..." → extract YYYY-MM-DD
+  const iso = r.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (iso) return iso[1];
+  // DD/MM/YYYY
   const dmY = r.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (dmY) return `${dmY[3]}-${dmY[2].padStart(2, "0")}-${dmY[1].padStart(2, "0")}`;
   return null;
