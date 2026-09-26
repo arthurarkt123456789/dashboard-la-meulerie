@@ -195,17 +195,15 @@ export function LineChart({
             return typeof ue === "number" && ue > 0;
           });
           if (!hasAnyUE) return null;
-          let ueLine = ""; let ueInSeg = false;
+          let ueLine = "";
           let ueAreaPath = "";
           data.forEach((d, i) => {
             const ue = d[uberEatsKey];
             const ueVal = typeof ue === "number" ? Math.max(0, ue) : 0;
             const x = xAt(i); const y = yAt(ueVal);
+            // Always include every point — line goes to 0 on no-UE days (continuous)
             ueAreaPath += i === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`;
-            if (ueVal > 0) {
-              ueLine += !ueInSeg ? ` M ${x} ${y}` : ` L ${x} ${y}`;
-              ueInSeg = true;
-            } else { ueInSeg = false; }
+            ueLine += i === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`;
           });
           ueAreaPath += ` L ${xAt(data.length - 1)} ${yAt(0)} L ${xAt(0)} ${yAt(0)} Z`;
           const ueGradId = `${gradIdBase}-ue`;
