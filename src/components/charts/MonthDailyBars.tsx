@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useMemo } from "react";
 import type { StoreDaily } from "@/lib/apitic/types";
-import { fmtEURshort } from "@/lib/format";
+import { fmtEUR, fmtEURshort } from "@/lib/format";
 
 type DayData = {
   day: number;
@@ -33,7 +33,8 @@ type Props = {
 export function MonthDailyBars({ daily, todayISO, isHT, storeColor }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(900);
-  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [hoveredDay, setHoveredDay] = useState<number | null>(null);
+  const [lockedDay, setLockedDay] = useState<number | null>(null);
 
   useEffect(() => {
     if (!ref.current) return;
@@ -86,11 +87,12 @@ export function MonthDailyBars({ daily, todayISO, isHT, storeColor }: Props) {
     });
   }, [daily, dailyByDate, year, month, daysCount, todayDay, isHT]);
 
-  // Summary (realized days only)
+  // Summary stats
   const realized = days.filter((d) => !d.isFuture && d.ca !== null);
   const totalCA = realized.reduce((s, d) => s + (d.ca ?? 0), 0);
-  const totalN1 = realized.reduce((s, d) => s + (d.n1ca ?? 0), 0);
-  const growth = totalN1 > 0 ? (totalCA / totalN1 - 1) : null;
+  const totalN1Partial = realized.reduce((s, d) => s + (d.n1ca ?? 0), 0);
+  const totalN1Full = days.reduce((s, d) => s + (d.n1ca ?? 0), 0);
+  const growth = totalN1Partial > 0 ? (totalCA / totalN1Partial - 1) : null;
   const daysRealized = realized.length;
 
   // Chart layout
@@ -111,21 +113,38 @@ export function MonthDailyBars({ daily, todayISO, isHT, storeColor }: Props) {
   function bh(v: number) { return Math.max(1, (v / maxVal) * innerH); }
 
   const labelEvery = daysCount > 20 ? 5 : 1;
-  const selectedData = selectedDay !== null ? days[selectedDay - 1] : null;
 
   const FR_MONTHS = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
   const monthName = FR_MONTHS[month - 1];
 
   const tickVals = [0.25, 0.5, 0.75, 1.0].map((f) => maxVal * f);
 
-  function handleSvgClick(e: React.MouseEvent<SVGSVGElement>) {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left - PAD.left;
+  // Active day: locked takes priority over hovered
+  const activeDay = lockedDay ?? hoveredDay;
+  const activeData = activeDay !== null ? days[activeDay - 1] : null;
+
+  function dayIndexFromX(svgElement: SVGSVGElement, clientX: number): number | null {
+    const rect = svgElement.getBoundingClientRect();
+    const x = clientX - rect.left - PAD.left;
     const idx = Math.floor(x / slotW);
-    if (idx >= 0 && idx < daysCount) {
-      const clickedDay = days[idx].day;
-      setSelectedDay((prev) => prev === clickedDay ? null : clickedDay);
-    }
+    if (idx >= 0 && idx < daysCount) return idx;
+    return null;
+  }
+
+  function handleMouseMove(e: React.MouseEvent<SVGSVGElement>) {
+    const idx = dayIndexFromX(e.currentTarget, e.clientX);
+    setHoveredDay(idx !== null ? days[idx].day : null);
+  }
+
+  function handleMouseLeave() {
+    setHoveredDay(null);
+  }
+
+  function handleClick(e: React.MouseEvent<SVGSVGElement>) {
+    const idx = dayIndexFromX(e.currentTarget, e.clientX);
+    if (idx === null) return;
+    const clickedDay = days[idx].day;
+    setLockedDay((prev) => prev === clickedDay ? null : clickedDay);
   }
 
   return (
@@ -137,18 +156,31 @@ export function MonthDailyBars({ daily, todayISO, isHT, storeColor }: Props) {
             Réalisé · {daysRealized}/{daysCount} j
           </div>
           <div style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 700, color: "var(--fg-primary)", fontVariantNumeric: "tabular-nums" }}>
-            {fmtEURshort(totalCA)}
+            {fmtEUR(totalCA)}
           </div>
         </div>
-        {totalN1 > 0 && (
+        {totalN1Partial > 0 && (
           <>
             <div style={{ borderLeft: "1px solid var(--border-light)", alignSelf: "stretch" }} />
             <div>
               <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--fg-tertiary)", marginBottom: 3 }}>
-                N-1 même période
+                N-1 même période ({daysRealized} j)
               </div>
               <div style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 700, color: "var(--fg-secondary)", fontVariantNumeric: "tabular-nums" }}>
-                {fmtEURshort(totalN1)}
+                {fmtEUR(totalN1Partial)}
+              </div>
+            </div>
+          </>
+        )}
+        {totalN1Full > 0 && totalN1Full !== totalN1Partial && (
+          <>
+            <div style={{ borderLeft: "1px solid var(--border-light)", alignSelf: "stretch" }} />
+            <div>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--fg-tertiary)", marginBottom: 3 }}>
+                C.A. N-1 mois complet
+              </div>
+              <div style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 700, color: "var(--fg-secondary)", fontVariantNumeric: "tabular-nums", opacity: 0.65 }}>
+                {fmtEUR(totalN1Full)}
               </div>
             </div>
           </>
@@ -171,11 +203,12 @@ export function MonthDailyBars({ daily, todayISO, isHT, storeColor }: Props) {
           </>
         )}
 
-        {/* Selected day detail */}
-        {selectedData && (
+        {/* Detail panel — hovered or locked day */}
+        {activeData && (
           <div style={{
             marginLeft: "auto",
-            background: "var(--bg-subtle)",
+            background: lockedDay !== null ? "var(--bg-subtle)" : "var(--color-white)",
+            border: `1px solid ${lockedDay !== null ? storeColor : "var(--border-light)"}`,
             borderRadius: "var(--radius-sm)",
             padding: "8px 14px",
             fontSize: 12,
@@ -183,41 +216,43 @@ export function MonthDailyBars({ daily, todayISO, isHT, storeColor }: Props) {
             display: "flex",
             gap: 16,
             alignItems: "center",
+            transition: "border-color 0.1s",
           }}>
             <span style={{ fontWeight: 600, color: "var(--fg-primary)" }}>
-              {selectedData.day} {monthName}
+              {activeData.day} {monthName}
+              {lockedDay !== null && <span style={{ fontSize: 10, color: "var(--fg-tertiary)", marginLeft: 4 }}>🔒</span>}
             </span>
             <span>
               CA :{" "}
-              <strong style={{ color: selectedData.isFuture ? "var(--fg-tertiary)" : storeColor, fontVariantNumeric: "tabular-nums" }}>
-                {selectedData.ca !== null ? fmtEURshort(selectedData.ca) : "—"}
+              <strong style={{ color: activeData.isFuture ? "var(--fg-tertiary)" : storeColor, fontVariantNumeric: "tabular-nums" }}>
+                {activeData.ca !== null ? fmtEUR(activeData.ca) : "—"}
               </strong>
             </span>
-            {selectedData.n1ca !== null && (
+            {activeData.n1ca !== null && (
               <span>
                 N-1 :{" "}
                 <strong style={{ color: "var(--fg-primary)", fontVariantNumeric: "tabular-nums" }}>
-                  {fmtEURshort(selectedData.n1ca)}
+                  {fmtEUR(activeData.n1ca)}
                 </strong>
               </span>
             )}
-            {!selectedData.isFuture && selectedData.ca !== null && selectedData.ca > 0 && (
+            {!activeData.isFuture && activeData.ca !== null && activeData.ca > 0 && (
               <span>
                 Snacking :{" "}
                 <strong style={{ color: "var(--color-coral)", fontVariantNumeric: "tabular-nums" }}>
-                  {Math.round((isHT ? selectedData.snackingCAHT : selectedData.snackingCA) / selectedData.ca * 100)} %
+                  {Math.round((isHT ? activeData.snackingCAHT : activeData.snackingCA) / activeData.ca * 100)} %
                 </strong>
               </span>
             )}
-            {selectedData.n1ca !== null && selectedData.ca !== null && selectedData.n1ca > 0 && (
+            {activeData.n1ca !== null && activeData.ca !== null && activeData.n1ca > 0 && (
               <span>
                 vs N-1 :{" "}
                 <strong style={{
-                  color: selectedData.ca >= selectedData.n1ca ? "#08C167" : "#DC2626",
+                  color: activeData.ca >= activeData.n1ca ? "#08C167" : "#DC2626",
                   fontVariantNumeric: "tabular-nums",
                 }}>
-                  {selectedData.ca >= selectedData.n1ca ? "+" : ""}
-                  {((selectedData.ca / selectedData.n1ca - 1) * 100).toFixed(0)} %
+                  {activeData.ca >= activeData.n1ca ? "+" : ""}
+                  {((activeData.ca / activeData.n1ca - 1) * 100).toFixed(0)} %
                 </strong>
               </span>
             )}
@@ -229,8 +264,10 @@ export function MonthDailyBars({ daily, todayISO, isHT, storeColor }: Props) {
       <div ref={ref} style={{ width: "100%", position: "relative" }}>
         <svg
           width={w} height={H}
-          style={{ display: "block", cursor: "pointer" }}
-          onClick={handleSvgClick}
+          style={{ display: "block", cursor: "crosshair" }}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
+          onClick={handleClick}
         >
           {/* Y grid + labels */}
           {tickVals.map((v) => (
@@ -254,18 +291,18 @@ export function MonthDailyBars({ daily, todayISO, isHT, storeColor }: Props) {
           {/* Bars */}
           {days.map((d, i) => {
             const xc = xCenter(i);
-            const isSelected = d.day === selectedDay;
+            const isActive = d.day === activeDay;
             const x1 = xc - barGap / 2 - barW;
             const x2 = xc + barGap / 2;
 
             return (
               <g key={d.day}>
-                {/* Selection highlight */}
-                {isSelected && (
+                {/* Hover / lock highlight */}
+                {isActive && (
                   <rect
                     x={PAD.left + i * slotW + 1} y={PAD.top}
                     width={slotW - 2} height={innerH}
-                    fill={storeColor} opacity={0.07} rx={2}
+                    fill={storeColor} opacity={lockedDay !== null ? 0.1 : 0.06} rx={2}
                   />
                 )}
 
@@ -274,35 +311,20 @@ export function MonthDailyBars({ daily, todayISO, isHT, storeColor }: Props) {
                   <rect
                     x={x1} y={yAt(d.ca)} width={barW} height={bh(d.ca)}
                     fill={storeColor} rx={1}
-                    opacity={isSelected ? 1 : 0.82}
+                    opacity={isActive ? 1 : 0.82}
                   />
                 )}
 
-                {/* N-1 bar */}
-                {d.n1ca !== null && d.n1ca > 0 && (() => {
-                  const x = d.isFuture ? xc - barW / 2 : x2;
-                  if (d.isFuture) {
-                    return (
-                      <rect
-                        x={x} y={yAt(d.n1ca)} width={barW} height={bh(d.n1ca)}
-                        fill="none"
-                        stroke="var(--fg-tertiary)"
-                        strokeWidth={1}
-                        strokeDasharray="3 2"
-                        rx={1}
-                        opacity={0.4}
-                      />
-                    );
-                  }
-                  return (
-                    <rect
-                      x={x} y={yAt(d.n1ca)} width={barW} height={bh(d.n1ca)}
-                      fill="var(--fg-tertiary)"
-                      rx={1}
-                      opacity={0.22}
-                    />
-                  );
-                })()}
+                {/* N-1 bar — grey filled for both past and future */}
+                {d.n1ca !== null && d.n1ca > 0 && (
+                  <rect
+                    x={d.isFuture ? xc - barW / 2 : x2}
+                    y={yAt(d.n1ca)} width={barW} height={bh(d.n1ca)}
+                    fill="var(--fg-tertiary)"
+                    rx={1}
+                    opacity={d.isFuture ? 0.15 : 0.22}
+                  />
+                )}
 
                 {/* Today vertical marker */}
                 {d.day === todayDay && (
@@ -339,12 +361,8 @@ export function MonthDailyBars({ daily, todayISO, isHT, storeColor }: Props) {
             <span style={{ width: 10, height: 8, background: "var(--fg-tertiary)", display: "inline-block", borderRadius: 2, opacity: 0.22 }} />
             N-1 (±364 j)
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 5, opacity: 0.6 }}>
-            <svg width={10} height={8} style={{ display: "block" }}>
-              <rect x={0} y={0} width={10} height={8} rx={2} fill="none"
-                stroke="var(--fg-tertiary)" strokeWidth={1} strokeDasharray="3 2" />
-            </svg>
-            Jours à venir (N-1)
+          <div style={{ fontSize: 10, color: "var(--fg-tertiary)", marginLeft: 4 }}>
+            Survoler pour le détail · cliquer pour verrouiller
           </div>
         </div>
       </div>
