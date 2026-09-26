@@ -44,10 +44,10 @@ import { currentFiscalYearEnd } from "@/lib/metrics";
 import { AIInsightsBlock } from "./AIInsightsBlock";
 
 const SERIES_COLORS = [
-  "var(--color-coral)", // Davso       — coral brand
-  "#2563EB",           // Endoume      — bleu
-  "#059669",           // Malmousque   — vert
-  "#9333EA",           // République   — violet
+  "#E8420D", // Davso       — orange-rouge
+  "#2563EB", // Endoume     — bleu
+  "#059669", // Malmousque  — vert
+  "#9333EA", // République  — violet
 ];
 
 function StoreFiscalChart({ s, todayISO, isHT }: { s: StoreData; todayISO: string; isHT: boolean }) {
@@ -170,12 +170,13 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
 
   const storeMetrics = useMemo(() => {
     return stores
-      .map((s) => {
+      .map((s, i) => {
         const ms = periodMetricsForSelection(s.daily, period);
         const value = isHT ? ms.caHT : ms.ca;
         const yoyValue = isHT ? ms.yoyCaHT : ms.yoyCa;
         return {
           label: s.name,
+          color: SERIES_COLORS[i] ?? "var(--fg-secondary)",
           value,
           ticket: isHT ? ms.avgTicketHT : ms.avgTicket,
           delta: ms.caDelta,
@@ -401,6 +402,7 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
             label: s.label,
             value: s.value,
             yoyValue: s.yoyValue,
+            color: s.color,
           }))}
         />
         <div

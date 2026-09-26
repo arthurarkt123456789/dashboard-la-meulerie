@@ -89,7 +89,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
   const [showCompare, setShowCompare] = useState(false);
 
   const STORE_COLORS: Record<string, string> = {
-    davso: "var(--color-coral)",
+    davso: "#E8420D",
     endoume: "#2563EB",
     malmousque: "#059669",
     republique: "#9333EA",

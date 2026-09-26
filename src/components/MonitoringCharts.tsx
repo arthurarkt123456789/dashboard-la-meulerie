@@ -9,7 +9,7 @@ import { LegendInline } from "./LegendInline";
 import { LineChart, type LineSeries, type LinePoint } from "./charts/LineChart";
 
 const SERIES_COLORS = [
-  "var(--color-coral)",
+  "#E8420D",
   "#2563EB",
   "#059669",
   "#9333EA",

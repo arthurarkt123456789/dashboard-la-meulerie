@@ -6,6 +6,7 @@ export type HBarRow = {
   label: string;
   value: number;
   yoyValue?: number | null;
+  color?: string;
 };
 
 type Props = {
@@ -63,7 +64,7 @@ export function HBarChart({
                 style={{
                   width: pct + "%",
                   height: "100%",
-                  background: isTop ? "var(--color-coral)" : "var(--color-dark)",
+                  background: r.color ?? (isTop ? "var(--color-coral)" : "var(--color-dark)"),
                   transition: "width 400ms ease",
                   borderRadius: 2,
                 }}
@@ -138,7 +139,7 @@ export function HBarChart({
             style={{
               width: 10,
               height: 6,
-              background: "var(--color-coral)",
+              background: "var(--fg-secondary)",
               display: "inline-block",
               borderRadius: 1,
             }}
