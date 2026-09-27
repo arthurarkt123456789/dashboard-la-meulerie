@@ -365,15 +365,35 @@ export function MobileDashboard() {
     return { todayCa, monthTotal, n1Total, n1Partial, lastDate: lastDay?.date ?? todayISO };
   }, [store, dailyByDate, todayISO, isHT]);
 
-  // Formule stats
+  // Formule stats (menu-only — used for % formules penetration metric)
   const formules = useMemo(() => {
     const slice = periodSlice;
     const days = slice.length || 1;
     const grilled = slice.reduce((s, d) => s + (d.grilledUnits ?? 0), 0);
     const baguette = slice.reduce((s, d) => s + (d.baguetteUnits ?? 0), 0);
     const snackingTx = slice.reduce((s, d) => s + (d.snackingTx ?? 0), 0);
-    return { grilled, baguette, snackingTx, days, grilledPerDay: grilled / days, bagPerDay: baguette / days };
+    return { grilled, baguette, snackingTx, days };
   }, [periodSlice]);
+
+  // Production recommendation — same logic as desktop SignatureKPIs:
+  // uses topProducts term matching to include both menu AND à la carte units.
+  // Always uses 7-day average (most actionable for next-day planning).
+  const prodReco = useMemo(() => {
+    const products = store?.topProducts ?? [];
+    const GC_TERMS  = [["grilled"],   ["menu grilled"]];
+    const BAG_TERMS = [["sandwich"],  ["menu baguette"]];
+    function sumTermGroups(termGroups: string[][]): number {
+      return termGroups.reduce((acc, terms) => {
+        return acc + products
+          .filter(p => terms.every(t => p.name.toLowerCase().includes(t)))
+          .reduce((s, p) => s + (p.units7d ?? 0), 0);
+      }, 0);
+    }
+    return {
+      grilledPerDay: sumTermGroups(GC_TERMS) / 7,
+      bagPerDay: sumTermGroups(BAG_TERMS) / 7,
+    };
+  }, [store]);
 
   // Network formule %
   const networkFormulePct = useMemo(() => {
@@ -519,6 +539,11 @@ export function MobileDashboard() {
       <div style={{ padding: "12px 12px 80px" }}>
 
         {/* ── 0. Live aujourd'hui (WebCaisse) ── */}
+        {liveQ.isError && (
+          <div style={{ background: "#fef2f2", borderRadius: 8, padding: "10px 14px", marginBottom: 12, fontSize: 12, color: "#b91c1c" }}>
+            Live indisponible — {(liveQ.error as Error)?.message ?? "erreur réseau"}
+          </div>
+        )}
         {liveQ.data && (() => {
           const live = liveQ.data;
           const s = live.stores[activeId];
@@ -749,16 +774,16 @@ export function MobileDashboard() {
             <div style={{ background: "var(--bg-subtle)", borderRadius: 8, padding: "10px 14px" }}>
               <div style={{ fontSize: 11, color: "var(--fg-tertiary)", marginBottom: 4 }}>Total Grilled Cheese</div>
               <div style={{ fontSize: 28, fontWeight: 700, fontFamily: "var(--font-display)", color: "var(--fg-primary)", fontVariantNumeric: "tabular-nums" }}>
-                {Math.round(formules.grilledPerDay + ueDailyUnits * (formules.grilledPerDay / Math.max(formules.grilledPerDay + formules.bagPerDay, 1)))}
+                {Math.round(prodReco.grilledPerDay + ueDailyUnits * (prodReco.grilledPerDay / Math.max(prodReco.grilledPerDay + prodReco.bagPerDay, 1)))}
               </div>
-              <div style={{ fontSize: 11, color: "var(--fg-tertiary)", marginTop: 2 }}>unités / jour</div>
+              <div style={{ fontSize: 11, color: "var(--fg-tertiary)", marginTop: 2 }}>unités / jour · moy. 7j</div>
             </div>
             <div style={{ background: "var(--bg-subtle)", borderRadius: 8, padding: "10px 14px" }}>
               <div style={{ fontSize: 11, color: "var(--fg-tertiary)", marginBottom: 4 }}>Total Snacking</div>
               <div style={{ fontSize: 28, fontWeight: 700, fontFamily: "var(--font-display)", color: "var(--fg-primary)", fontVariantNumeric: "tabular-nums" }}>
-                {Math.round(formules.grilledPerDay + formules.bagPerDay + ueDailyUnits)}
+                {Math.round(prodReco.grilledPerDay + prodReco.bagPerDay + ueDailyUnits)}
               </div>
-              <div style={{ fontSize: 11, color: "var(--fg-tertiary)", marginTop: 2 }}>unités / jour</div>
+              <div style={{ fontSize: 11, color: "var(--fg-tertiary)", marginTop: 2 }}>unités / jour · moy. 7j</div>
             </div>
           </div>
           {ueDailyUnits > 0 && (
