@@ -406,12 +406,21 @@ export function StoreView({ store, period, today, amountMode }: Props) {
     return Math.sqrt(variance);
   }, [store.daily, period, isHT]);
 
-  const epicerieCAShare = useMemo(() => {
-    const totalCA = isHT ? m.caHT : m.ca;
-    const epicerieCA = isHT ? m.epicerieCAHT : m.epicerieCA;
-    if (!totalCA || !epicerieCA) return null;
-    return epicerieCA / totalCA;
+  // Use sum of categorized CA as denominator so shares always sum to 100%
+  // (live entry has caHT > 0 but all category fields = 0)
+  const catDenom = useMemo(() => {
+    const f = isHT ? (m.fromagerieCAHT ?? 0) : m.fromagerieCA;
+    const s = isHT ? (m.snackingCAHT ?? 0) : m.snackingCA;
+    const e = isHT ? (m.epicerieCAHT ?? 0) : (m.epicerieCA ?? 0);
+    const r = isHT ? (m.merchCAHT ?? 0) : (m.merchCA ?? 0);
+    return f + s + e + r;
   }, [m, isHT]);
+
+  const epicerieCAShare = useMemo(() => {
+    const epicerieCA = isHT ? m.epicerieCAHT : m.epicerieCA;
+    if (!catDenom || !epicerieCA) return null;
+    return epicerieCA / catDenom;
+  }, [m, isHT, catDenom]);
 
   const trendComparison = useMemo(() => {
     const todayISO = store.daily[store.daily.length - 1]?.date ?? "";
@@ -463,15 +472,14 @@ export function StoreView({ store, period, today, amountMode }: Props) {
   }, [store.daily, period, isHT, m]);
 
   const segmentShares = useMemo(() => {
-    const totalCA = isHT ? m.caHT : m.ca;
-    if (!totalCA) return [];
+    if (!catDenom) return [];
     return [
-      { label: "Fromage.", color: "var(--color-dark)", share: (isHT ? m.fromagerieCAHT : m.fromagerieCA) / totalCA },
-      { label: "Snacking", color: "var(--color-coral)", share: (isHT ? m.snackingCAHT ?? 0 : m.snackingCA) / totalCA },
-      { label: "Épicerie", color: "#1A5EA8", share: (isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA) / totalCA },
-      { label: "Merch", color: "#7C3AED", share: (isHT ? m.merchCAHT ?? 0 : m.merchCA) / totalCA },
+      { label: "Fromage.", color: "var(--color-dark)", share: (isHT ? (m.fromagerieCAHT ?? 0) : m.fromagerieCA) / catDenom },
+      { label: "Snacking", color: "var(--color-coral)", share: (isHT ? (m.snackingCAHT ?? 0) : m.snackingCA) / catDenom },
+      { label: "Épicerie", color: "#1A5EA8", share: (isHT ? (m.epicerieCAHT ?? 0) : (m.epicerieCA ?? 0)) / catDenom },
+      { label: "Merch", color: "#7C3AED", share: (isHT ? (m.merchCAHT ?? 0) : (m.merchCA ?? 0)) / catDenom },
     ].filter((s) => s.share > 0);
-  }, [m, isHT]);
+  }, [m, isHT, catDenom]);
 
   const caPerDay = m.days > 0 ? (isHT ? m.caHT : m.ca) / m.days : 0;
   const networkRefDelta =
@@ -539,22 +547,22 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           hasUberEats={hasUberEats}
           fromagerie={{
             value: isHT ? m.fromagerieCAHT : m.fromagerieCA,
-            share: (isHT ? m.caHT : m.ca) > 0 ? (isHT ? m.fromagerieCAHT : m.fromagerieCA) / (isHT ? m.caHT : m.ca) : 0,
+            share: catDenom > 0 ? (isHT ? (m.fromagerieCAHT ?? 0) : m.fromagerieCA) / catDenom : 0,
             yoyDelta: m.yoyAvailable && m.yoyFromagerieCA ? ((isHT ? m.fromagerieCAHT : m.fromagerieCA) - m.yoyFromagerieCA) / m.yoyFromagerieCA : null,
           }}
           snacking={{
             value: isHT ? m.snackingCAHT ?? 0 : m.snackingCA,
-            share: (isHT ? m.caHT : m.ca) > 0 ? (isHT ? m.snackingCAHT ?? 0 : m.snackingCA) / (isHT ? m.caHT : m.ca) : 0,
+            share: catDenom > 0 ? (isHT ? (m.snackingCAHT ?? 0) : m.snackingCA) / catDenom : 0,
             yoyDelta: m.yoyAvailable && m.yoySnackingCA ? ((isHT ? m.snackingCAHT ?? 0 : m.snackingCA) - m.yoySnackingCA) / m.yoySnackingCA : null,
           }}
           epicerie={{
             value: isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA,
-            share: (isHT ? m.caHT : m.ca) > 0 ? (isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA) / (isHT ? m.caHT : m.ca) : 0,
+            share: catDenom > 0 ? (isHT ? (m.epicerieCAHT ?? 0) : (m.epicerieCA ?? 0)) / catDenom : 0,
             yoyDelta: m.yoyAvailable && m.yoyEpicerieCA ? ((isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA) - m.yoyEpicerieCA) / m.yoyEpicerieCA : null,
           }}
           merch={{
             value: isHT ? m.merchCAHT ?? 0 : m.merchCA,
-            share: (isHT ? m.caHT : m.ca) > 0 ? (isHT ? m.merchCAHT ?? 0 : m.merchCA) / (isHT ? m.caHT : m.ca) : 0,
+            share: catDenom > 0 ? (isHT ? (m.merchCAHT ?? 0) : (m.merchCA ?? 0)) / catDenom : 0,
             yoyDelta: m.yoyAvailable && m.yoyMerchCA ? ((isHT ? m.merchCAHT ?? 0 : m.merchCA) - m.yoyMerchCA) / m.yoyMerchCA : null,
           }}
         />
@@ -785,13 +793,12 @@ export function StoreView({ store, period, today, amountMode }: Props) {
         subtitle={`${periodLabel} · ${isHT ? "HT" : "TTC"}`}
       >
         {(() => {
-          const totalCA = isHT ? m.caHT : m.ca;
           const yoy = m.yoyAvailable;
           const caSegs = [
-            { label: "Fromagerie", color: "var(--color-dark)", value: isHT ? m.fromagerieCAHT : m.fromagerieCA, share: totalCA ? (isHT ? m.fromagerieCAHT : m.fromagerieCA) / totalCA : 0, yoyDelta: yoy && m.yoyFromagerieCA ? ((isHT ? m.fromagerieCAHT : m.fromagerieCA) - m.yoyFromagerieCA) / m.yoyFromagerieCA : null },
-            { label: "Snacking",   color: "var(--color-coral)", value: isHT ? m.snackingCAHT ?? 0 : m.snackingCA, share: totalCA ? (isHT ? m.snackingCAHT ?? 0 : m.snackingCA) / totalCA : 0, yoyDelta: yoy && m.yoySnackingCA ? ((isHT ? m.snackingCAHT ?? 0 : m.snackingCA) - m.yoySnackingCA) / m.yoySnackingCA : null },
-            { label: "Épicerie",   color: "#1A5EA8", value: isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA, share: totalCA ? (isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA) / totalCA : 0, yoyDelta: yoy && m.yoyEpicerieCA ? ((isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA) - m.yoyEpicerieCA) / m.yoyEpicerieCA : null },
-            { label: "Merch",      color: "#7C3AED", value: isHT ? m.merchCAHT ?? 0 : m.merchCA, share: totalCA ? (isHT ? m.merchCAHT ?? 0 : m.merchCA) / totalCA : 0, yoyDelta: yoy && m.yoyMerchCA ? ((isHT ? m.merchCAHT ?? 0 : m.merchCA) - m.yoyMerchCA) / m.yoyMerchCA : null },
+            { label: "Fromagerie", color: "var(--color-dark)", value: isHT ? m.fromagerieCAHT : m.fromagerieCA, share: catDenom ? (isHT ? (m.fromagerieCAHT ?? 0) : m.fromagerieCA) / catDenom : 0, yoyDelta: yoy && m.yoyFromagerieCA ? ((isHT ? m.fromagerieCAHT : m.fromagerieCA) - m.yoyFromagerieCA) / m.yoyFromagerieCA : null },
+            { label: "Snacking",   color: "var(--color-coral)", value: isHT ? m.snackingCAHT ?? 0 : m.snackingCA, share: catDenom ? (isHT ? (m.snackingCAHT ?? 0) : m.snackingCA) / catDenom : 0, yoyDelta: yoy && m.yoySnackingCA ? ((isHT ? m.snackingCAHT ?? 0 : m.snackingCA) - m.yoySnackingCA) / m.yoySnackingCA : null },
+            { label: "Épicerie",   color: "#1A5EA8", value: isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA, share: catDenom ? (isHT ? (m.epicerieCAHT ?? 0) : (m.epicerieCA ?? 0)) / catDenom : 0, yoyDelta: yoy && m.yoyEpicerieCA ? ((isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA) - m.yoyEpicerieCA) / m.yoyEpicerieCA : null },
+            { label: "Merch",      color: "#7C3AED", value: isHT ? m.merchCAHT ?? 0 : m.merchCA, share: catDenom ? (isHT ? (m.merchCAHT ?? 0) : (m.merchCA ?? 0)) / catDenom : 0, yoyDelta: yoy && m.yoyMerchCA ? ((isHT ? m.merchCAHT ?? 0 : m.merchCA) - m.yoyMerchCA) / m.yoyMerchCA : null },
           ];
           const txSegs = [
             { label: "Fromagerie", color: "var(--color-dark)", value: m.days > 0 ? m.fromagerieTx / m.days : 0, share: m.tx ? m.fromagerieTx / m.tx : 0, yoyDelta: yoy && m.yoyFromagerieTx ? (m.fromagerieTx - m.yoyFromagerieTx) / m.yoyFromagerieTx : null },
@@ -926,8 +933,8 @@ export function StoreView({ store, period, today, amountMode }: Props) {
         yoyAvailable={m.yoyAvailable}
         avgTicket={isHT ? m.avgTicketHT : m.avgTicket}
         txPerDay={m.days > 0 ? m.tx / m.days : 0}
-        fromagerieShare={(isHT ? m.caHT : m.ca) > 0 ? (isHT ? m.fromagerieCAHT : m.fromagerieCA) / (isHT ? m.caHT : m.ca) : 0}
-        snackingShare={(isHT ? m.caHT : m.ca) > 0 ? (isHT ? m.snackingCAHT ?? 0 : m.snackingCA) / (isHT ? m.caHT : m.ca) : 0}
+        fromagerieShare={catDenom > 0 ? (isHT ? (m.fromagerieCAHT ?? 0) : m.fromagerieCA) / catDenom : 0}
+        snackingShare={catDenom > 0 ? (isHT ? (m.snackingCAHT ?? 0) : m.snackingCA) / catDenom : 0}
         caPerDay={caPerDay}
         periodLabel={periodLabel}
       />

@@ -363,7 +363,7 @@ export function MobileDashboard() {
     const mo = Number(todayISO.slice(5, 7));
     const yr = Number(todayISO.slice(0, 4));
     const monthStart = `${yr}-${String(mo).padStart(2, "0")}-01`;
-    const monthDays = store.daily.filter(d => d.date >= monthStart && d.date <= todayISO);
+    const monthDays = dailyWithLive.filter(d => d.date >= monthStart && d.date <= todayISO);
     const monthTotal = monthDays.reduce((s, d) => s + (isHT ? (d.caHT ?? 0) : d.ca), 0);
     const lastDay = monthDays[monthDays.length - 1];
     const todayCa = lastDay ? (isHT ? (lastDay.caHT ?? 0) : lastDay.ca) : 0;
@@ -389,7 +389,7 @@ export function MobileDashboard() {
         return s + (n1d && !n1d.closed ? (isHT ? (n1d.caHT ?? 0) : n1d.ca) : 0);
       }, 0);
     return { todayCa, monthTotal, n1Total, n1Partial, lastDate: lastDay?.date ?? todayISO };
-  }, [store, dailyByDate, todayISO, isHT]);
+  }, [store, dailyWithLive, dailyByDate, todayISO, isHT]);
 
   // Formule stats (menu-only — used for % formules penetration metric)
   const formules = useMemo(() => {
@@ -436,6 +436,13 @@ export function MobileDashboard() {
 
   const storeColor = STORE_COLORS[activeId] ?? "var(--color-coral)";
   const totalCA = isHT ? m?.caHT ?? 0 : m?.ca ?? 0;
+  // Use sum of categorized CA so % shares always sum to 100% (live entry has caHT > 0 but category fields = 0)
+  const catDenom = m
+    ? (isHT ? (m.fromagerieCAHT ?? 0) : m.fromagerieCA) +
+      (isHT ? (m.snackingCAHT ?? 0) : m.snackingCA) +
+      (isHT ? (m.epicerieCAHT ?? 0) : (m.epicerieCA ?? 0)) +
+      (isHT ? (m.merchCAHT ?? 0) : (m.merchCA ?? 0))
+    : 0;
 
   const periodLabel =
     periodKey === "today" ? "Hier" :
@@ -800,14 +807,14 @@ export function MobileDashboard() {
           >
             {m && <>
               <DRow label="vs période préc." value={`${m.caDelta >= 0 ? "+" : ""}${(m.caDelta * 100).toFixed(1).replace(".", ",")} %`} color={m.caDelta >= 0 ? "#15803d" : "#b91c1c"} />
-              {m.fromagerieCA > 0 && <DRow label={`Fromagerie (${((isHT ? m.fromagerieCAHT : m.fromagerieCA) / totalCA * 100).toFixed(0)} %)`} value={fmtEURshort(isHT ? m.fromagerieCAHT : m.fromagerieCA)} />}
-              {m.snackingCA > 0 && <DRow label={`Snacking (${((isHT ? m.snackingCAHT ?? 0 : m.snackingCA) / totalCA * 100).toFixed(0)} %)`} value={fmtEURshort(isHT ? m.snackingCAHT ?? 0 : m.snackingCA)} />}
-              {m.epicerieCA > 0 && <DRow label={`Épicerie (${((isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA) / totalCA * 100).toFixed(0)} %)`} value={fmtEURshort(isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA)} />}
-              {m.merchCA > 0 && <DRow label={`Merch (${((isHT ? m.merchCAHT ?? 0 : m.merchCA) / totalCA * 100).toFixed(0)} %)`} value={fmtEURshort(isHT ? m.merchCAHT ?? 0 : m.merchCA)} />}
+              {m.fromagerieCA > 0 && <DRow label={`Fromagerie (${catDenom > 0 ? ((isHT ? m.fromagerieCAHT : m.fromagerieCA) / catDenom * 100).toFixed(0) : 0} %)`} value={fmtEURshort(isHT ? m.fromagerieCAHT : m.fromagerieCA)} />}
+              {m.snackingCA > 0 && <DRow label={`Snacking (${catDenom > 0 ? ((isHT ? m.snackingCAHT ?? 0 : m.snackingCA) / catDenom * 100).toFixed(0) : 0} %)`} value={fmtEURshort(isHT ? m.snackingCAHT ?? 0 : m.snackingCA)} />}
+              {m.epicerieCA > 0 && <DRow label={`Épicerie (${catDenom > 0 ? ((isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA) / catDenom * 100).toFixed(0) : 0} %)`} value={fmtEURshort(isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA)} />}
+              {m.merchCA > 0 && <DRow label={`Merch (${catDenom > 0 ? ((isHT ? m.merchCAHT ?? 0 : m.merchCA) / catDenom * 100).toFixed(0) : 0} %)`} value={fmtEURshort(isHT ? m.merchCAHT ?? 0 : m.merchCA)} />}
               {hasUberEats && (() => {
                 const ueCa = periodSlice.reduce((s, d) => s + (d.uberEatsCa ?? 0), 0);
                 const ueCaHT = Math.round(ueCa / 1.1 * 100) / 100;
-                return <DRow label={`dont Uber Eats (${(((isHT ? ueCaHT : ueCa) / totalCA) * 100).toFixed(0)} %)`} value={fmtEURshort(isHT ? ueCaHT : ueCa)} color="#06B553" />;
+                return <DRow label={`dont Uber Eats (${totalCA > 0 ? (((isHT ? ueCaHT : ueCa) / totalCA) * 100).toFixed(0) : 0} %)`} value={fmtEURshort(isHT ? ueCaHT : ueCa)} color="#06B553" />;
               })()}
             </>}
           </KPIAccordion>
@@ -881,9 +888,9 @@ export function MobileDashboard() {
               <div style={{ fontSize: 11, color: "var(--fg-tertiary)", marginTop: 2 }}>unités / jour · moy. 7j</div>
             </div>
             <div style={{ background: "var(--bg-subtle)", borderRadius: 8, padding: "10px 14px" }}>
-              <div style={{ fontSize: 11, color: "var(--fg-tertiary)", marginBottom: 4 }}>Total Snacking</div>
+              <div style={{ fontSize: 11, color: "var(--fg-tertiary)", marginBottom: 4 }}>Sandwiches</div>
               <div style={{ fontSize: 28, fontWeight: 700, fontFamily: "var(--font-display)", color: "var(--fg-primary)", fontVariantNumeric: "tabular-nums" }}>
-                {Math.round(prodReco.grilledPerDay + prodReco.bagPerDay + ueDailyUnits)}
+                {Math.round(prodReco.bagPerDay + ueDailyUnits * (prodReco.bagPerDay / Math.max(prodReco.grilledPerDay + prodReco.bagPerDay, 1)))}
               </div>
               <div style={{ fontSize: 11, color: "var(--fg-tertiary)", marginTop: 2 }}>unités / jour · moy. 7j</div>
             </div>
