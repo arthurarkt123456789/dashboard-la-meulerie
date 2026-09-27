@@ -366,7 +366,7 @@ export function MobileDashboard() {
       {/* ── Sticky header ── */}
       <div style={{ position: "sticky", top: 0, zIndex: 100, background: "var(--color-white)", borderBottom: "1px solid var(--border-light)" }}>
 
-        {/* Row 1: hamburger · logo · HT/TTC */}
+        {/* Row 1: hamburger · logo */}
         <div style={{ display: "flex", alignItems: "center", padding: "10px 14px 8px", gap: 0 }}>
           {/* Hamburger */}
           <button
@@ -389,32 +389,11 @@ export function MobileDashboard() {
             <img src="/logo-la-meulerie.png" alt="La Meulerie" style={{ height: 28, width: "auto" }} />
           </div>
 
-          {/* HT/TTC */}
-          <button
-            onClick={() => setIsHT(!isHT)}
-            style={{
-              width: 52, height: 28, borderRadius: 14, border: 0, cursor: "pointer",
-              background: "var(--fg-primary)", position: "relative", flexShrink: 0,
-              transition: "background 0.2s",
-            }}
-          >
-            <span style={{
-              position: "absolute", top: 4, left: isHT ? 4 : 24,
-              width: 20, height: 20, borderRadius: 10,
-              background: "var(--color-white)", transition: "left 0.2s",
-            }} />
-            <span style={{
-              position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 10, fontWeight: 700, color: "var(--color-white)",
-              letterSpacing: "0.04em",
-            }}>
-              {isHT ? "HT" : "TTC"}
-            </span>
-          </button>
+          {/* Spacer to balance hamburger */}
+          <div style={{ width: 40, flexShrink: 0 }} />
         </div>
 
-        {/* Row 2: store select + period select */}
+        {/* Row 2: store · period · HT/TTC */}
         <div style={{ display: "flex", gap: 8, padding: "0 14px 10px" }}>
           <AppSelect
             value={activeId}
@@ -426,6 +405,11 @@ export function MobileDashboard() {
             value={periodKey}
             onChange={v => setPeriodKey(v as PeriodOpt)}
             options={[...PERIOD_OPTIONS]}
+          />
+          <AppSelect
+            value={isHT ? "ht" : "ttc"}
+            onChange={v => setIsHT(v === "ht")}
+            options={[{ value: "ht", label: "HT" }, { value: "ttc", label: "TTC" }]}
           />
         </div>
 
