@@ -48,9 +48,14 @@ export function PeriodToggle({ value, onChange }: Props) {
     return () => document.removeEventListener("mousedown", onDoc);
   }, [openPopover]);
 
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth() + 1;
+
   const isMonth = value.kind === "month";
   const isRange = value.kind === "range";
   const isFY = value.kind === "fiscal-year-todate";
+  const isCurrentMonth = isMonth && value.year === currentYear && value.month === currentMonth;
 
   const monthLabel = isMonth ? formatMonth(value.year, value.month) : "Mois";
   const rangeLabel = isRange ? formatRangeShort(value.from, value.to) : "Dates";
@@ -74,7 +79,13 @@ export function PeriodToggle({ value, onChange }: Props) {
           </button>
         ))}
         <button
-          className={"lm-seg-btn " + (isMonth ? "active" : "")}
+          className={"lm-seg-btn " + (isCurrentMonth ? "active" : "")}
+          onClick={() => onChange({ kind: "month", year: currentYear, month: currentMonth })}
+        >
+          Mois en cours
+        </button>
+        <button
+          className={"lm-seg-btn " + (isMonth && !isCurrentMonth ? "active" : "")}
           onClick={() => setOpenPopover((s) => (s === "month" ? null : "month"))}
         >
           {monthLabel} ▾

@@ -28,13 +28,15 @@ type Props = {
   todayISO: string;
   isHT: boolean;
   storeColor: string;
+  initialLockedDay?: number;
+  onDaySelect?: (dayNum: number | null) => void;
 };
 
-export function MonthDailyBars({ daily, todayISO, isHT, storeColor }: Props) {
+export function MonthDailyBars({ daily, todayISO, isHT, storeColor, initialLockedDay, onDaySelect }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(900);
   const [hoveredDay, setHoveredDay] = useState<number | null>(null);
-  const [lockedDay, setLockedDay] = useState<number | null>(null);
+  const [lockedDay, setLockedDay] = useState<number | null>(initialLockedDay ?? null);
 
   useEffect(() => {
     if (!ref.current) return;
@@ -144,7 +146,11 @@ export function MonthDailyBars({ daily, todayISO, isHT, storeColor }: Props) {
     const idx = dayIndexFromX(e.currentTarget, e.clientX);
     if (idx === null) return;
     const clickedDay = days[idx].day;
-    setLockedDay((prev) => prev === clickedDay ? null : clickedDay);
+    setLockedDay((prev) => {
+      const next = prev === clickedDay ? null : clickedDay;
+      onDaySelect?.(next);
+      return next;
+    });
   }
 
   return (

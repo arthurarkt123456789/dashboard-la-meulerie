@@ -26,17 +26,19 @@ const FR_MONTHS = [
 ];
 
 const PERIOD_OPTIONS = [
-  { value: "today", label: "Hier" },
-  { value: "7d",    label: "7 jours" },
-  { value: "30d",   label: "30 jours" },
-  { value: "90d",   label: "3 mois" },
-  { value: "fy",    label: "Exercice" },
+  { value: "today",  label: "Hier" },
+  { value: "7d",     label: "7 jours" },
+  { value: "30d",    label: "30 jours" },
+  { value: "90d",    label: "3 mois" },
+  { value: "month",  label: "Mois en cours" },
+  { value: "fy",     label: "Exercice" },
 ] as const;
 
 type PeriodOpt = typeof PERIOD_OPTIONS[number]["value"];
 
 function toPeriodSelection(key: PeriodOpt, year: number, month: number): PeriodSelection {
   if (key === "fy") return { kind: "fiscal-year-todate" };
+  if (key === "month") return { kind: "month", year, month };
   return { kind: "preset", key };
 }
 
@@ -188,7 +190,12 @@ function StatBox({ label, value, sub }: { label: string; value: string; sub?: st
 }
 
 // ── Horizontal scroll MonthDailyBars ─────────────────────────────────────────
-function MobileMonthBars({ store, isHT }: { store: StoreData; isHT: boolean }) {
+function MobileMonthBars({ store, isHT, onDaySelect, initialLockedDay }: {
+  store: StoreData;
+  isHT: boolean;
+  onDaySelect?: (dayNum: number | null) => void;
+  initialLockedDay?: number;
+}) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const todayISO = store.daily[store.daily.length - 1]?.date ?? "";
   const todayDay = Number(todayISO.slice(8, 10));
@@ -214,6 +221,8 @@ function MobileMonthBars({ store, isHT }: { store: StoreData; isHT: boolean }) {
           todayISO={todayISO}
           isHT={isHT}
           storeColor={storeColor}
+          onDaySelect={onDaySelect}
+          initialLockedDay={initialLockedDay}
         />
       </div>
     </div>
@@ -232,7 +241,8 @@ export function MobileDashboard() {
   const [isHT, setIsHT] = useState(true);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [periodKey, setPeriodKey] = useState<PeriodOpt>("7d");
+  const [periodKey, setPeriodKey] = useState<PeriodOpt>("month");
+  const [lockedMonthDay, setLockedMonthDay] = useState<number | null>(null);
 
   const activeId = storeId ?? stores[0]?.id ?? "davso";
   const store = allData.find((s) => s.id === activeId) ?? null;
@@ -278,33 +288,66 @@ export function MobileDashboard() {
     }));
   }, [m, isHT]);
 
+  const dailyByDate = useMemo(
+    () => new Map((store?.daily ?? []).map(d => [d.date, d])),
+    [store],
+  );
+
+  // Default lockedMonthDay to last data day when store loads
+  useEffect(() => {
+    if (todayISO) setLockedMonthDay(Number(todayISO.slice(8, 10)));
+  }, [todayISO]);
+
+  // Per-day data for the locked day
+  const lockedDayData = useMemo(() => {
+    if (!store || !todayISO || lockedMonthDay === null) return null;
+    const yr = Number(todayISO.slice(0, 4));
+    const mo = Number(todayISO.slice(5, 7));
+    const dateStr = `${yr}-${String(mo).padStart(2, "0")}-${String(lockedMonthDay).padStart(2, "0")}`;
+    const real = dailyByDate.get(dateStr);
+    const n1dt = new Date(`${dateStr}T00:00:00Z`);
+    n1dt.setUTCDate(n1dt.getUTCDate() - 364);
+    const n1real = dailyByDate.get(n1dt.toISOString().slice(0, 10));
+    const ca = real && !real.closed ? (isHT ? real.caHT ?? 0 : real.ca) : null;
+    const n1ca = n1real && !n1real.closed ? (isHT ? n1real.caHT ?? 0 : n1real.ca) : null;
+    const snackingCA = isHT ? (real?.snackingCAHT ?? 0) : (real?.snackingCA ?? 0);
+    const isFuture = lockedMonthDay > Number(todayISO.slice(8, 10));
+    return { day: lockedMonthDay, date: dateStr, ca, n1ca, snackingCA, isFuture };
+  }, [store, dailyByDate, todayISO, lockedMonthDay, isHT]);
+
   // Monthly stat boxes
   const monthStats = useMemo(() => {
     if (!store || !todayISO) return null;
     const mo = Number(todayISO.slice(5, 7));
     const yr = Number(todayISO.slice(0, 4));
     const monthStart = `${yr}-${String(mo).padStart(2, "0")}-01`;
-    const dailyByDate = new Map(store.daily.map(d => [d.date, d]));
-    // All days of the current month up to todayISO
     const monthDays = store.daily.filter(d => d.date >= monthStart && d.date <= todayISO);
     const monthTotal = monthDays.reduce((s, d) => s + (isHT ? (d.caHT ?? 0) : d.ca), 0);
     const lastDay = monthDays[monthDays.length - 1];
     const todayCa = lastDay ? (isHT ? (lastDay.caHT ?? 0) : lastDay.ca) : 0;
-    // N-1: for each calendar day of the month, look up the day 364 days earlier
     const allMonthDates: string[] = [];
     const daysInMonth = new Date(yr, mo, 0).getDate();
     for (let d = 1; d <= daysInMonth; d++) {
       allMonthDates.push(`${yr}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
     }
+    // N-1 complet: all days of the month (including future)
     const n1Total = allMonthDates.reduce((s, dateStr) => {
       const dt = new Date(`${dateStr}T00:00:00Z`);
       dt.setUTCDate(dt.getUTCDate() - 364);
-      const n1Date = dt.toISOString().slice(0, 10);
-      const n1d = dailyByDate.get(n1Date);
+      const n1d = dailyByDate.get(dt.toISOString().slice(0, 10));
       return s + (n1d && !n1d.closed ? (isHT ? (n1d.caHT ?? 0) : n1d.ca) : 0);
     }, 0);
-    return { todayCa, monthTotal, n1Total, lastDate: lastDay?.date ?? todayISO };
-  }, [store, todayISO, isHT]);
+    // N-1 même jour: only realized days so far
+    const n1Partial = allMonthDates
+      .filter(dateStr => dateStr <= todayISO)
+      .reduce((s, dateStr) => {
+        const dt = new Date(`${dateStr}T00:00:00Z`);
+        dt.setUTCDate(dt.getUTCDate() - 364);
+        const n1d = dailyByDate.get(dt.toISOString().slice(0, 10));
+        return s + (n1d && !n1d.closed ? (isHT ? (n1d.caHT ?? 0) : n1d.ca) : 0);
+      }, 0);
+    return { todayCa, monthTotal, n1Total, n1Partial, lastDate: lastDay?.date ?? todayISO };
+  }, [store, dailyByDate, todayISO, isHT]);
 
   // Formule stats
   const formules = useMemo(() => {
@@ -337,6 +380,7 @@ export function MobileDashboard() {
     periodKey === "7d" ? "7 derniers jours" :
     periodKey === "30d" ? "30 derniers jours" :
     periodKey === "90d" ? "3 derniers mois" :
+    periodKey === "month" ? `${FR_MONTHS[month - 1]} ${year}` :
     `Exercice ${currentFiscalYearEnd() - 1}–${currentFiscalYearEnd()}`;
 
   const fyEnd = currentFiscalYearEnd(todayISO ? new Date(`${todayISO}T12:00:00Z`) : new Date());
@@ -458,9 +502,67 @@ export function MobileDashboard() {
       {/* ── Body ── */}
       <div style={{ padding: "12px 12px 80px" }}>
 
-        {/* ── 5 KPI accordions ── */}
-        <div style={{ background: "var(--color-white)", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.08)", marginBottom: 12, borderLeft: `3px solid ${storeColor}` }}>
+        {/* ── 1. C.A. Mois en cours ── */}
+        <div style={{ background: "var(--color-white)", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.08)", marginBottom: 12 }}>
 
+          {/* Ligne 1 — synthèse mois */}
+          <div style={{ padding: "14px 16px 12px", borderBottom: "1px solid var(--border-light)" }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-primary)", marginBottom: 10 }}>
+              C.A. Mois en cours
+            </div>
+            {monthStats && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                <StatBox label="Mois en cours" value={fmtEURshort(monthStats.monthTotal)} />
+                <StatBox label="N-1 même jour" value={monthStats.n1Partial > 0 ? fmtEURshort(monthStats.n1Partial) : "—"} />
+                <StatBox label="N-1 mois complet" value={monthStats.n1Total > 0 ? fmtEURshort(monthStats.n1Total) : "—"} />
+              </div>
+            )}
+          </div>
+
+          {/* Ligne 2 — données du jour sélectionné */}
+          <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border-light)" }}>
+            <div style={{ fontSize: 11, color: "var(--fg-tertiary)", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontWeight: 600, color: "var(--fg-secondary)" }}>
+                {lockedDayData
+                  ? `${lockedDayData.day} ${FR_MONTHS[month - 1].slice(0, 4)}.`
+                  : "—"}
+              </span>
+              {lockedMonthDay === Number(todayISO.slice(8, 10)) && (
+                <span>· dernier jour</span>
+              )}
+              <span style={{ marginLeft: "auto", fontSize: 10 }}>tap sur le graphe pour changer</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+              <StatBox
+                label="C.A. jour"
+                value={lockedDayData?.ca != null ? fmtEURshort(lockedDayData.ca) : "—"}
+              />
+              <StatBox
+                label="C.A. N-1 jour"
+                value={lockedDayData?.n1ca != null ? fmtEURshort(lockedDayData.n1ca) : "—"}
+              />
+              <StatBox
+                label="% snacking"
+                value={lockedDayData?.ca && lockedDayData.ca > 0
+                  ? Math.round(lockedDayData.snackingCA / lockedDayData.ca * 100) + " %"
+                  : "—"}
+              />
+            </div>
+          </div>
+
+          {/* Graphe en scroll */}
+          <div style={{ padding: "12px 4px 4px" }}>
+            <MobileMonthBars
+              store={store}
+              isHT={isHT}
+              onDaySelect={setLockedMonthDay}
+              initialLockedDay={lockedMonthDay ?? undefined}
+            />
+          </div>
+        </div>
+
+        {/* ── 2. KPI accordions ── */}
+        <div style={{ background: "var(--color-white)", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.08)", marginBottom: 12, borderLeft: `3px solid ${storeColor}` }}>
           <KPIAccordion
             label={`C.A. · ${periodLabel}`}
             value={fmtEURshort(totalCA)}
@@ -536,7 +638,7 @@ export function MobileDashboard() {
           </KPIAccordion>
         </div>
 
-        {/* ── Snacking — recommandation ── */}
+        {/* ── 3. Snacking — recommandation ── */}
         <div style={{ background: "var(--color-white)", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.08)", marginBottom: 12, padding: "14px 16px" }}>
           <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--fg-tertiary)", marginBottom: 10 }}>
             Recommandation production quotidienne
@@ -564,38 +666,7 @@ export function MobileDashboard() {
           )}
         </div>
 
-        {/* ── C.A. mensuel jour par jour ── */}
-        <div style={{ background: "var(--color-white)", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.08)", marginBottom: 12 }}>
-          <div style={{ padding: "14px 16px 12px", borderBottom: "1px solid var(--border-light)" }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-primary)", marginBottom: 10 }}>
-              C.A. de {FR_MONTHS[month - 1]} {year}
-            </div>
-            {/* Fixed stat boxes */}
-            {monthStats && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-                <StatBox
-                  label="Dernier jour"
-                  value={fmtEURshort(monthStats.todayCa)}
-                  sub={monthStats.lastDate.slice(8, 10) + "/" + monthStats.lastDate.slice(5, 7)}
-                />
-                <StatBox
-                  label="Mois en cours"
-                  value={fmtEURshort(monthStats.monthTotal)}
-                />
-                <StatBox
-                  label="N-1 mois"
-                  value={monthStats.n1Total > 0 ? fmtEURshort(monthStats.n1Total) : "—"}
-                />
-              </div>
-            )}
-          </div>
-          {/* Scrollable chart */}
-          <div style={{ padding: "12px 4px 4px" }}>
-            <MobileMonthBars store={store} isHT={isHT} />
-          </div>
-        </div>
-
-        {/* ── Évolution CA (avec N-1 même jour de semaine) ── */}
+        {/* ── 4. Évolution CA ── */}
         {lineData.length >= 2 && (
           <div style={{ background: "var(--color-white)", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.08)", marginBottom: 12 }}>
             <div style={{ padding: "14px 16px 10px" }}>
@@ -627,7 +698,7 @@ export function MobileDashboard() {
           </div>
         )}
 
-        {/* ── Répartition catégories ── */}
+        {/* ── 5. Répartition catégories ── */}
         {m && totalCA > 0 && (
           <Section title="Répartition catégories" subtitle={`${isHT ? "HT" : "TTC"} · ${periodLabel}`}>
             <div style={{ padding: "12px 16px" }}>
@@ -659,14 +730,14 @@ export function MobileDashboard() {
           </Section>
         )}
 
-        {/* ── C.A. mensuel exercice ── */}
+        {/* ── 6. C.A. mensuel exercice ── */}
         <Section title={`C.A. mensuel · Exercice ${fyEnd - 1}–${fyEnd}`} subtitle="Tap pour voir le graphe">
           <div style={{ padding: "12px 16px 4px" }}>
             <FiscalYearChart daily={store.daily} todayISO={todayISO} isHT={isHT} />
           </div>
         </Section>
 
-        {/* ── % Formules snacking ── */}
+        {/* ── 7. % Formules snacking ── */}
         {formules.snackingTx > 0 && (
           <div style={{ background: "var(--color-white)", borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.08)", marginBottom: 12, padding: "14px 16px" }}>
             <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--fg-tertiary)", marginBottom: 8 }}>
@@ -690,7 +761,7 @@ export function MobileDashboard() {
           </div>
         )}
 
-        {/* ── Données avancées ── */}
+        {/* ── 8. Données avancées ── */}
         <div style={{ background: "var(--color-white)", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.08)", marginBottom: 12 }}>
           <button
             onClick={() => setAdvancedOpen(!advancedOpen)}
