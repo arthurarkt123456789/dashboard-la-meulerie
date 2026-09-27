@@ -54,6 +54,25 @@ export function useUberEatsMonths(enabled = true) {
   });
 }
 
+export type WebcaisseStore = { ca: number; caHT: number; tx: number; name: string };
+export type WebcaisseTodayData = {
+  date: string;
+  fetchedAt: string;
+  stores: Record<string, WebcaisseStore>;
+  global: { ca: number; caHT: number; tx: number };
+  tokenExpiresAt: string | null;
+};
+
+export function useWebcaisseToday() {
+  return useQuery({
+    queryKey: ["webcaisse-today"],
+    queryFn: () => fetchJson<WebcaisseTodayData>("/api/webcaisse-today"),
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: 10 * 60 * 1000, // refresh every 10 min
+    retry: 1,
+  });
+}
+
 export function useProInvoices(storeId: string | null) {
   return useQuery({
     queryKey: ["pro-invoices", storeId],

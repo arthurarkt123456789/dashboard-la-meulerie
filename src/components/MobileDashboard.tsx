@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from "react";
-import { useStoreData, useStores } from "@/lib/queries";
+import { useStoreData, useStores, useWebcaisseToday } from "@/lib/queries";
 import {
   periodMetricsForSelection,
   rangeForSelection,
@@ -233,6 +233,7 @@ function MobileMonthBars({ store, isHT, onDaySelect, initialLockedDay }: {
 export function MobileDashboard() {
   const storesQ = useStores();
   const dataQ = useStoreData();
+  const liveQ = useWebcaisseToday();
 
   const stores = storesQ.data ?? [];
   const allData = dataQ.data ?? [];
@@ -501,6 +502,85 @@ export function MobileDashboard() {
 
       {/* ── Body ── */}
       <div style={{ padding: "12px 12px 80px" }}>
+
+        {/* ── 0. Live aujourd'hui (WebCaisse) ── */}
+        {liveQ.data && (() => {
+          const live = liveQ.data;
+          const s = live.stores[activeId];
+          const allStores = storesQ.data ?? [];
+          const lastFetch = new Date(live.fetchedAt);
+          const minsAgo = Math.round((Date.now() - lastFetch.getTime()) / 60000);
+          return (
+            <div style={{
+              background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
+              borderRadius: 12, overflow: "hidden",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
+              marginBottom: 12,
+            }}>
+              {/* Header */}
+              <div style={{ padding: "12px 16px 10px", display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{
+                  width: 8, height: 8, borderRadius: 4,
+                  background: "#22c55e",
+                  display: "inline-block",
+                  boxShadow: "0 0 6px #22c55e",
+                  animation: "lm-pulse 2s infinite",
+                }} />
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                  Aujourd'hui · Live
+                </span>
+                <span style={{ marginLeft: "auto", fontSize: 11, color: "#64748b" }}>
+                  {live.date} · {minsAgo === 0 ? "à l'instant" : `il y a ${minsAgo} min`}
+                </span>
+                <button
+                  onClick={() => liveQ.refetch()}
+                  style={{ background: "none", border: 0, cursor: "pointer", color: "#64748b", fontSize: 14, padding: "0 0 0 4px" }}
+                  title="Actualiser"
+                >↻</button>
+              </div>
+
+              {/* Shop data — current or all */}
+              {s ? (
+                <div style={{ padding: "4px 16px 16px" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                    <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 10, padding: "10px 12px" }}>
+                      <div style={{ fontSize: 10, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>C.A. HT</div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: "#f1f5f9", fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-display)" }}>{fmtEURshort(s.caHT)}</div>
+                    </div>
+                    <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 10, padding: "10px 12px" }}>
+                      <div style={{ fontSize: 10, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>C.A. TTC</div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: "#f1f5f9", fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-display)" }}>{fmtEURshort(s.ca)}</div>
+                    </div>
+                    <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 10, padding: "10px 12px" }}>
+                      <div style={{ fontSize: 10, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Transactions</div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: "#f1f5f9", fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-display)" }}>{s.tx}</div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* All stores view */
+                <div style={{ padding: "4px 16px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
+                  {allStores.map(store => {
+                    const sd = live.stores[store.id];
+                    if (!sd) return null;
+                    const color = STORE_COLORS[store.id] ?? "#94a3b8";
+                    return (
+                      <div key={store.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "rgba(255,255,255,0.05)", borderRadius: 8, borderLeft: `3px solid ${color}` }}>
+                        <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#cbd5e1" }}>{store.name}</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: "#f1f5f9", fontVariantNumeric: "tabular-nums" }}>{fmtEURshort(sd.caHT)}</span>
+                        <span style={{ fontSize: 12, color: "#64748b", fontVariantNumeric: "tabular-nums" }}>{sd.tx} tx</span>
+                      </div>
+                    );
+                  })}
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", borderTop: "1px solid rgba(255,255,255,0.08)", marginTop: 2 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8" }}>Total réseau</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: "#f1f5f9", fontVariantNumeric: "tabular-nums" }}>{fmtEURshort(live.global.caHT)} HT · {live.global.tx} tx</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ── 1. C.A. Mois en cours ── */}
         <div style={{ background: "var(--color-white)", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.08)", marginBottom: 12 }}>
