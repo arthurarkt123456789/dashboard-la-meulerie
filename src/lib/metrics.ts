@@ -422,11 +422,24 @@ export function periodMetricsForSelection(
   const prevTo = subtractDays(from, 1);
   const prevFrom = subtractDays(from, days);
   const prevSlice = sliceByDate(daily, prevFrom, prevTo);
+
+  // For a partial current month: compare N-1 same number of days realized so far,
+  // not the full month N-1 (e.g. Sep 1-27 this year vs Sep 1-27 last year).
+  const effectiveTo = to > todayISO ? todayISO : to;
+  const effectiveDays =
+    effectiveTo === to
+      ? days
+      : Math.round(
+          (new Date(`${effectiveTo}T00:00:00Z`).getTime() -
+            new Date(`${from}T00:00:00Z`).getTime()) /
+            86_400_000,
+        ) + 1;
+
   const yoyFrom = subtractDays(from, yoyOffset);
-  const yoyTo = subtractDays(to, yoyOffset);
+  const yoyTo = subtractDays(effectiveTo, yoyOffset);
   const yoySlice = sliceByDate(daily, yoyFrom, yoyTo);
   const yoyAvailable =
-    yoySlice.length === days && !yoySlice.some((d) => d.closed);
+    yoySlice.length === effectiveDays && !yoySlice.some((d) => d.closed);
 
   const cur = sumRange(curSlice);
   const prev = sumRange(prevSlice);

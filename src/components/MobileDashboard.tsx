@@ -257,7 +257,31 @@ export function MobileDashboard() {
   const activeId = storeId ?? stores[0]?.id ?? "davso";
   const store = allData.find((s) => s.id === activeId) ?? null;
 
-  const todayISO = store?.daily[store.daily.length - 1]?.date ?? "";
+  // Inject today's live data as a synthetic daily entry so KPIs include today
+  const dailyWithLive = useMemo(() => {
+    if (!store) return [];
+    const liveStore = liveQ.data?.stores[store.id];
+    const todayLive = liveQ.data?.date;
+    if (!liveStore || !todayLive || liveStore.tx === 0) return store.daily;
+    const lastDay = store.daily[store.daily.length - 1]?.date ?? "";
+    if (lastDay >= todayLive) return store.daily;
+    return [
+      ...store.daily,
+      {
+        date: todayLive,
+        ca: liveStore.ca,
+        caHT: liveStore.caHT,
+        tx: liveStore.tx,
+        avgTicket: liveStore.ca / liveStore.tx,
+        avgTicketHT: liveStore.caHT / liveStore.tx,
+        fromagerieCA: 0, fromagerieCAHT: 0,
+        snackingCA: 0, snackingCAHT: 0,
+        partial: true,
+      },
+    ];
+  }, [store, liveQ.data]);
+
+  const todayISO = dailyWithLive[dailyWithLive.length - 1]?.date ?? "";
   const year = todayISO ? Number(todayISO.slice(0, 4)) : new Date().getFullYear();
   const month = todayISO ? Number(todayISO.slice(5, 7)) : new Date().getMonth() + 1;
 
@@ -267,15 +291,15 @@ export function MobileDashboard() {
   );
 
   const m = useMemo(
-    () => store ? periodMetricsForSelection(store.daily, period) : null,
-    [store, period],
+    () => dailyWithLive.length ? periodMetricsForSelection(dailyWithLive, period) : null,
+    [dailyWithLive, period],
   );
 
   const periodSlice = useMemo(() => {
-    if (!store || !todayISO) return [];
+    if (!dailyWithLive.length || !todayISO) return [];
     const { from, to } = rangeForSelection(period, todayISO);
-    return store.daily.filter((d) => d.date >= from && d.date <= to && !d.closed);
-  }, [store, period, todayISO]);
+    return dailyWithLive.filter((d) => d.date >= from && d.date <= to && !d.closed);
+  }, [dailyWithLive, period, todayISO]);
 
   const hasUberEats = useMemo(
     () => periodSlice.some(d => (d.uberEatsCa ?? 0) > 0),
@@ -283,8 +307,8 @@ export function MobileDashboard() {
   );
 
   const dailyByDate = useMemo(
-    () => new Map((store?.daily ?? []).map(d => [d.date, d])),
-    [store],
+    () => new Map(dailyWithLive.map(d => [d.date, d])),
+    [dailyWithLive],
   );
 
   // Line chart data

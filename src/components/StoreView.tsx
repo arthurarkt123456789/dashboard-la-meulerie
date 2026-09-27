@@ -31,7 +31,8 @@ import { FinancialBlock } from "./FinancialBlock";
 import { DavsoExtras } from "./DavsoExtras";
 import { WeekdayChart } from "./WeekdayChart";
 import { FiscalYearChart } from "./charts/FiscalYearChart";
-import { useStoreData, useProInvoices, useUberEatsMonths } from "@/lib/queries";
+import { useStoreData, useProInvoices, useUberEatsMonths, useWebcaisseToday } from "@/lib/queries";
+import type { StoreDaily } from "@/lib/apitic/types";
 import { SignatureKPIs } from "./SignatureKPIs";
 import { roll7 } from "@/lib/smoothing";
 import { bucketByWeek } from "@/lib/bucketing";
@@ -96,9 +97,32 @@ export function StoreView({ store, period, today, amountMode }: Props) {
     republique: "#9333EA",
   };
 
+  const liveQ = useWebcaisseToday();
+  const dailyWithLive = useMemo<StoreDaily[]>(() => {
+    const liveStore = liveQ.data?.stores[store.id];
+    const todayLive = liveQ.data?.date;
+    if (!liveStore || !todayLive || liveStore.tx === 0) return store.daily;
+    const lastDay = store.daily[store.daily.length - 1]?.date ?? "";
+    if (lastDay >= todayLive) return store.daily;
+    return [
+      ...store.daily,
+      {
+        date: todayLive,
+        ca: liveStore.ca,
+        caHT: liveStore.caHT,
+        tx: liveStore.tx,
+        avgTicket: liveStore.ca / liveStore.tx,
+        avgTicketHT: liveStore.caHT / liveStore.tx,
+        fromagerieCA: 0, fromagerieCAHT: 0,
+        snackingCA: 0, snackingCAHT: 0,
+        partial: true,
+      },
+    ];
+  }, [store.daily, store.id, liveQ.data]);
+
   const m = useMemo(
-    () => periodMetricsForSelection(store.daily, period),
-    [store.daily, period],
+    () => periodMetricsForSelection(dailyWithLive, period),
+    [dailyWithLive, period],
   );
   const sparkValues = useMemo(() => {
     const todayISO = store.daily[store.daily.length - 1]?.date ?? "";
