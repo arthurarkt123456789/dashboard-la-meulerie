@@ -554,6 +554,9 @@ export function MobileDashboard() {
           const allStores = storesQ.data ?? [];
           const lastFetch = new Date(live.fetchedAt);
           const minsAgo = Math.round((Date.now() - lastFetch.getTime()) / 60000);
+          const tokenDaysLeft = live.tokenExpiresAt
+            ? Math.ceil((new Date(live.tokenExpiresAt).getTime() - Date.now()) / 86400000)
+            : null;
           return (
             <div style={{
               background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
@@ -565,63 +568,122 @@ export function MobileDashboard() {
               <div style={{ padding: "12px 16px 10px", display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{
                   width: 8, height: 8, borderRadius: 4,
-                  background: "#22c55e",
+                  background: liveQ.isFetching ? "#f59e0b" : "#22c55e",
                   display: "inline-block",
-                  boxShadow: "0 0 6px #22c55e",
+                  boxShadow: liveQ.isFetching ? "0 0 6px #f59e0b" : "0 0 6px #22c55e",
                   animation: "lm-pulse 2s infinite",
+                  transition: "background 0.2s, box-shadow 0.2s",
                 }} />
                 <span style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.06em", textTransform: "uppercase" }}>
                   Aujourd'hui · Live
                 </span>
                 <span style={{ marginLeft: "auto", fontSize: 11, color: "#64748b" }}>
-                  {live.date} · {minsAgo === 0 ? "à l'instant" : `il y a ${minsAgo} min`}
+                  {liveQ.isFetching ? "Actualisation…" : `${live.date} · ${minsAgo === 0 ? "à l'instant" : `il y a ${minsAgo} min`}`}
                 </span>
                 <button
                   onClick={() => liveQ.refetch()}
-                  style={{ background: "none", border: 0, cursor: "pointer", color: "#64748b", fontSize: 14, padding: "0 0 0 4px" }}
+                  disabled={liveQ.isFetching}
+                  style={{
+                    background: "none", border: 0, cursor: liveQ.isFetching ? "default" : "pointer",
+                    color: "#64748b", fontSize: 14, padding: "0 0 0 4px",
+                    animation: liveQ.isFetching ? "lm-spin 1s linear infinite" : "none",
+                    opacity: liveQ.isFetching ? 0.5 : 1,
+                  }}
                   title="Actualiser"
                 >↻</button>
               </div>
 
-              {/* Shop data — current or all */}
-              {s ? (
-                <div style={{ padding: "4px 16px 16px" }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-                    <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 10, padding: "10px 12px" }}>
-                      <div style={{ fontSize: 10, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>C.A. HT</div>
-                      <div style={{ fontSize: 20, fontWeight: 700, color: "#f1f5f9", fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-display)" }}>{fmtEURshort(s.caHT)}</div>
-                    </div>
-                    <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 10, padding: "10px 12px" }}>
-                      <div style={{ fontSize: 10, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>C.A. TTC</div>
-                      <div style={{ fontSize: 20, fontWeight: 700, color: "#f1f5f9", fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-display)" }}>{fmtEURshort(s.ca)}</div>
-                    </div>
-                    <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 10, padding: "10px 12px" }}>
-                      <div style={{ fontSize: 10, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Transactions</div>
-                      <div style={{ fontSize: 20, fontWeight: 700, color: "#f1f5f9", fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-display)" }}>{s.tx}</div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                /* All stores view */
-                <div style={{ padding: "4px 16px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
-                  {allStores.map(store => {
-                    const sd = live.stores[store.id];
-                    if (!sd) return null;
-                    const color = STORE_COLORS[store.id] ?? "#94a3b8";
-                    return (
-                      <div key={store.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "rgba(255,255,255,0.05)", borderRadius: 8, borderLeft: `3px solid ${color}` }}>
-                        <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#cbd5e1" }}>{store.name}</span>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: "#f1f5f9", fontVariantNumeric: "tabular-nums" }}>{fmtEURshort(sd.caHT)}</span>
-                        <span style={{ fontSize: 12, color: "#64748b", fontVariantNumeric: "tabular-nums" }}>{sd.tx} tx</span>
-                      </div>
-                    );
-                  })}
-                  <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", borderTop: "1px solid rgba(255,255,255,0.08)", marginTop: 2 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8" }}>Total réseau</span>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: "#f1f5f9", fontVariantNumeric: "tabular-nums" }}>{fmtEURshort(live.global.caHT)} HT · {live.global.tx} tx</span>
-                  </div>
+              {/* Token expiry warning */}
+              {tokenDaysLeft !== null && tokenDaysLeft <= 7 && (
+                <div style={{
+                  padding: "8px 14px",
+                  background: tokenDaysLeft <= 2 ? "#fef2f2" : "#fefce8",
+                  fontSize: 11,
+                  color: tokenDaysLeft <= 2 ? "#b91c1c" : "#854d0e",
+                }}>
+                  {tokenDaysLeft <= 2 ? "⚠️ " : "⏳ "}
+                  Token expire dans <strong>{tokenDaysLeft}j</strong> — renouveler sur apibusiness.web-caisse.com puis mettre à jour Railway.
                 </div>
               )}
+
+              {/* Shop data — current or all */}
+              {(() => {
+                const n1Date = (() => {
+                  const dt = new Date(`${live.date}T00:00:00Z`);
+                  dt.setUTCDate(dt.getUTCDate() - 364);
+                  return dt.toISOString().slice(0, 10);
+                })();
+                if (s) {
+                  const n1day = dailyByDate.get(n1Date);
+                  const n1caHT = n1day && !n1day.closed ? n1day.caHT : null;
+                  const delta = n1caHT && n1caHT > 0 ? s.caHT / n1caHT - 1 : null;
+                  return (
+                    <div style={{ padding: "4px 16px 16px" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                        <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 10, padding: "10px 12px" }}>
+                          <div style={{ fontSize: 10, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>C.A. HT</div>
+                          <div style={{ display: "flex", alignItems: "baseline", gap: 5, flexWrap: "wrap" }}>
+                            <div style={{ fontSize: 20, fontWeight: 700, color: "#f1f5f9", fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-display)" }}>{fmtEURshort(s.caHT)}</div>
+                            {delta !== null && (
+                              <span style={{ fontSize: 11, fontWeight: 700, color: delta >= 0 ? "#4ade80" : "#f87171" }}>
+                                {delta >= 0 ? "+" : "−"}{Math.abs(Math.round(delta * 100))} %
+                              </span>
+                            )}
+                          </div>
+                          {n1caHT !== null && (
+                            <div style={{ fontSize: 10, color: "#475569", marginTop: 3 }}>N-1 : {fmtEURshort(n1caHT)}</div>
+                          )}
+                        </div>
+                        <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 10, padding: "10px 12px" }}>
+                          <div style={{ fontSize: 10, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>C.A. TTC</div>
+                          <div style={{ fontSize: 20, fontWeight: 700, color: "#f1f5f9", fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-display)" }}>{fmtEURshort(s.ca)}</div>
+                        </div>
+                        <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 10, padding: "10px 12px" }}>
+                          <div style={{ fontSize: 10, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Transactions</div>
+                          <div style={{ fontSize: 20, fontWeight: 700, color: "#f1f5f9", fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-display)" }}>{s.tx}</div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+                /* All stores view */
+                return (
+                  <div style={{ padding: "4px 16px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
+                    {allStores.map(st => {
+                      const sd = live.stores[st.id];
+                      if (!sd) return null;
+                      const color = STORE_COLORS[st.id] ?? "#94a3b8";
+                      const storeData = allData.find(d => d.id === st.id);
+                      const n1day = storeData?.daily.find(d => d.date === n1Date);
+                      const n1caHT = n1day && !n1day.closed ? n1day.caHT : null;
+                      const delta = n1caHT && n1caHT > 0 ? sd.caHT / n1caHT - 1 : null;
+                      return (
+                        <div key={st.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "rgba(255,255,255,0.05)", borderRadius: 8, borderLeft: `3px solid ${color}` }}>
+                          <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#cbd5e1" }}>{st.name}</span>
+                          <div style={{ textAlign: "right" }}>
+                            <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
+                              <span style={{ fontSize: 14, fontWeight: 700, color: "#f1f5f9", fontVariantNumeric: "tabular-nums" }}>{fmtEURshort(sd.caHT)}</span>
+                              {delta !== null && (
+                                <span style={{ fontSize: 11, fontWeight: 700, color: delta >= 0 ? "#4ade80" : "#f87171" }}>
+                                  {delta >= 0 ? "+" : "−"}{Math.abs(Math.round(delta * 100))} %
+                                </span>
+                              )}
+                            </div>
+                            {n1caHT !== null && (
+                              <div style={{ fontSize: 10, color: "#475569" }}>N-1 : {fmtEURshort(n1caHT)}</div>
+                            )}
+                          </div>
+                          <span style={{ fontSize: 12, color: "#64748b", fontVariantNumeric: "tabular-nums" }}>{sd.tx} tx</span>
+                        </div>
+                      );
+                    })}
+                    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", borderTop: "1px solid rgba(255,255,255,0.08)", marginTop: 2 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8" }}>Total réseau</span>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: "#f1f5f9", fontVariantNumeric: "tabular-nums" }}>{fmtEURshort(live.global.caHT)} HT · {live.global.tx} tx</span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           );
         })()}

@@ -455,6 +455,10 @@ button { font-family: inherit; cursor: pointer; }
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
 }
+@keyframes lm-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 .lm-kpi-value-row {
   display: flex;
   align-items: flex-end;

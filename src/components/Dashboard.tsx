@@ -93,7 +93,7 @@ export function Dashboard({ tab }: Props) {
       />
 
       <main className="lm-main">
-        <WebcaisseLiveCard activeTab={tab} stores={stores.data ?? []} />
+        <WebcaisseLiveCard activeTab={tab} stores={stores.data ?? []} allData={storeData.data ?? []} />
         <SegmentFilterProvider>
           {(() => {
             if (storeData.isLoading || !storeData.data) {

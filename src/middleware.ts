@@ -64,6 +64,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Cron routes have their own CRON_SECRET auth
+  if (pathname.startsWith("/api/cron/")) {
+    return NextResponse.next();
+  }
+
   // If DASHBOARD_PASSWORD is not set, allow open access
   const pwd = process.env.DASHBOARD_PASSWORD;
   if (!pwd || pwd.trim().length === 0) {
