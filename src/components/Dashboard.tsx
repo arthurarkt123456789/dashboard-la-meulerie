@@ -8,6 +8,7 @@ import { Header } from "./Header";
 import { ConsolidatedView } from "./ConsolidatedView";
 import { StoreView } from "./StoreView";
 import { SegmentFilterProvider } from "./SegmentFilter";
+import { WebcaisseLiveCard } from "./WebcaisseLiveCard";
 import type { AmountMode } from "./AmountModeToggle";
 
 type Props = { tab: string };
@@ -92,6 +93,7 @@ export function Dashboard({ tab }: Props) {
       />
 
       <main className="lm-main">
+        <WebcaisseLiveCard activeTab={tab} stores={stores.data ?? []} />
         <SegmentFilterProvider>
           {(() => {
             if (storeData.isLoading || !storeData.data) {
