@@ -12,6 +12,7 @@ import { fmtEUR, fmtEURshort } from "@/lib/format";
 import { LineChart } from "./charts/LineChart";
 import { MonthDailyBars } from "./charts/MonthDailyBars";
 import { FiscalYearChart } from "./charts/FiscalYearChart";
+import { MobileConsolidatedView } from "./MobileConsolidatedView";
 
 const STORE_COLORS: Record<string, string> = {
   davso: "#E8420D",
@@ -425,7 +426,10 @@ export function MobileDashboard() {
     ? periodSlice.reduce((s, d) => s + (d.uberEatsCa ?? 0), 0) / 10 / periodSlice.length
     : 0;
 
-  const storeOptions = stores.map(s => ({ value: s.id, label: s.name }));
+  const storeOptions = [
+    { value: "all", label: "Réseau" },
+    ...stores.map(s => ({ value: s.id, label: s.name })),
+  ];
 
   function goToFullView() {
     document.cookie = "force-desktop=1; path=/; max-age=86400; SameSite=Lax";
@@ -622,6 +626,16 @@ export function MobileDashboard() {
           );
         })()}
 
+        {/* ── Vue réseau ou vue magasin ── */}
+        {activeId === "all" ? (
+          <MobileConsolidatedView
+            allData={allData}
+            stores={stores}
+            period={period}
+            isHT={isHT}
+            periodLabel={periodLabel}
+          />
+        ) : <>
         {/* ── 1. C.A. Mois en cours ── */}
         <div style={{ background: "var(--color-white)", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.08)", marginBottom: 12 }}>
 
@@ -911,6 +925,7 @@ export function MobileDashboard() {
             </div>
           )}
         </div>
+        </>}
       </div>
     </div>
   );
