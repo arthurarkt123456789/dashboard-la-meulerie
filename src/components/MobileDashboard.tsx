@@ -179,11 +179,18 @@ function DRow({ label, value, color }: { label: string; value: string; color?: s
 }
 
 // ── Stat box (monthly summary) ───────────────────────────────────────────────
-function StatBox({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function StatBox({ label, value, sub, delta }: { label: string; value: string; sub?: string; delta?: number | null }) {
   return (
     <div style={{ background: "var(--bg-subtle)", borderRadius: 10, padding: "10px 12px" }}>
       <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--fg-tertiary)", marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "var(--font-display)", color: "var(--fg-primary)", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" }}>{value}</div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "var(--font-display)", color: "var(--fg-primary)", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" }}>{value}</div>
+        {delta != null && (
+          <span style={{ fontSize: 11, fontWeight: 700, color: delta >= 0 ? "#15803d" : "#b91c1c", fontVariantNumeric: "tabular-nums" }}>
+            {delta >= 0 ? "+" : "−"}{Math.abs(Math.round(delta * 100))} %
+          </span>
+        )}
+      </div>
       {sub && <div style={{ fontSize: 10, color: "var(--fg-tertiary)", marginTop: 2 }}>{sub}</div>}
     </div>
   );
@@ -223,6 +230,7 @@ function MobileMonthBars({ store, isHT, onDaySelect, initialLockedDay }: {
           storeColor={storeColor}
           onDaySelect={onDaySelect}
           initialLockedDay={initialLockedDay}
+          hideSummary
         />
       </div>
     </div>
@@ -273,6 +281,11 @@ export function MobileDashboard() {
     [periodSlice],
   );
 
+  const dailyByDate = useMemo(
+    () => new Map((store?.daily ?? []).map(d => [d.date, d])),
+    [store],
+  );
+
   // Line chart data
   const lineData = useMemo(() => periodSlice.map((d) => ({
     date: d.date,
@@ -280,19 +293,21 @@ export function MobileDashboard() {
     uberEatsCa: isHT ? Math.round((d.uberEatsCa ?? 0) / 1.1 * 100) / 100 : (d.uberEatsCa ?? 0),
   })), [periodSlice, isHT]);
 
-  // N-1 line overlay (same day-of-week, 52 weeks back)
+  // N-1 line overlay — always 364 days back (52 weeks = même jour de semaine)
   const yoyLineData = useMemo(() => {
-    if (!m?.yoySlice?.length || !m.yoyAvailable) return null;
-    return m.yoySlice.map(d => ({
-      date: d.date,
-      ca: isHT ? (d.caHT ?? 0) : d.ca,
-    }));
-  }, [m, isHT]);
-
-  const dailyByDate = useMemo(
-    () => new Map((store?.daily ?? []).map(d => [d.date, d])),
-    [store],
-  );
+    if (!periodSlice.length) return null;
+    const points = periodSlice.map(d => {
+      const dt = new Date(`${d.date}T00:00:00Z`);
+      dt.setUTCDate(dt.getUTCDate() - 364);
+      const n1d = dailyByDate.get(dt.toISOString().slice(0, 10));
+      return {
+        date: dt.toISOString().slice(0, 10),
+        ca: (n1d && !n1d.closed) ? (isHT ? (n1d.caHT ?? 0) : n1d.ca) : 0,
+      };
+    });
+    if (points.filter(p => p.ca > 0).length < Math.ceil(periodSlice.length * 0.3)) return null;
+    return points;
+  }, [periodSlice, dailyByDate, isHT]);
 
   // Default lockedMonthDay to last data day when store loads
   useEffect(() => {
@@ -592,7 +607,11 @@ export function MobileDashboard() {
             </div>
             {monthStats && (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-                <StatBox label="Mois en cours" value={fmtEURshort(monthStats.monthTotal)} />
+                <StatBox
+                  label="Mois en cours"
+                  value={fmtEURshort(monthStats.monthTotal)}
+                  delta={monthStats.n1Partial > 0 ? monthStats.monthTotal / monthStats.n1Partial - 1 : null}
+                />
                 <StatBox label="N-1 même jour" value={monthStats.n1Partial > 0 ? fmtEURshort(monthStats.n1Partial) : "—"} />
                 <StatBox label="N-1 mois complet" value={monthStats.n1Total > 0 ? fmtEURshort(monthStats.n1Total) : "—"} />
               </div>
@@ -616,6 +635,9 @@ export function MobileDashboard() {
               <StatBox
                 label="C.A. jour"
                 value={lockedDayData?.ca != null ? fmtEURshort(lockedDayData.ca) : "—"}
+                delta={lockedDayData?.ca != null && lockedDayData?.n1ca != null && lockedDayData.n1ca > 0
+                  ? lockedDayData.ca / lockedDayData.n1ca - 1
+                  : null}
               />
               <StatBox
                 label="C.A. N-1 jour"

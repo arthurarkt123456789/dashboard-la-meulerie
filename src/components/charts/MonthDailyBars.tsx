@@ -30,9 +30,10 @@ type Props = {
   storeColor: string;
   initialLockedDay?: number;
   onDaySelect?: (dayNum: number | null) => void;
+  hideSummary?: boolean;
 };
 
-export function MonthDailyBars({ daily, todayISO, isHT, storeColor, initialLockedDay, onDaySelect }: Props) {
+export function MonthDailyBars({ daily, todayISO, isHT, storeColor, initialLockedDay, onDaySelect, hideSummary }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(900);
   const [hoveredDay, setHoveredDay] = useState<number | null>(null);
@@ -156,7 +157,7 @@ export function MonthDailyBars({ daily, todayISO, isHT, storeColor, initialLocke
   return (
     <div style={{ fontFamily: "var(--font-body)" }}>
       {/* Summary bar */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 20, alignItems: "flex-end", marginBottom: 14 }}>
+      {!hideSummary && <div style={{ display: "flex", flexWrap: "wrap", gap: 20, alignItems: "flex-end", marginBottom: 14 }}>
         <div>
           <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--fg-tertiary)", marginBottom: 3 }}>
             Réalisé · {daysRealized}/{daysCount} j
@@ -264,7 +265,7 @@ export function MonthDailyBars({ daily, todayISO, isHT, storeColor, initialLocke
             )}
           </div>
         )}
-      </div>
+      </div>}
 
       {/* SVG bar chart */}
       <div ref={ref} style={{ width: "100%", position: "relative" }}>
