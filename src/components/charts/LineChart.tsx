@@ -283,16 +283,23 @@ export function LineChart({
                 strokeLinecap="round"
                 strokeDasharray={isDashed ? "4 3" : undefined}
               />
-              {highlightLast && !isDashed && (
-                <circle
-                  cx={lastPt[0]}
-                  cy={lastPt[1]}
-                  r="3.5"
-                  fill="white"
-                  stroke={s.color}
-                  strokeWidth="1.75"
-                />
-              )}
+              {highlightLast && !isDashed && (() => {
+                const isLivePoint = data[data.length - 1]?.partial === true;
+                return (
+                  <>
+                    {isLivePoint && (
+                      <circle cx={lastPt[0]} cy={lastPt[1]} r="7" fill="#f59e0b" opacity={0.2} />
+                    )}
+                    <circle
+                      cx={lastPt[0]} cy={lastPt[1]}
+                      r="3.5"
+                      fill={isLivePoint ? "#f59e0b" : "white"}
+                      stroke={isLivePoint ? "white" : s.color}
+                      strokeWidth="1.75"
+                    />
+                  </>
+                );
+              })()}
             </g>
           );
         })}

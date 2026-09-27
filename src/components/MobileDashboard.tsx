@@ -7,7 +7,7 @@ import {
   rangeForSelection,
   currentFiscalYearEnd,
 } from "@/lib/metrics";
-import type { PeriodSelection, StoreData } from "@/lib/apitic/types";
+import type { PeriodSelection, StoreData, StoreDaily } from "@/lib/apitic/types";
 import { fmtEUR, fmtEURshort } from "@/lib/format";
 import { LineChart } from "./charts/LineChart";
 import { MonthDailyBars } from "./charts/MonthDailyBars";
@@ -198,14 +198,15 @@ function StatBox({ label, value, sub, delta }: { label: string; value: string; s
 }
 
 // ── Horizontal scroll MonthDailyBars ─────────────────────────────────────────
-function MobileMonthBars({ store, isHT, onDaySelect, initialLockedDay }: {
+function MobileMonthBars({ store, daily, isHT, onDaySelect, initialLockedDay }: {
   store: StoreData;
+  daily: StoreDaily[];
   isHT: boolean;
   onDaySelect?: (dayNum: number | null) => void;
   initialLockedDay?: number;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const todayISO = store.daily[store.daily.length - 1]?.date ?? "";
+  const todayISO = daily[daily.length - 1]?.date ?? "";
   const todayDay = Number(todayISO.slice(8, 10));
   const storeColor = STORE_COLORS[store.id] ?? "var(--color-coral)";
   const year = Number(todayISO.slice(0, 4));
@@ -225,7 +226,7 @@ function MobileMonthBars({ store, isHT, onDaySelect, initialLockedDay }: {
     <div ref={scrollRef} style={{ overflowX: "auto", overflowY: "hidden", WebkitOverflowScrolling: "touch" }}>
       <div style={{ width: totalW, minWidth: totalW }}>
         <MonthDailyBars
-          daily={store.daily}
+          daily={daily}
           todayISO={todayISO}
           isHT={isHT}
           storeColor={storeColor}
@@ -781,6 +782,7 @@ export function MobileDashboard() {
           <div style={{ padding: "12px 4px 4px" }}>
             <MobileMonthBars
               store={store!}
+              daily={dailyWithLive}
               isHT={isHT}
               onDaySelect={setLockedMonthDay}
               initialLockedDay={lockedMonthDay ?? undefined}
@@ -960,7 +962,7 @@ export function MobileDashboard() {
         {/* ── 6. C.A. mensuel exercice ── */}
         <Section title={`C.A. mensuel · Exercice ${fyEnd - 1}–${fyEnd}`} subtitle="Tap pour voir le graphe">
           <div style={{ padding: "12px 16px 4px" }}>
-            <FiscalYearChart daily={store!.daily} todayISO={todayISO} isHT={isHT} />
+            <FiscalYearChart daily={dailyWithLive} todayISO={todayISO} isHT={isHT} />
           </div>
         </Section>
 

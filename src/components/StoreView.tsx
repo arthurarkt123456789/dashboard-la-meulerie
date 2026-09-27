@@ -124,10 +124,10 @@ export function StoreView({ store, period, today, amountMode }: Props) {
     () => periodMetricsForSelection(dailyWithLive, period),
     [dailyWithLive, period],
   );
+  const todayISO = dailyWithLive[dailyWithLive.length - 1]?.date ?? "";
   const sparkValues = useMemo(() => {
-    const todayISO = store.daily[store.daily.length - 1]?.date ?? "";
     const { from, to } = rangeForSelection(period, todayISO);
-    const slice = store.daily.filter((d) => d.date >= from && d.date <= to);
+    const slice = dailyWithLive.filter((d) => d.date >= from && d.date <= to);
     if (period.kind === "fiscal-year-todate") {
       const byMonth = new Map<string, number>();
       for (const d of slice) {
@@ -148,12 +148,11 @@ export function StoreView({ store, period, today, amountMode }: Props) {
       return Array.from(byWeek.values());
     }
     return slice.map((d) => (isHT ? d.caHT ?? 0 : d.ca));
-  }, [store.daily, period, isHT]);
+  }, [dailyWithLive, period, isHT]);
 
   const txSparkValues = useMemo(() => {
-    const todayISO = store.daily[store.daily.length - 1]?.date ?? "";
     const { from, to } = rangeForSelection(period, todayISO);
-    const slice = store.daily.filter((d) => d.date >= from && d.date <= to);
+    const slice = dailyWithLive.filter((d) => d.date >= from && d.date <= to);
     if (period.kind === "fiscal-year-todate") {
       const byMonth = new Map<string, number>();
       for (const d of slice) {
@@ -174,13 +173,12 @@ export function StoreView({ store, period, today, amountMode }: Props) {
       return Array.from(byWeek.values());
     }
     return slice.map((d) => d.tx);
-  }, [store.daily, period]);
+  }, [dailyWithLive, period]);
   const periodLabel = periodLabelFor(period);
 
   const lineData = useMemo(() => {
-    const todayISO = store.daily[store.daily.length - 1]?.date ?? "";
     const { from, to } = rangeForSelection(period, todayISO);
-    const result = store.daily
+    const result = dailyWithLive
       .filter((d) => d.date >= from && d.date <= to)
       .map((d) => ({
         ...d,
@@ -198,7 +196,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
       }
     }
     return result;
-  }, [store.daily, period, isHT]);
+  }, [dailyWithLive, period, isHT]);
 
   const chartData = useMemo(() => {
     const bucketed = maybeBucket(lineData, effectiveGranularity);
@@ -212,7 +210,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
     // For month periods: date-based lookup with 364-day offset (52 × 7)
     // so each day maps to the same day-of-week in N-1.
     if (period.kind === "month") {
-      const dailyByDate = new Map(store.daily.map((d) => [d.date, d]));
+      const dailyByDate = new Map(dailyWithLive.map((d) => [d.date, d]));
       const raw = lineData.map((ld) => {
         const d = new Date(`${ld.date}T00:00:00Z`);
         d.setUTCDate(d.getUTCDate() - 364);
@@ -232,8 +230,8 @@ export function StoreView({ store, period, today, amountMode }: Props) {
     // 364 = 52 × 7 (same day-of-week, ~1 year ago). Fiscal year uses 365
     // since it's displayed at monthly granularity (weekday alignment irrelevant).
     const offset = period.kind === "fiscal-year-todate" ? 365 : 364;
-    const start = store.daily.length - days - offset;
-    const raw = store.daily.slice(start, start + days).map((d, i) => ({
+    const start = dailyWithLive.length - days - offset;
+    const raw = dailyWithLive.slice(start, start + days).map((d, i) => ({
       date: lineData[i]?.date ?? d.date,
       ca: isHT ? d.caHT ?? 0 : d.ca,
     }));
@@ -241,13 +239,12 @@ export function StoreView({ store, period, today, amountMode }: Props) {
     if (!smoothCA || effectiveGranularity !== "day") return bucketed;
     const smoothed = roll7(bucketed.map((d) => d.ca ?? null));
     return bucketed.map((d, i) => ({ ...d, ca: smoothed[i] ?? 0 }));
-  }, [m.yoyAvailable, m.days, store.daily, lineData, effectiveGranularity, isHT, period, smoothCA]);
+  }, [m.yoyAvailable, m.days, dailyWithLive, lineData, effectiveGranularity, isHT, period, smoothCA]);
   // Shared daily slice for the selected period — reused by formules, payments, and charts.
   const periodSlice = useMemo(() => {
-    const todayISO = store.daily[store.daily.length - 1]?.date ?? "";
     const { from, to } = rangeForSelection(period, todayISO);
-    return store.daily.filter((d) => d.date >= from && d.date <= to && !d.closed);
-  }, [store.daily, period]);
+    return dailyWithLive.filter((d) => d.date >= from && d.date <= to && !d.closed);
+  }, [dailyWithLive, period]);
 
   const periodFormules = useMemo<FormuleStats>(() => {
     const slice = periodSlice;
@@ -759,7 +756,6 @@ export function StoreView({ store, period, today, amountMode }: Props) {
 
       {/* ── C.A. mensuel jour par jour — toujours le mois en cours ── */}
       {(() => {
-        const todayISO = store.daily[store.daily.length - 1]?.date ?? "";
         const year = Number(todayISO.slice(0, 4));
         const month = Number(todayISO.slice(5, 7));
         const todayDay = Number(todayISO.slice(8, 10));
@@ -774,7 +770,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           >
             <div style={{ padding: "0 20px 20px" }}>
               <MonthDailyBars
-                daily={store.daily}
+                daily={dailyWithLive}
                 todayISO={todayISO}
                 isHT={isHT}
                 storeColor={storeColor}
@@ -837,7 +833,6 @@ export function StoreView({ store, period, today, amountMode }: Props) {
       </Card>
 
       {(() => {
-        const todayISO = store.daily[store.daily.length - 1]?.date ?? "";
         const fyEnd = currentFiscalYearEnd(new Date(`${todayISO}T12:00:00Z`));
         return (
           <Card
@@ -845,7 +840,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
             subtitle={`Ex. ${fyEnd - 1}–${fyEnd} vs. ex. ${fyEnd - 2}–${fyEnd - 1} · ${isHT ? "HT" : "TTC"} · barres hachurées = projection`}
             span={3}
           >
-            <FiscalYearChart daily={store.daily} todayISO={todayISO} isHT={isHT} proInvoices={proInvoices} />
+            <FiscalYearChart daily={dailyWithLive} todayISO={todayISO} isHT={isHT} proInvoices={proInvoices} />
           </Card>
         );
       })()}
