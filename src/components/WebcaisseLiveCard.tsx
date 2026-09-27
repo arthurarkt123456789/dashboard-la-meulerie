@@ -19,8 +19,29 @@ type Props = {
 export function WebcaisseLiveCard({ activeTab, stores }: Props) {
   const liveQ = useWebcaisseToday();
 
-  if (!liveQ.data && !liveQ.isLoading) return null;
   if (liveQ.isLoading) return null;
+
+  if (liveQ.isError || !liveQ.data) {
+    const msg = liveQ.isError ? String((liveQ.error as Error)?.message ?? "erreur") : null;
+    const is503 = msg?.includes("503");
+    return (
+      <div style={{
+        background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10,
+        padding: "10px 16px", marginBottom: 20,
+        fontSize: 12, color: "#b91c1c", display: "flex", alignItems: "center", gap: 8,
+      }}>
+        <span>●</span>
+        <span>
+          Live indisponible —{" "}
+          {is503 ? "WEBCAISSE_TOKEN non configuré (Railway → Variables)" : (msg ?? "erreur réseau")}
+        </span>
+        <button
+          onClick={() => liveQ.refetch()}
+          style={{ marginLeft: "auto", background: "none", border: 0, cursor: "pointer", color: "#b91c1c", fontSize: 13 }}
+        >↻</button>
+      </div>
+    );
+  }
 
   const live = liveQ.data!;
   const lastFetch = new Date(live.fetchedAt);
