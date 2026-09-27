@@ -436,7 +436,7 @@ export function MobileDashboard() {
     window.location.href = `/${activeId === "all" ? "all" : activeId}`;
   }
 
-  if (dataQ.isLoading || !store) {
+  if (dataQ.isLoading || (!store && activeId !== "all")) {
     return (
       <div style={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-body)", color: "var(--fg-tertiary)" }}>
         Chargement…
@@ -694,7 +694,7 @@ export function MobileDashboard() {
           {/* Graphe en scroll */}
           <div style={{ padding: "12px 4px 4px" }}>
             <MobileMonthBars
-              store={store}
+              store={store!}
               isHT={isHT}
               onDaySelect={setLockedMonthDay}
               initialLockedDay={lockedMonthDay ?? undefined}
@@ -874,7 +874,7 @@ export function MobileDashboard() {
         {/* ── 6. C.A. mensuel exercice ── */}
         <Section title={`C.A. mensuel · Exercice ${fyEnd - 1}–${fyEnd}`} subtitle="Tap pour voir le graphe">
           <div style={{ padding: "12px 16px 4px" }}>
-            <FiscalYearChart daily={store.daily} todayISO={todayISO} isHT={isHT} />
+            <FiscalYearChart daily={store!.daily} todayISO={todayISO} isHT={isHT} />
           </div>
         </Section>
 
