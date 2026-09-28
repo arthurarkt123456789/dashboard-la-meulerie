@@ -185,14 +185,16 @@ export async function GET() {
     ? new Date(tokenCache.expiresAt).toISOString()
     : null;
 
+  // Sum only the mapped stores so the global total never includes unknown accounts
+  const mappedStores = Object.values(stores);
   const response: WebcaisseTodayResponse = {
     date: today,
     fetchedAt: new Date().toISOString(),
     stores,
     global: {
-      ca: data.global?.turnoverTtc ?? 0,
-      caHT: data.global?.turnoverHt ?? 0,
-      tx: data.global?.salesTotal ?? 0,
+      ca: mappedStores.reduce((s, st) => s + st.ca, 0),
+      caHT: mappedStores.reduce((s, st) => s + st.caHT, 0),
+      tx: mappedStores.reduce((s, st) => s + st.tx, 0),
     },
     tokenExpiresAt,
   };
