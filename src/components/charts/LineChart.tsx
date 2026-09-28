@@ -519,13 +519,18 @@ function Tooltip({
         const ca = point[series[0]?.key];
         const ue = point[uberEatsKey];
         if (typeof ca !== "number" || typeof ue !== "number" || ue <= 0) return null;
+        // When a dedicated boutique series is already shown, skip the redundant
+        // "C.A. Boutique" row (it would be recomputed without the HT conversion).
+        const hasBoutiqueSeries = series.length > 1;
         return (
           <>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2, opacity: 0.85 }}>
-              <span style={{ width: 8, height: 8, background: "var(--fg-inverted-muted)", display: "inline-block", borderRadius: 1 }} />
-              <span style={{ flex: 1 }}>C.A. Boutique</span>
-              <span style={{ fontVariantNumeric: "tabular-nums" }}>{yFormat(ca - ue)}</span>
-            </div>
+            {!hasBoutiqueSeries && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2, opacity: 0.85 }}>
+                <span style={{ width: 8, height: 8, background: "var(--fg-inverted-muted)", display: "inline-block", borderRadius: 1 }} />
+                <span style={{ flex: 1 }}>C.A. Boutique</span>
+                <span style={{ fontVariantNumeric: "tabular-nums" }}>{yFormat(ca - ue)}</span>
+              </div>
+            )}
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
               <span style={{ width: 8, height: 8, background: "#08C167", display: "inline-block", borderRadius: 1 }} />
               <span style={{ flex: 1 }}>Uber Eats</span>
