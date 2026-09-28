@@ -16,6 +16,8 @@ export type LineSeries = {
   color: string;
   /** Render the line dashed with reduced opacity. Used for N-1 overlays. */
   dashed?: boolean;
+  /** Skip the area fill under the line — just a stroke. */
+  noArea?: boolean;
 };
 
 export type LinePoint = {
@@ -195,7 +197,7 @@ export function LineChart({
         })()}
 
         {/* Uber Eats — green area at bottom (0→ue) + dark green stroke line */}
-        {uberEatsKey && series.length === 1 && (() => {
+        {uberEatsKey && (() => {
           const hasAnyUE = data.some((d) => {
             const ue = d[uberEatsKey];
             return typeof ue === "number" && ue > 0;
@@ -246,9 +248,9 @@ export function LineChart({
           if (!firstPt || !lastPt) return null;
           const isDashed = s.dashed === true;
           let areaPath: string | null = null;
-          if (series.length === 1 && !isDashed) {
-            if (uberEatsKey) {
-              // Close along UE values so the main area shows only the "boutique" portion
+          if (!isDashed && !s.noArea) {
+            if (sIdx === 0 && uberEatsKey) {
+              // Close along UE values so the first series area shows only the "boutique" portion
               let bottomPath = "";
               for (let j = data.length - 1; j >= 0; j--) {
                 const ue = data[j][uberEatsKey];
@@ -256,7 +258,7 @@ export function LineChart({
                 bottomPath += ` L ${xAt(j)} ${yAt(ueVal)}`;
               }
               areaPath = linePath + bottomPath + " Z";
-            } else {
+            } else if (!uberEatsKey || sIdx === 0) {
               areaPath = linePath + ` L ${lastPt[0]} ${yAt(0)} L ${firstPt[0]} ${yAt(0)} Z`;
             }
           }

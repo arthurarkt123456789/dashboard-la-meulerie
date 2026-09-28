@@ -180,10 +180,13 @@ export function StoreView({ store, period, today, amountMode }: Props) {
     const { from, to } = rangeForSelection(period, todayISO);
     const result = dailyWithLive
       .filter((d) => d.date >= from && d.date <= to)
-      .map((d) => ({
-        ...d,
-        ca: isHT ? d.caHT ?? 0 : d.ca,
-      }));
+      .map((d) => {
+        const ca = isHT ? d.caHT ?? 0 : d.ca;
+        const ue = isHT
+          ? Math.round((d.uberEatsCa ?? 0) / 1.1 * 100) / 100
+          : (d.uberEatsCa ?? 0);
+        return { ...d, ca, boutiqueCA: Math.max(0, ca - ue) };
+      });
     // For month view: pad with skeleton entries for future days so the N-1
     // dashed line can extend to the end of the month.
     if (period.kind === "month" && result.length > 0 && todayISO < to) {
@@ -700,7 +703,10 @@ export function StoreView({ store, period, today, amountMode }: Props) {
       >
         <LineChart
           data={showCompare && compareChartData ? compareChartData : chartData}
-          series={[{ key: "ca", label: store.name, color: "var(--color-coral)" }]}
+          series={[
+            { key: "ca", label: store.name, color: "var(--color-coral)" },
+            ...(hasUberEats ? [{ key: "boutiqueCA", label: "Boutique", color: "#94a3b8", noArea: true }] : []),
+          ]}
           bars={showCompare && compareBars ? compareBars : undefined}
           yoyData={showN1 ? yoyChartData : null}
           height={280}
