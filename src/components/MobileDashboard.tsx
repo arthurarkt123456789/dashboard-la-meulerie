@@ -329,7 +329,7 @@ export function MobileDashboard() {
     if (!periodSlice.length) return null;
     const points = periodSlice.map(d => {
       const dt = new Date(`${d.date}T00:00:00Z`);
-      dt.setUTCDate(dt.getUTCDate() - 365);
+      dt.setUTCDate(dt.getUTCDate() - 364);
       const n1d = dailyByDate.get(dt.toISOString().slice(0, 10));
       return {
         date: dt.toISOString().slice(0, 10),
@@ -653,7 +653,7 @@ export function MobileDashboard() {
               {(() => {
                 const n1Date = (() => {
                   const dt = new Date(`${live.date}T00:00:00Z`);
-                  dt.setUTCDate(dt.getUTCDate() - 365);
+                  dt.setUTCDate(dt.getUTCDate() - 364);
                   return dt.toISOString().slice(0, 10);
                 })();
                 if (s) {
