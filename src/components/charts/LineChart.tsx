@@ -247,6 +247,7 @@ export function LineChart({
           });
           if (!firstPt || !lastPt) return null;
           const isDashed = s.dashed === true;
+          const isSecondary = sIdx > 0;
           let areaPath: string | null = null;
           if (!isDashed && !s.noArea) {
             if (sIdx === 0 && uberEatsKey) {
@@ -258,18 +259,21 @@ export function LineChart({
                 bottomPath += ` L ${xAt(j)} ${yAt(ueVal)}`;
               }
               areaPath = linePath + bottomPath + " Z";
-            } else if (!uberEatsKey || sIdx === 0) {
+            } else {
               areaPath = linePath + ` L ${lastPt[0]} ${yAt(0)} L ${firstPt[0]} ${yAt(0)} Z`;
             }
           }
           const gradId = `${gradIdBase}-s${sIdx}`;
+          // Secondary series: thinner stroke, more transparent gradient
+          const strokeW = isDashed ? "1.25" : isSecondary ? "1.25" : "1.75";
+          const gradOpacity = isSecondary ? 0.08 : 0.14;
           return (
             <g key={s.key} opacity={isDashed ? 0.7 : 1}>
               {areaPath && (
                 <>
                   <defs>
                     <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={s.color} stopOpacity="0.14" />
+                      <stop offset="0%" stopColor={s.color} stopOpacity={gradOpacity} />
                       <stop offset="100%" stopColor={s.color} stopOpacity="0" />
                     </linearGradient>
                   </defs>
@@ -280,7 +284,7 @@ export function LineChart({
                 d={linePath}
                 fill="none"
                 stroke={s.color}
-                strokeWidth={isDashed ? "1.25" : "1.75"}
+                strokeWidth={strokeW}
                 strokeLinejoin="round"
                 strokeLinecap="round"
                 strokeDasharray={isDashed ? "4 3" : undefined}

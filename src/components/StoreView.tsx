@@ -705,7 +705,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           data={showCompare && compareChartData ? compareChartData : chartData}
           series={[
             { key: "ca", label: store.name, color: "var(--color-coral)" },
-            ...(hasUberEats ? [{ key: "boutiqueCA", label: "Boutique", color: "#94a3b8", noArea: true }] : []),
+            ...(hasUberEats ? [{ key: "boutiqueCA", label: "Boutique", color: "#94a3b8" }] : []),
           ]}
           bars={showCompare && compareBars ? compareBars : undefined}
           yoyData={showN1 ? yoyChartData : null}
