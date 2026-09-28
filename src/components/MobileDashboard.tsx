@@ -253,6 +253,7 @@ export function MobileDashboard() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [periodKey, setPeriodKey] = useState<PeriodOpt>("month");
+  const [monthOffset, setMonthOffset] = useState(0);
   const [lockedMonthDay, setLockedMonthDay] = useState<number | null>(null);
 
   const activeId = storeId ?? stores[0]?.id ?? "davso";
@@ -283,8 +284,12 @@ export function MobileDashboard() {
   }, [store, liveQ.data]);
 
   const todayISO = dailyWithLive[dailyWithLive.length - 1]?.date ?? "";
-  const year = todayISO ? Number(todayISO.slice(0, 4)) : new Date().getFullYear();
-  const month = todayISO ? Number(todayISO.slice(5, 7)) : new Date().getMonth() + 1;
+  const baseYear = todayISO ? Number(todayISO.slice(0, 4)) : new Date().getFullYear();
+  const baseMonth = todayISO ? Number(todayISO.slice(5, 7)) : new Date().getMonth() + 1;
+  // monthOffset allows navigating to past months when periodKey === "month"
+  const totalMonths = baseYear * 12 + (baseMonth - 1) + (periodKey === "month" ? monthOffset : 0);
+  const year = Math.floor(totalMonths / 12);
+  const month = (totalMonths % 12) + 1;
 
   const period = useMemo(
     () => toPeriodSelection(periodKey, year, month),
@@ -324,7 +329,7 @@ export function MobileDashboard() {
     if (!periodSlice.length) return null;
     const points = periodSlice.map(d => {
       const dt = new Date(`${d.date}T00:00:00Z`);
-      dt.setUTCDate(dt.getUTCDate() - 364);
+      dt.setUTCDate(dt.getUTCDate() - 365);
       const n1d = dailyByDate.get(dt.toISOString().slice(0, 10));
       return {
         date: dt.toISOString().slice(0, 10),
@@ -375,7 +380,7 @@ export function MobileDashboard() {
     // N-1 complet: all days of the month (including future)
     const n1Total = allMonthDates.reduce((s, dateStr) => {
       const dt = new Date(`${dateStr}T00:00:00Z`);
-      dt.setUTCDate(dt.getUTCDate() - 364);
+      dt.setUTCDate(dt.getUTCDate() - 365);
       const n1d = dailyByDate.get(dt.toISOString().slice(0, 10));
       return s + (n1d && !n1d.closed ? (isHT ? (n1d.caHT ?? 0) : n1d.ca) : 0);
     }, 0);
@@ -384,7 +389,7 @@ export function MobileDashboard() {
       .filter(dateStr => dateStr <= todayISO)
       .reduce((s, dateStr) => {
         const dt = new Date(`${dateStr}T00:00:00Z`);
-        dt.setUTCDate(dt.getUTCDate() - 364);
+        dt.setUTCDate(dt.getUTCDate() - 365);
         const n1d = dailyByDate.get(dt.toISOString().slice(0, 10));
         return s + (n1d && !n1d.closed ? (isHT ? (n1d.caHT ?? 0) : n1d.ca) : 0);
       }, 0);
@@ -401,25 +406,13 @@ export function MobileDashboard() {
     return { grilled, baguette, snackingTx, days };
   }, [periodSlice]);
 
-  // Production recommendation — same logic as desktop SignatureKPIs:
-  // uses topProducts term matching to include both menu AND à la carte units.
-  // Always uses 7-day average (most actionable for next-day planning).
+  // Production recommendation based on the selected period
   const prodReco = useMemo(() => {
-    const products = store?.topProducts ?? [];
-    const GC_TERMS  = [["grilled"],   ["menu grilled"]];
-    const BAG_TERMS = [["sandwich"],  ["menu baguette"]];
-    function sumTermGroups(termGroups: string[][]): number {
-      return termGroups.reduce((acc, terms) => {
-        return acc + products
-          .filter(p => terms.every(t => p.name.toLowerCase().includes(t)))
-          .reduce((s, p) => s + (p.units7d ?? 0), 0);
-      }, 0);
-    }
-    return {
-      grilledPerDay: sumTermGroups(GC_TERMS) / 7,
-      bagPerDay: sumTermGroups(BAG_TERMS) / 7,
-    };
-  }, [store]);
+    const openDays = Math.max(periodSlice.filter(d => d.tx > 0).length, 1);
+    const grilled = periodSlice.reduce((s, d) => s + (d.grilledUnits ?? 0), 0);
+    const bag = periodSlice.reduce((s, d) => s + (d.baguetteUnits ?? 0), 0);
+    return { grilledPerDay: grilled / openDays, bagPerDay: bag / openDays };
+  }, [periodSlice]);
 
   // Network formule %
   const networkFormulePct = useMemo(() => {
@@ -519,7 +512,7 @@ export function MobileDashboard() {
           />
           <AppSelect
             value={periodKey}
-            onChange={v => setPeriodKey(v as PeriodOpt)}
+            onChange={v => { setPeriodKey(v as PeriodOpt); setMonthOffset(0); }}
             options={[...PERIOD_OPTIONS]}
           />
           <AppSelect
@@ -528,6 +521,24 @@ export function MobileDashboard() {
             options={[{ value: "ht", label: "HT" }, { value: "ttc", label: "TTC" }]}
           />
         </div>
+
+        {/* Month navigation — visible only when period = month */}
+        {periodKey === "month" && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0, padding: "0 14px 10px" }}>
+            <button
+              onClick={() => setMonthOffset(o => o - 1)}
+              style={{ width: 32, height: 32, border: "1.5px solid var(--border-light)", borderRadius: "10px 0 0 10px", background: "var(--bg-subtle)", cursor: "pointer", fontSize: 16, color: "var(--fg-secondary)", display: "flex", alignItems: "center", justifyContent: "center" }}
+            >‹</button>
+            <div style={{ flex: 1, maxWidth: 160, textAlign: "center", padding: "0 12px", fontSize: 13, fontWeight: 700, color: "var(--fg-primary)", border: "1.5px solid var(--border-light)", borderLeft: 0, borderRight: 0, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-subtle)" }}>
+              {FR_MONTHS[month - 1]} {year}
+            </div>
+            <button
+              onClick={() => setMonthOffset(o => Math.min(0, o + 1))}
+              disabled={monthOffset >= 0}
+              style={{ width: 32, height: 32, border: "1.5px solid var(--border-light)", borderRadius: "0 10px 10px 0", background: monthOffset >= 0 ? "var(--bg-subtle)" : "var(--bg-subtle)", cursor: monthOffset >= 0 ? "default" : "pointer", fontSize: 16, color: monthOffset >= 0 ? "var(--fg-tertiary)" : "var(--fg-secondary)", display: "flex", alignItems: "center", justifyContent: "center" }}
+            >›</button>
+          </div>
+        )}
 
         {/* Hamburger dropdown menu */}
         {menuOpen && (
@@ -642,7 +653,7 @@ export function MobileDashboard() {
               {(() => {
                 const n1Date = (() => {
                   const dt = new Date(`${live.date}T00:00:00Z`);
-                  dt.setUTCDate(dt.getUTCDate() - 364);
+                  dt.setUTCDate(dt.getUTCDate() - 365);
                   return dt.toISOString().slice(0, 10);
                 })();
                 if (s) {
@@ -885,14 +896,14 @@ export function MobileDashboard() {
               <div style={{ fontSize: 28, fontWeight: 700, fontFamily: "var(--font-display)", color: "var(--fg-primary)", fontVariantNumeric: "tabular-nums" }}>
                 {Math.round(prodReco.grilledPerDay + ueDailyUnits * (prodReco.grilledPerDay / Math.max(prodReco.grilledPerDay + prodReco.bagPerDay, 1)))}
               </div>
-              <div style={{ fontSize: 11, color: "var(--fg-tertiary)", marginTop: 2 }}>unités / jour · moy. 7j</div>
+              <div style={{ fontSize: 11, color: "var(--fg-tertiary)", marginTop: 2 }}>unités / jour · {periodLabel}</div>
             </div>
             <div style={{ background: "var(--bg-subtle)", borderRadius: 8, padding: "10px 14px" }}>
               <div style={{ fontSize: 11, color: "var(--fg-tertiary)", marginBottom: 4 }}>Sandwiches</div>
               <div style={{ fontSize: 28, fontWeight: 700, fontFamily: "var(--font-display)", color: "var(--fg-primary)", fontVariantNumeric: "tabular-nums" }}>
                 {Math.round(prodReco.bagPerDay + ueDailyUnits * (prodReco.bagPerDay / Math.max(prodReco.grilledPerDay + prodReco.bagPerDay, 1)))}
               </div>
-              <div style={{ fontSize: 11, color: "var(--fg-tertiary)", marginTop: 2 }}>unités / jour · moy. 7j</div>
+              <div style={{ fontSize: 11, color: "var(--fg-tertiary)", marginTop: 2 }}>unités / jour · {periodLabel}</div>
             </div>
           </div>
           {ueDailyUnits > 0 && (
@@ -967,9 +978,11 @@ export function MobileDashboard() {
         )}
 
         {/* ── 6. C.A. mensuel exercice ── */}
-        <Section title={`C.A. mensuel · Exercice ${fyEnd - 1}–${fyEnd}`} subtitle="Tap pour voir le graphe">
-          <div style={{ padding: "12px 16px 4px" }}>
-            <FiscalYearChart daily={dailyWithLive} todayISO={todayISO} isHT={isHT} />
+        <Section title={`C.A. mensuel · Exercice ${fyEnd - 1}–${fyEnd}`} subtitle="Défiler pour voir tous les mois">
+          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", padding: "12px 0 4px" }}>
+            <div style={{ minWidth: 660, padding: "0 16px" }}>
+              <FiscalYearChart daily={dailyWithLive} todayISO={todayISO} isHT={isHT} />
+            </div>
           </div>
         </Section>
 
