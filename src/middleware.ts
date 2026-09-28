@@ -44,8 +44,11 @@ async function sessionValid(cookie: string | undefined, pwd: string): Promise<bo
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Skip Next.js internals and static files
+  // Skip Next.js internals and public static assets
   if (pathname.startsWith("/_next/") || pathname.startsWith("/favicon")) {
+    return NextResponse.next();
+  }
+  if (/\.(png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|otf|mp4|mp3)$/i.test(pathname)) {
     return NextResponse.next();
   }
 
