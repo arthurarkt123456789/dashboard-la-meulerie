@@ -67,8 +67,8 @@ export function useWebcaisseToday() {
   return useQuery({
     queryKey: ["webcaisse-today"],
     queryFn: () => fetchJson<WebcaisseTodayData>("/api/webcaisse-today"),
-    staleTime: 5 * 60 * 1000,
-    refetchInterval: 10 * 60 * 1000, // refresh every 10 min
+    staleTime: 2 * 60 * 1000,
+    refetchInterval: 2 * 60 * 1000, // refresh every 2 min
     retry: 1,
   });
 }
