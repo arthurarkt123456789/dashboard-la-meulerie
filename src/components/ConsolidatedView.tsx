@@ -577,6 +577,8 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
                   };
                 });
                 const hasYoy = storeYoy.some((d) => d.ca > 0);
+                const bucketedData = maybeBucket(storeLineData, effectiveGranularity);
+                const bucketedYoy = maybeBucket(storeYoy, effectiveGranularity);
                 return (
                   <div key={s.id} style={{ minWidth: 0 }}>
                     <div style={{
@@ -601,9 +603,9 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
                       {s.name}
                     </div>
                     <LineChart
-                      data={storeLineData}
+                      data={bucketedData}
                       series={[{ key: "ca", label: s.name, color: SERIES_COLORS[i] ?? "var(--fg-secondary)" }]}
-                      yoyData={hasYoy ? storeYoy : null}
+                      yoyData={hasYoy ? bucketedYoy : null}
                       height={160}
                       period={period}
                       granularity={effectiveGranularity}
