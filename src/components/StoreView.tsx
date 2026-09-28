@@ -124,6 +124,12 @@ export function StoreView({ store, period, today, amountMode }: Props) {
     () => periodMetricsForSelection(dailyWithLive, period),
     [dailyWithLive, period],
   );
+  // Category metrics use closed days only — today's live entry has fromagerieCA=0
+  // which distorts yoy% (comparing 6 full days vs 7 N-1 days).
+  const mClosed = useMemo(
+    () => periodMetricsForSelection(store.daily, period),
+    [store.daily, period],
+  );
   const todayISO = dailyWithLive[dailyWithLive.length - 1]?.date ?? "";
   const sparkValues = useMemo(() => {
     const { from, to } = rangeForSelection(period, todayISO);
@@ -412,18 +418,18 @@ export function StoreView({ store, period, today, amountMode }: Props) {
   // Use sum of categorized CA as denominator so shares always sum to 100%
   // (live entry has caHT > 0 but all category fields = 0)
   const catDenom = useMemo(() => {
-    const f = isHT ? (m.fromagerieCAHT ?? 0) : m.fromagerieCA;
-    const s = isHT ? (m.snackingCAHT ?? 0) : m.snackingCA;
-    const e = isHT ? (m.epicerieCAHT ?? 0) : (m.epicerieCA ?? 0);
-    const r = isHT ? (m.merchCAHT ?? 0) : (m.merchCA ?? 0);
+    const f = isHT ? (mClosed.fromagerieCAHT ?? 0) : mClosed.fromagerieCA;
+    const s = isHT ? (mClosed.snackingCAHT ?? 0) : mClosed.snackingCA;
+    const e = isHT ? (mClosed.epicerieCAHT ?? 0) : (mClosed.epicerieCA ?? 0);
+    const r = isHT ? (mClosed.merchCAHT ?? 0) : (mClosed.merchCA ?? 0);
     return f + s + e + r;
-  }, [m, isHT]);
+  }, [mClosed, isHT]);
 
   const epicerieCAShare = useMemo(() => {
-    const epicerieCA = isHT ? m.epicerieCAHT : m.epicerieCA;
+    const epicerieCA = isHT ? mClosed.epicerieCAHT : mClosed.epicerieCA;
     if (!catDenom || !epicerieCA) return null;
     return epicerieCA / catDenom;
-  }, [m, isHT, catDenom]);
+  }, [mClosed, isHT, catDenom]);
 
   const trendComparison = useMemo(() => {
     const todayISO = store.daily[store.daily.length - 1]?.date ?? "";
@@ -477,12 +483,12 @@ export function StoreView({ store, period, today, amountMode }: Props) {
   const segmentShares = useMemo(() => {
     if (!catDenom) return [];
     return [
-      { label: "Fromage.", color: "var(--color-dark)", share: (isHT ? (m.fromagerieCAHT ?? 0) : m.fromagerieCA) / catDenom },
-      { label: "Snacking", color: "var(--color-coral)", share: (isHT ? (m.snackingCAHT ?? 0) : m.snackingCA) / catDenom },
-      { label: "Épicerie", color: "#1A5EA8", share: (isHT ? (m.epicerieCAHT ?? 0) : (m.epicerieCA ?? 0)) / catDenom },
-      { label: "Merch", color: "#7C3AED", share: (isHT ? (m.merchCAHT ?? 0) : (m.merchCA ?? 0)) / catDenom },
+      { label: "Fromage.", color: "var(--color-dark)", share: (isHT ? (mClosed.fromagerieCAHT ?? 0) : mClosed.fromagerieCA) / catDenom },
+      { label: "Snacking", color: "var(--color-coral)", share: (isHT ? (mClosed.snackingCAHT ?? 0) : mClosed.snackingCA) / catDenom },
+      { label: "Épicerie", color: "#1A5EA8", share: (isHT ? (mClosed.epicerieCAHT ?? 0) : (mClosed.epicerieCA ?? 0)) / catDenom },
+      { label: "Merch", color: "#7C3AED", share: (isHT ? (mClosed.merchCAHT ?? 0) : (mClosed.merchCA ?? 0)) / catDenom },
     ].filter((s) => s.share > 0);
-  }, [m, isHT, catDenom]);
+  }, [mClosed, isHT, catDenom]);
 
   const caPerDay = m.days > 0 ? (isHT ? m.caHT : m.ca) / m.days : 0;
   const networkRefDelta =
@@ -549,24 +555,24 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           networkRank={networkComparisons.caRank}
           hasUberEats={hasUberEats}
           fromagerie={{
-            value: isHT ? m.fromagerieCAHT : m.fromagerieCA,
-            share: catDenom > 0 ? (isHT ? (m.fromagerieCAHT ?? 0) : m.fromagerieCA) / catDenom : 0,
-            yoyDelta: m.yoyAvailable && m.yoyFromagerieCA ? ((isHT ? m.fromagerieCAHT : m.fromagerieCA) - m.yoyFromagerieCA) / m.yoyFromagerieCA : null,
+            value: isHT ? mClosed.fromagerieCAHT : mClosed.fromagerieCA,
+            share: catDenom > 0 ? (isHT ? (mClosed.fromagerieCAHT ?? 0) : mClosed.fromagerieCA) / catDenom : 0,
+            yoyDelta: mClosed.yoyAvailable && mClosed.yoyFromagerieCA ? ((isHT ? mClosed.fromagerieCAHT : mClosed.fromagerieCA) - mClosed.yoyFromagerieCA) / mClosed.yoyFromagerieCA : null,
           }}
           snacking={{
-            value: isHT ? m.snackingCAHT ?? 0 : m.snackingCA,
-            share: catDenom > 0 ? (isHT ? (m.snackingCAHT ?? 0) : m.snackingCA) / catDenom : 0,
-            yoyDelta: m.yoyAvailable && m.yoySnackingCA ? ((isHT ? m.snackingCAHT ?? 0 : m.snackingCA) - m.yoySnackingCA) / m.yoySnackingCA : null,
+            value: isHT ? mClosed.snackingCAHT ?? 0 : mClosed.snackingCA,
+            share: catDenom > 0 ? (isHT ? (mClosed.snackingCAHT ?? 0) : mClosed.snackingCA) / catDenom : 0,
+            yoyDelta: mClosed.yoyAvailable && mClosed.yoySnackingCA ? ((isHT ? mClosed.snackingCAHT ?? 0 : mClosed.snackingCA) - mClosed.yoySnackingCA) / mClosed.yoySnackingCA : null,
           }}
           epicerie={{
-            value: isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA,
-            share: catDenom > 0 ? (isHT ? (m.epicerieCAHT ?? 0) : (m.epicerieCA ?? 0)) / catDenom : 0,
-            yoyDelta: m.yoyAvailable && m.yoyEpicerieCA ? ((isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA) - m.yoyEpicerieCA) / m.yoyEpicerieCA : null,
+            value: isHT ? mClosed.epicerieCAHT ?? 0 : mClosed.epicerieCA,
+            share: catDenom > 0 ? (isHT ? (mClosed.epicerieCAHT ?? 0) : (mClosed.epicerieCA ?? 0)) / catDenom : 0,
+            yoyDelta: mClosed.yoyAvailable && mClosed.yoyEpicerieCA ? ((isHT ? mClosed.epicerieCAHT ?? 0 : mClosed.epicerieCA) - mClosed.yoyEpicerieCA) / mClosed.yoyEpicerieCA : null,
           }}
           merch={{
-            value: isHT ? m.merchCAHT ?? 0 : m.merchCA,
-            share: catDenom > 0 ? (isHT ? (m.merchCAHT ?? 0) : (m.merchCA ?? 0)) / catDenom : 0,
-            yoyDelta: m.yoyAvailable && m.yoyMerchCA ? ((isHT ? m.merchCAHT ?? 0 : m.merchCA) - m.yoyMerchCA) / m.yoyMerchCA : null,
+            value: isHT ? mClosed.merchCAHT ?? 0 : mClosed.merchCA,
+            share: catDenom > 0 ? (isHT ? (mClosed.merchCAHT ?? 0) : (mClosed.merchCA ?? 0)) / catDenom : 0,
+            yoyDelta: mClosed.yoyAvailable && mClosed.yoyMerchCA ? ((isHT ? mClosed.merchCAHT ?? 0 : mClosed.merchCA) - mClosed.yoyMerchCA) / mClosed.yoyMerchCA : null,
           }}
         />
         <KPICard
@@ -799,18 +805,18 @@ export function StoreView({ store, period, today, amountMode }: Props) {
         subtitle={`${periodLabel} · ${isHT ? "HT" : "TTC"}`}
       >
         {(() => {
-          const yoy = m.yoyAvailable;
+          const yoy = mClosed.yoyAvailable;
           const caSegs = [
-            { label: "Fromagerie", color: "var(--color-dark)", value: isHT ? m.fromagerieCAHT : m.fromagerieCA, share: catDenom ? (isHT ? (m.fromagerieCAHT ?? 0) : m.fromagerieCA) / catDenom : 0, yoyDelta: yoy && m.yoyFromagerieCA ? ((isHT ? m.fromagerieCAHT : m.fromagerieCA) - m.yoyFromagerieCA) / m.yoyFromagerieCA : null },
-            { label: "Snacking",   color: "var(--color-coral)", value: isHT ? m.snackingCAHT ?? 0 : m.snackingCA, share: catDenom ? (isHT ? (m.snackingCAHT ?? 0) : m.snackingCA) / catDenom : 0, yoyDelta: yoy && m.yoySnackingCA ? ((isHT ? m.snackingCAHT ?? 0 : m.snackingCA) - m.yoySnackingCA) / m.yoySnackingCA : null },
-            { label: "Épicerie",   color: "#1A5EA8", value: isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA, share: catDenom ? (isHT ? (m.epicerieCAHT ?? 0) : (m.epicerieCA ?? 0)) / catDenom : 0, yoyDelta: yoy && m.yoyEpicerieCA ? ((isHT ? m.epicerieCAHT ?? 0 : m.epicerieCA) - m.yoyEpicerieCA) / m.yoyEpicerieCA : null },
-            { label: "Merch",      color: "#7C3AED", value: isHT ? m.merchCAHT ?? 0 : m.merchCA, share: catDenom ? (isHT ? (m.merchCAHT ?? 0) : (m.merchCA ?? 0)) / catDenom : 0, yoyDelta: yoy && m.yoyMerchCA ? ((isHT ? m.merchCAHT ?? 0 : m.merchCA) - m.yoyMerchCA) / m.yoyMerchCA : null },
+            { label: "Fromagerie", color: "var(--color-dark)", value: isHT ? mClosed.fromagerieCAHT : mClosed.fromagerieCA, share: catDenom ? (isHT ? (mClosed.fromagerieCAHT ?? 0) : mClosed.fromagerieCA) / catDenom : 0, yoyDelta: yoy && mClosed.yoyFromagerieCA ? ((isHT ? mClosed.fromagerieCAHT : mClosed.fromagerieCA) - mClosed.yoyFromagerieCA) / mClosed.yoyFromagerieCA : null },
+            { label: "Snacking",   color: "var(--color-coral)", value: isHT ? mClosed.snackingCAHT ?? 0 : mClosed.snackingCA, share: catDenom ? (isHT ? (mClosed.snackingCAHT ?? 0) : mClosed.snackingCA) / catDenom : 0, yoyDelta: yoy && mClosed.yoySnackingCA ? ((isHT ? mClosed.snackingCAHT ?? 0 : mClosed.snackingCA) - mClosed.yoySnackingCA) / mClosed.yoySnackingCA : null },
+            { label: "Épicerie",   color: "#1A5EA8", value: isHT ? mClosed.epicerieCAHT ?? 0 : mClosed.epicerieCA, share: catDenom ? (isHT ? (mClosed.epicerieCAHT ?? 0) : (mClosed.epicerieCA ?? 0)) / catDenom : 0, yoyDelta: yoy && mClosed.yoyEpicerieCA ? ((isHT ? mClosed.epicerieCAHT ?? 0 : mClosed.epicerieCA) - mClosed.yoyEpicerieCA) / mClosed.yoyEpicerieCA : null },
+            { label: "Merch",      color: "#7C3AED", value: isHT ? mClosed.merchCAHT ?? 0 : mClosed.merchCA, share: catDenom ? (isHT ? (mClosed.merchCAHT ?? 0) : (mClosed.merchCA ?? 0)) / catDenom : 0, yoyDelta: yoy && mClosed.yoyMerchCA ? ((isHT ? mClosed.merchCAHT ?? 0 : mClosed.merchCA) - mClosed.yoyMerchCA) / mClosed.yoyMerchCA : null },
           ];
           const txSegs = [
-            { label: "Fromagerie", color: "var(--color-dark)", value: m.days > 0 ? m.fromagerieTx / m.days : 0, share: m.tx ? m.fromagerieTx / m.tx : 0, yoyDelta: yoy && m.yoyFromagerieTx ? (m.fromagerieTx - m.yoyFromagerieTx) / m.yoyFromagerieTx : null },
-            { label: "Snacking",   color: "var(--color-coral)", value: m.days > 0 ? m.snackingTx / m.days : 0, share: m.tx ? m.snackingTx / m.tx : 0, yoyDelta: yoy && m.yoySnackingTx ? (m.snackingTx - m.yoySnackingTx) / m.yoySnackingTx : null },
-            { label: "Épicerie",   color: "#1A5EA8", value: m.days > 0 ? m.epicerieTx / m.days : 0, share: m.tx ? m.epicerieTx / m.tx : 0, yoyDelta: yoy && m.yoyEpicerieTx ? (m.epicerieTx - m.yoyEpicerieTx) / m.yoyEpicerieTx : null },
-            { label: "Merch",      color: "#7C3AED", value: m.days > 0 ? m.merchTx / m.days : 0, share: m.tx ? m.merchTx / m.tx : 0, yoyDelta: yoy && m.yoyMerchTx ? (m.merchTx - m.yoyMerchTx) / m.yoyMerchTx : null },
+            { label: "Fromagerie", color: "var(--color-dark)", value: mClosed.days > 0 ? mClosed.fromagerieTx / mClosed.days : 0, share: mClosed.tx ? mClosed.fromagerieTx / mClosed.tx : 0, yoyDelta: yoy && mClosed.yoyFromagerieTx ? (mClosed.fromagerieTx - mClosed.yoyFromagerieTx) / mClosed.yoyFromagerieTx : null },
+            { label: "Snacking",   color: "var(--color-coral)", value: mClosed.days > 0 ? mClosed.snackingTx / mClosed.days : 0, share: mClosed.tx ? mClosed.snackingTx / mClosed.tx : 0, yoyDelta: yoy && mClosed.yoySnackingTx ? (mClosed.snackingTx - mClosed.yoySnackingTx) / mClosed.yoySnackingTx : null },
+            { label: "Épicerie",   color: "#1A5EA8", value: mClosed.days > 0 ? mClosed.epicerieTx / mClosed.days : 0, share: mClosed.tx ? mClosed.epicerieTx / mClosed.tx : 0, yoyDelta: yoy && mClosed.yoyEpicerieTx ? (mClosed.epicerieTx - mClosed.yoyEpicerieTx) / mClosed.yoyEpicerieTx : null },
+            { label: "Merch",      color: "#7C3AED", value: mClosed.days > 0 ? mClosed.merchTx / mClosed.days : 0, share: mClosed.tx ? mClosed.merchTx / mClosed.tx : 0, yoyDelta: yoy && mClosed.yoyMerchTx ? (mClosed.merchTx - mClosed.yoyMerchTx) / mClosed.yoyMerchTx : null },
           ];
           return (
             <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
