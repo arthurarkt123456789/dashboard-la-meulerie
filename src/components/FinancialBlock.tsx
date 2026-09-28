@@ -16,6 +16,7 @@ type CostMonth = {
   chargesExploitation: number;
   remboursementCapital: number;
   interetsEmprunt: number;
+  caPennylane?: number;
   error?: string;
 };
 
@@ -41,6 +42,7 @@ type Agg = {
   ebitda: number;
   ebitdaIsEstimated: boolean;
   netDispo: number;
+  caPennylane: number;
 };
 
 type Props = { storeId: string; daily: StoreDaily[]; period: PeriodSelection; openedDate?: string };
@@ -665,9 +667,13 @@ function PLDetail({ agg }: { agg: Agg }) {
           CA · {fmtEUR(agg.ca)}
         </div>
       )}
+      {agg.caPennylane > 0 && Math.abs(agg.caPennylane - agg.ca) > 500 && (
+        <Row label="CA comptable" sub="70x" val={agg.caPennylane}
+          color={agg.caPennylane < agg.ca ? "var(--color-coral)" : "var(--status-success)"} />
+      )}
       <Row label="Coût matière"           sub="60x"    val={agg.coutMatiere} />
       <Row label="Masse salariale"         sub="64x"    val={agg.effectiveMS} estimated={agg.msIsEstimated} />
-      <Row label="Charges d'exploitation"  sub="61-63x" val={agg.chargesExploitation} />
+      <Row label="Charges d'exploitation"  sub="61-65x" val={agg.chargesExploitation} />
       {hasCA && (
         <>
           <Row label="EBITDA" val={agg.ebitda} bold separator estimated={agg.ebitdaIsEstimated}
@@ -772,10 +778,11 @@ export function FinancialBlock({ storeId, daily, period, openedDate }: Props) {
             new Date(sel[0].month + "-01"),
           )
         : `${fmtMon(sel[0].month)} → ${fmtMon(sel[sel.length - 1].month)} ${sel[sel.length - 1].month.slice(0, 4)}`;
+    const caPennylane = sel.reduce((s, m) => s + (m.caPennylane ?? 0), 0);
     return {
       label, ca, coutMatiere: cm, effectiveMS: ms, msIsEstimated: msEst,
       chargesExploitation: ch, remboursementCapital: rc, interetsEmprunt: ie,
-      ebitda, ebitdaIsEstimated: msEst, netDispo: net,
+      ebitda, ebitdaIsEstimated: msEst, netDispo: net, caPennylane,
     };
   }, [months, selectedKeys]);
 

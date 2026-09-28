@@ -127,9 +127,10 @@ export async function fetchTrialBalance(
 export type CostData = {
   coutMatiere: number;         // 60x — achats / coût matière
   masseSalariale: number;      // 64x — charges de personnel
-  chargesExploitation: number; // 61x + 62x + 63x — autres charges
+  chargesExploitation: number; // 61x + 62x + 63x + 65x — autres charges d'exploitation
   remboursementCapital: number; // 16x debit — remboursements de capital
   interetsEmprunt: number;      // 661x — intérêts des emprunts
+  caPennylane: number;          // 70x credits — CA comptable (cross-check vs caisse)
 };
 
 export function aggregateFromLines(lines: TrialBalanceLine[]): CostData {
@@ -138,18 +139,20 @@ export function aggregateFromLines(lines: TrialBalanceLine[]): CostData {
   let chargesExploitation = 0;
   let remboursementCapital = 0;
   let interetsEmprunt = 0;
+  let caPennylane = 0; // 70x revenue accounts (credit balance = negative)
 
   for (const line of lines) {
     const n = line.ledger_account_number;
-    // Expense accounts (6xx): use balance = net debit movement for the period.
-    // Credit notes / returns reduce the balance, giving the true net expense.
-    // Loan repayment (16x): use raw debit to capture gross repayments
-    // (not net of new borrowings, which would reduce the amount).
+    // Expense accounts (6xx): balance = net debit movement (debit − credit).
+    // Loan repayment (16x): raw debit captures gross repayments.
     if (inRange(n, "60")) coutMatiere += Math.max(0, line.balance);
-    else if (inRange(n, "61") || inRange(n, "62") || inRange(n, "63")) chargesExploitation += Math.max(0, line.balance);
+    else if (inRange(n, "61") || inRange(n, "62") || inRange(n, "63") || inRange(n, "65"))
+      chargesExploitation += Math.max(0, line.balance);
     else if (inRange(n, "64")) masseSalariale += Math.max(0, line.balance);
     else if (inRange(n, "16")) remboursementCapital += line.debit;
     else if (inRange(n, "661")) interetsEmprunt += Math.max(0, line.balance);
+    // Revenue (70x): credit balance → negate to get positive CA figure
+    else if (inRange(n, "70")) caPennylane += Math.max(0, -line.balance);
   }
 
   return {
@@ -158,6 +161,7 @@ export function aggregateFromLines(lines: TrialBalanceLine[]): CostData {
     chargesExploitation: Math.round(chargesExploitation * 100) / 100,
     remboursementCapital: Math.round(remboursementCapital * 100) / 100,
     interetsEmprunt: Math.round(interetsEmprunt * 100) / 100,
+    caPennylane: Math.round(caPennylane * 100) / 100,
   };
 }
 
