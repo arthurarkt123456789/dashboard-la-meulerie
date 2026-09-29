@@ -401,6 +401,10 @@ const FORMULE_PATTERNS: { kind: FormuleKind; re: RegExp }[] = [
   { kind: "baguette", re: /menu.*baguette/i },
 ];
 
+// Broader patterns for production recommendation: menu + standalone.
+const PROD_GRILLED_RE = /grilled/i;
+const PROD_SANDWICH_RE = /baguette/i;
+
 function classifyFormule(name: string): FormuleKind | null {
   for (const { kind, re } of FORMULE_PATTERNS) {
     if (re.test(name)) return kind;
@@ -707,6 +711,7 @@ async function aggregateOneStore(
     // Per-day formule and payment breakdown for period-aware UI aggregation.
     let grilledUnits = 0, grilledCA = 0, grilledCAHT = 0;
     let baguetteUnits = 0, baguetteCA = 0, baguetteCAHT = 0;
+    let prodGrilledUnits = 0, prodSandwichUnits = 0;
     let cbAmount = 0, virementAmount = 0, especesAmount = 0, ticketsRestoAmount = 0;
     for (const sale of sales) {
       for (const line of sale.lines ?? []) {
@@ -716,6 +721,8 @@ async function aggregateOneStore(
         const k = classifyFormule(product.name);
         if (k === "grilled") { grilledUnits += line.quantity; grilledCA += line.ati_price; grilledCAHT += line.price_excl_tax; }
         else if (k === "baguette") { baguetteUnits += line.quantity; baguetteCA += line.ati_price; baguetteCAHT += line.price_excl_tax; }
+        if (PROD_GRILLED_RE.test(product.name)) prodGrilledUnits += line.quantity;
+        if (PROD_SANDWICH_RE.test(product.name)) prodSandwichUnits += line.quantity;
       }
       for (const p of sale.payments ?? []) {
         const name = paymentLookup.get(p.payment_mean_id)?.name ?? "";
@@ -735,6 +742,8 @@ async function aggregateOneStore(
       baguetteUnits,
       baguetteCA: Math.round(baguetteCA),
       baguetteCAHT: Math.round(baguetteCAHT * 100) / 100,
+      prodGrilledUnits,
+      prodSandwichUnits,
       cbAmount: Math.round(cbAmount * 100) / 100,
       virementAmount: Math.round(virementAmount * 100) / 100,
       especesAmount: Math.round(especesAmount * 100) / 100,

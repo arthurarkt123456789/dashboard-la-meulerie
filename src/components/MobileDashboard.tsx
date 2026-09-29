@@ -406,11 +406,11 @@ export function MobileDashboard() {
     return { grilled, baguette, snackingTx, days };
   }, [periodSlice]);
 
-  // Production recommendation based on the selected period
+  // Production recommendation based on the selected period (menu + standalone)
   const prodReco = useMemo(() => {
     const openDays = Math.max(periodSlice.filter(d => d.tx > 0).length, 1);
-    const grilled = periodSlice.reduce((s, d) => s + (d.grilledUnits ?? 0), 0);
-    const bag = periodSlice.reduce((s, d) => s + (d.baguetteUnits ?? 0), 0);
+    const grilled = periodSlice.reduce((s, d) => s + (d.prodGrilledUnits ?? d.grilledUnits ?? 0), 0);
+    const bag = periodSlice.reduce((s, d) => s + (d.prodSandwichUnits ?? d.baguetteUnits ?? 0), 0);
     return { grilledPerDay: grilled / openDays, bagPerDay: bag / openDays };
   }, [periodSlice]);
 

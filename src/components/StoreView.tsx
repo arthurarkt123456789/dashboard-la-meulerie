@@ -191,7 +191,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
         const ue = isHT
           ? Math.round((d.uberEatsCa ?? 0) / 1.1 * 100) / 100
           : (d.uberEatsCa ?? 0);
-        return { ...d, ca, boutiqueCA: Math.max(0, ca - ue) };
+        return { ...d, ca, boutiqueCA: Math.max(0, ca - ue), uberEatsCa: ue };
       });
     // For month view: pad with skeleton entries for future days so the N-1
     // dashed line can extend to the end of the month.
@@ -211,7 +211,15 @@ export function StoreView({ store, period, today, amountMode }: Props) {
     const bucketed = maybeBucket(lineData, effectiveGranularity);
     if (!smoothCA || effectiveGranularity !== "day") return bucketed;
     const smoothed = roll7(bucketed.map((d) => (typeof d.ca === "number" ? d.ca : null)));
-    return bucketed.map((d, i) => ({ ...d, ca: smoothed[i] }));
+    return bucketed.map((d, i) => {
+      const smoothedCa = smoothed[i];
+      const ue = typeof d.uberEatsCa === "number" ? d.uberEatsCa : 0;
+      return {
+        ...d,
+        ca: smoothedCa,
+        boutiqueCA: smoothedCa !== null ? Math.max(0, smoothedCa - ue) : d.boutiqueCA,
+      };
+    });
   }, [lineData, effectiveGranularity, smoothCA]);
 
   const yoyChartData = useMemo(() => {

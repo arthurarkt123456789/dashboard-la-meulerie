@@ -46,12 +46,15 @@ export type StoreDaily = {
   closed?: boolean;    // day before store opened
   partial?: boolean;   // day in progress
   // Per-day formule breakdown — allows period-aware computation in the UI.
-  grilledUnits?: number;
+  grilledUnits?: number;  // menu only (for formule penetration %)
   grilledCA?: number;
   grilledCAHT?: number;
-  baguetteUnits?: number;
+  baguetteUnits?: number; // menu only (for formule penetration %)
   baguetteCA?: number;
   baguetteCAHT?: number;
+  // Total production units (menu + standalone) — for production reco.
+  prodGrilledUnits?: number;
+  prodSandwichUnits?: number;
   // Per-day payment amounts (€ TTC) — same purpose.
   cbAmount?: number;
   virementAmount?: number;
