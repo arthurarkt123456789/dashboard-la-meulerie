@@ -94,7 +94,7 @@ export function WebcaisseLiveCard({ activeTab, stores, allData }: Props) {
         <span style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.06em", textTransform: "uppercase" }}>
           Aujourd'hui · Live
         </span>
-        <span style={{ fontSize: 11, color: "#475569", marginLeft: 4 }}>
+        <span style={{ fontSize: 11, color: minsAgo > 5 ? "#f87171" : "#475569", marginLeft: 4, fontWeight: minsAgo > 5 ? 600 : undefined }}>
           {liveQ.isFetching ? "Actualisation…" : `${live.date} · ${timeLabel}`}
         </span>
         <button
