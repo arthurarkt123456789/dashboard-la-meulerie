@@ -127,9 +127,10 @@ function KPIAccordion({
             padding: "4px 10px", borderRadius: 20, fontSize: 13, fontWeight: 700,
             background: (yoyDelta ?? 0) >= 0 ? "#dcfce7" : "#fee2e2",
             color: (yoyDelta ?? 0) >= 0 ? "#15803d" : "#b91c1c",
-            flexShrink: 0,
+            flexShrink: 0, textAlign: "center",
           }}>
             {fmtPct(yoyDelta!)}
+            <div style={{ fontSize: 9, fontWeight: 500, opacity: 0.7, marginTop: 1, letterSpacing: "0.03em" }}>vs N-1</div>
           </div>
         )}
         <span style={{ fontSize: 18, color: "var(--fg-tertiary)", transform: open ? "rotate(90deg)" : "none", transition: "transform 0.2s", flexShrink: 0 }}>›</span>
