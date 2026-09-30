@@ -8,6 +8,7 @@ const ACCOUNT_MAP: Record<string, string> = {
   "e33a95762a358c3893af6d71ebd823f2": "davso",
   "ed3a3872726b31b359f7b889ec04dc3e": "endoume",
   "0401b95b044be70b94bf4d0264f1a209": "republique",
+  "45f9793a4c327a4fad3667a8a228bcb1": "republique", // LA MEULERIE - MARSEILLE (2ème caisse République)
 };
 
 export type WebcaisseStore = {
@@ -173,12 +174,17 @@ export async function GET() {
   )) {
     const storeId = ACCOUNT_MAP[uuid];
     if (!storeId) continue;
-    stores[storeId] = {
-      ca: (account.turnoverTtc as number) ?? 0,
-      caHT: (account.turnoverHt as number) ?? 0,
-      tx: (account.salesTotal as number) ?? 0,
-      name: (account.name as string) ?? storeId,
-    };
+    const ca = (account.turnoverTtc as number) ?? 0;
+    const caHT = (account.turnoverHt as number) ?? 0;
+    const tx = (account.salesTotal as number) ?? 0;
+    const name = (account.name as string) ?? storeId;
+    if (stores[storeId]) {
+      stores[storeId].ca += ca;
+      stores[storeId].caHT += caHT;
+      stores[storeId].tx += tx;
+    } else {
+      stores[storeId] = { ca, caHT, tx, name };
+    }
   }
 
   const tokenExpiresAt = tokenCache?.expiresAt
