@@ -429,6 +429,10 @@ export function MobileDashboard() {
 
   const storeColor = STORE_COLORS[activeId] ?? "var(--color-coral)";
   const totalCA = isHT ? m?.caHT ?? 0 : m?.ca ?? 0;
+  // yoyCaDelta is always TTC-based; recompute in HT when needed
+  const yoyCaDeltaDisplay = m
+    ? (isHT && m.yoyCaHT > 0 ? (m.caHT - m.yoyCaHT) / m.yoyCaHT : m.yoyCaDelta)
+    : null;
   // Use sum of categorized CA so % shares always sum to 100% (live entry has caHT > 0 but category fields = 0)
   const catDenom = m
     ? (isHT ? (m.fromagerieCAHT ?? 0) : m.fromagerieCA) +
@@ -813,7 +817,7 @@ export function MobileDashboard() {
           <KPIAccordion
             label={`C.A. · ${periodLabel}`}
             value={fmtEURshort(totalCA)}
-            yoyDelta={m?.yoyAvailable ? m.yoyCaDelta : null}
+            yoyDelta={m?.yoyAvailable ? yoyCaDeltaDisplay : null}
             yoyAvailable={m?.yoyAvailable}
           >
             {m && <>
@@ -875,7 +879,7 @@ export function MobileDashboard() {
             label="C.A. / jour moyen"
             value={fmtEURshort(m && m.days > 0 ? totalCA / m.days : 0)}
             suffix="/j"
-            yoyDelta={m?.yoyAvailable ? m.yoyCaDelta : null}
+            yoyDelta={m?.yoyAvailable ? yoyCaDeltaDisplay : null}
             yoyAvailable={m?.yoyAvailable}
           >
             {m && <>
