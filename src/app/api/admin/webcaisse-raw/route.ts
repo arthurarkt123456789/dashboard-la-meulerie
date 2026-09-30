@@ -3,33 +3,7 @@ import { checkAdmin } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
-const AUTH_ENDPOINTS = [
-  "https://api3.web-caisse.com/v1/auth/login",
-  "https://api3.web-caisse.com/v1/apibusiness/auth/login",
-];
-
-async function getCredentialsToken(): Promise<{ token: string; via: string } | null> {
-  const email = process.env.WEBCAISSE_EMAIL;
-  const password = process.env.WEBCAISSE_PASSWORD;
-  if (!email || !password) return null;
-  for (const url of AUTH_ENDPOINTS) {
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      if (res.ok) {
-        const data = await res.json() as Record<string, unknown>;
-        const token = (data.token ?? data.access_token ?? data.jwt ?? data.authToken) as string | undefined;
-        if (token) return { token, via: url };
-      }
-    } catch { /* try next */ }
-  }
-  return null;
-}
-
-async function callGlobalData(token: string, date: string) {
+async function callGlobalData(token: string, date: string, extraHeaders: Record<string, string> = {}, body: Record<string, unknown> = {}) {
   const res = await fetch("https://api3.web-caisse.com/v1/apibusiness/global-data", {
     method: "POST",
     headers: {
@@ -38,11 +12,18 @@ async function callGlobalData(token: string, date: string) {
       Authorization: `Bearer ${token}`,
       Origin: "https://apibusiness.web-caisse.com",
       Referer: "https://apibusiness.web-caisse.com/",
+      ...extraHeaders,
     },
-    body: JSON.stringify({ from: date, to: date, type: "period", previous: false }),
+    body: JSON.stringify({ from: date, to: date, previous: false, ...body }),
   });
-  const data = await res.json();
-  return { status: res.status, data };
+  const data = await res.json() as Record<string, unknown>;
+  const global = data.global as Record<string, number> | undefined;
+  return {
+    status: res.status,
+    globalHT: global?.turnoverHt ?? null,
+    globalTx: global?.salesTotal ?? null,
+    accountCount: data.accounts ? Object.keys(data.accounts as object).length : 0,
+  };
 }
 
 export async function GET(req: NextRequest) {
@@ -53,33 +34,24 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const date = url.searchParams.get("date") ?? today;
 
-  const staticToken = process.env.WEBCAISSE_TOKEN ?? null;
-  const credResult = await getCredentialsToken();
+  const token = process.env.WEBCAISSE_TOKEN ?? process.env.WEBCAISSE_EMAIL; // use static token
+  if (!token) return NextResponse.json({ error: "No token configured" }, { status: 503 });
 
-  const results: Record<string, unknown> = { date };
+  const staticToken = process.env.WEBCAISSE_TOKEN;
+  if (!staticToken) return NextResponse.json({ error: "WEBCAISSE_TOKEN not set" }, { status: 503 });
 
-  if (credResult) {
-    const r = await callGlobalData(credResult.token, date);
-    results.credentials = {
-      via: credResult.via,
-      status: r.status,
-      globalHT: (r.data as Record<string, Record<string, number>>)?.global?.turnoverHt,
-      raw: r.data,
-    };
-  } else {
-    results.credentials = "WEBCAISSE_EMAIL/PASSWORD not set";
-  }
+  const [typePeriod, typeDay, noCacheHeaders, withTimestamp] = await Promise.all([
+    callGlobalData(staticToken, date, {}, { type: "period" }),
+    callGlobalData(staticToken, date, {}, { type: "day" }),
+    callGlobalData(staticToken, date, { "Cache-Control": "no-cache", "Pragma": "no-cache" }, { type: "period" }),
+    callGlobalData(staticToken, date, {}, { type: "period", _ts: Date.now() }),
+  ]);
 
-  if (staticToken) {
-    const r = await callGlobalData(staticToken, date);
-    results.staticToken = {
-      status: r.status,
-      globalHT: (r.data as Record<string, Record<string, number>>)?.global?.turnoverHt,
-      raw: r.data,
-    };
-  } else {
-    results.staticToken = "WEBCAISSE_TOKEN not set";
-  }
-
-  return NextResponse.json(results, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json({
+    date,
+    "type=period": typePeriod,
+    "type=day": typeDay,
+    "type=period+no-cache": noCacheHeaders,
+    "type=period+timestamp": withTimestamp,
+  }, { headers: { "Cache-Control": "no-store" } });
 }
