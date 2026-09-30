@@ -94,7 +94,18 @@ async function getToken(): Promise<string | null> {
     return tokenCache.value;
   }
 
-  // Attempt credential-based auto-refresh
+  // Prefer static token — it has full business scope (credentials token may be narrower)
+  const envToken = process.env.WEBCAISSE_TOKEN;
+  if (envToken) {
+    const expiresAt = decodeExp(envToken) ?? now + 86_400_000;
+    // Only use static token if it hasn't expired
+    if (expiresAt > now + REFRESH_MS) {
+      tokenCache = { value: envToken, expiresAt };
+      return envToken;
+    }
+  }
+
+  // Static token absent or near expiry — fall back to credential-based login
   const email = process.env.WEBCAISSE_EMAIL;
   const password = process.env.WEBCAISSE_PASSWORD;
   if (email && password) {
@@ -102,14 +113,12 @@ async function getToken(): Promise<string | null> {
     if (fresh) {
       const expiresAt = decodeExp(fresh) ?? now + 30 * 86_400_000;
       tokenCache = { value: fresh, expiresAt };
+      console.log("[webcaisse] using credentials token (static token absent or expired)");
       return fresh;
     }
-    // Login failed — fall through to static token
-    console.warn("[webcaisse] credential login failed, falling back to WEBCAISSE_TOKEN");
   }
 
-  // Fall back to static env var (set manually on Railway)
-  const envToken = process.env.WEBCAISSE_TOKEN;
+  // Last resort: use static token even if near expiry
   if (envToken) {
     const expiresAt = decodeExp(envToken) ?? now + 86_400_000;
     tokenCache = { value: envToken, expiresAt };
