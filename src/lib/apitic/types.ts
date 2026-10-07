@@ -9,7 +9,8 @@ export type PeriodSelection =
   | { kind: "preset"; key: PeriodKey }
   | { kind: "month"; year: number; month: number /* 1..12 */ }
   | { kind: "range"; from: string; to: string /* YYYY-MM-DD */ }
-  | { kind: "fiscal-year-todate" /* Oct 1 → today, FY runs Oct-Sep */ };
+  | { kind: "fiscal-year-todate" /* Oct 1 → today, FY runs Oct-Sep */ }
+  | { kind: "prev-fiscal-year" /* Oct 1 N-1 → Sep 30 N, full prior FY */ };
 
 export type Store = {
   id: string;

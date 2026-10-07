@@ -78,6 +78,15 @@ export function periodToFinancialRange(
     return { start: fyStart, end: lcm.end, label: "exercice en cours (mois clôturés)", fallback: false };
   }
 
+  if (period.kind === "prev-fiscal-year") {
+    const lcm = lastClosedMonth();
+    const [y] = lcm.end.split("-").map(Number);
+    const curFyYear = lcm.end >= `${y}-10-01` ? y : y - 1;
+    const prevFyStart = `${curFyYear - 1}-10-01`;
+    const prevFyEnd = `${curFyYear}-09-30`;
+    return { start: prevFyStart, end: prevFyEnd, label: `exercice ${curFyYear - 1}–${curFyYear}`, fallback: false };
+  }
+
   return { ...lastClosedMonth(), label: "dernier mois clôturé", fallback: true };
 }
 
@@ -119,6 +128,12 @@ export function periodToSelectedMonths(period: PeriodSelection): string[] {
     const [y] = lcm.end.split("-").map(Number);
     const fyStartYM = lcm.end >= `${y}-10-01` ? `${y}-10` : `${y - 1}-10`;
     return ymRange(fyStartYM, lcmYM);
+  }
+
+  if (period.kind === "prev-fiscal-year") {
+    const [y] = lcm.end.split("-").map(Number);
+    const curFyYear = lcm.end >= `${y}-10-01` ? y : y - 1;
+    return ymRange(`${curFyYear - 1}-10`, `${curFyYear}-09`);
   }
 
   return [lcmYM];

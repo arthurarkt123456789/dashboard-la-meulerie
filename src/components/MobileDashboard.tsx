@@ -27,18 +27,20 @@ const FR_MONTHS = [
 ];
 
 const PERIOD_OPTIONS = [
-  { value: "today",  label: "Hier" },
-  { value: "7d",     label: "7 jours" },
-  { value: "30d",    label: "30 jours" },
-  { value: "90d",    label: "3 mois" },
-  { value: "month",  label: "Mois en cours" },
-  { value: "fy",     label: "Exercice" },
+  { value: "today",   label: "Hier" },
+  { value: "7d",      label: "7 jours" },
+  { value: "30d",     label: "30 jours" },
+  { value: "90d",     label: "3 mois" },
+  { value: "month",   label: "Mois en cours" },
+  { value: "fy",      label: "Exercice" },
+  { value: "fy-prev", label: "Ex. préc." },
 ] as const;
 
 type PeriodOpt = typeof PERIOD_OPTIONS[number]["value"];
 
 function toPeriodSelection(key: PeriodOpt, year: number, month: number): PeriodSelection {
   if (key === "fy") return { kind: "fiscal-year-todate" };
+  if (key === "fy-prev") return { kind: "prev-fiscal-year" };
   if (key === "month") return { kind: "month", year, month };
   return { kind: "preset", key };
 }

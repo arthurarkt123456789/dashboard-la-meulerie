@@ -41,6 +41,10 @@ export function periodLabelFor(selection: PeriodSelection): string {
     const t = formatShortISO(selection.to);
     return `du ${f} au ${t}`;
   }
+  if (selection.kind === "prev-fiscal-year") {
+    const fy = currentFiscalYearEnd();
+    return `exercice ${fy - 2}–${fy - 1}`;
+  }
   // fiscal-year-todate
   const fy = currentFiscalYearEnd();
   return `exercice ${fy - 1}–${fy} à date`;
@@ -111,9 +115,17 @@ export function rangeForSelection(
       Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
     return { from, to, days };
   }
+  const fy = currentFiscalYearEnd(new Date(`${todayISO}T12:00:00Z`));
+  if (selection.kind === "prev-fiscal-year") {
+    const from = `${fy - 2}-10-01`;
+    const to = `${fy - 1}-09-30`;
+    const start = new Date(`${from}T00:00:00Z`);
+    const end = new Date(`${to}T00:00:00Z`);
+    const days = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+    return { from, to, days };
+  }
   // fiscal-year-todate: Oct 1 of the prior calendar year (relative to FY end)
   // → today (last available fiscal day, i.e. `todayISO`).
-  const fy = currentFiscalYearEnd(new Date(`${todayISO}T12:00:00Z`));
   const from = `${fy - 1}-10-01`;
   const to = todayISO;
   const start = new Date(`${from}T00:00:00Z`);
@@ -401,6 +413,7 @@ export function periodMetrics(daily: StoreDaily[], period: PeriodKey): StoreMetr
 function yoyOffsetForSelection(selection: PeriodSelection): number {
   if (selection.kind === "month") return 365;
   if (selection.kind === "fiscal-year-todate") return 365;
+  if (selection.kind === "prev-fiscal-year") return 365;
   return 364;
 }
 

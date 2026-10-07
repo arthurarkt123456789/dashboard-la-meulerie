@@ -103,6 +103,13 @@ export function PeriodToggle({ value, onChange }: Props) {
         >
           Exercice
         </button>
+        <button
+          className={"lm-seg-btn " + (value.kind === "prev-fiscal-year" ? "active" : "")}
+          onClick={() => onChange({ kind: "prev-fiscal-year" })}
+          title="Exercice précédent (1er oct. N-1 → 30 sept. N)"
+        >
+          Ex. préc.
+        </button>
       </div>
 
       {openPopover === "month" && (
