@@ -4,6 +4,7 @@ type SegmentCA = {
   value: number;
   share: number;
   yoyDelta?: number | null;
+  n1Share?: number | null;
 };
 
 type Props = {
@@ -226,6 +227,11 @@ function CARow({
           }}
         >
           {(seg.share * 100).toFixed(0)} % du CA
+          {seg.n1Share != null && (
+            <span style={{ opacity: 0.65 }}>
+              {" · "}{(seg.n1Share * 100).toFixed(0)} % l'an dernier
+            </span>
+          )}
         </div>
         {hasYoy && (
           <div style={{ marginTop: 3 }}>
@@ -242,7 +248,7 @@ function CARow({
                   marginLeft: 2,
                 }}
               >
-                N-1
+                YOY
               </span>
             </span>
           </div>

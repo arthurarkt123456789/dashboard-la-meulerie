@@ -433,6 +433,12 @@ export function StoreView({ store, period, today, amountMode }: Props) {
     return f + s + e + r;
   }, [mClosed, isHT]);
 
+  // N-1 category denominator for share comparison (YOY mix analysis)
+  const n1CatDenom = useMemo(() => {
+    if (!mClosed.yoyAvailable) return 0;
+    return (mClosed.yoyFromagerieCA ?? 0) + (mClosed.yoySnackingCA ?? 0) + (mClosed.yoyEpicerieCA ?? 0) + (mClosed.yoyMerchCA ?? 0);
+  }, [mClosed]);
+
   const epicerieCAShare = useMemo(() => {
     const epicerieCA = isHT ? mClosed.epicerieCAHT : mClosed.epicerieCA;
     if (!catDenom || !epicerieCA) return null;
@@ -566,21 +572,25 @@ export function StoreView({ store, period, today, amountMode }: Props) {
             value: isHT ? mClosed.fromagerieCAHT : mClosed.fromagerieCA,
             share: catDenom > 0 ? (isHT ? (mClosed.fromagerieCAHT ?? 0) : mClosed.fromagerieCA) / catDenom : 0,
             yoyDelta: mClosed.yoyAvailable && mClosed.yoyFromagerieCA ? ((isHT ? mClosed.fromagerieCAHT : mClosed.fromagerieCA) - mClosed.yoyFromagerieCA) / mClosed.yoyFromagerieCA : null,
+            n1Share: n1CatDenom > 0 ? (mClosed.yoyFromagerieCA ?? 0) / n1CatDenom : null,
           }}
           snacking={{
             value: isHT ? mClosed.snackingCAHT ?? 0 : mClosed.snackingCA,
             share: catDenom > 0 ? (isHT ? (mClosed.snackingCAHT ?? 0) : mClosed.snackingCA) / catDenom : 0,
             yoyDelta: mClosed.yoyAvailable && mClosed.yoySnackingCA ? ((isHT ? mClosed.snackingCAHT ?? 0 : mClosed.snackingCA) - mClosed.yoySnackingCA) / mClosed.yoySnackingCA : null,
+            n1Share: n1CatDenom > 0 ? (mClosed.yoySnackingCA ?? 0) / n1CatDenom : null,
           }}
           epicerie={{
             value: isHT ? mClosed.epicerieCAHT ?? 0 : mClosed.epicerieCA,
             share: catDenom > 0 ? (isHT ? (mClosed.epicerieCAHT ?? 0) : (mClosed.epicerieCA ?? 0)) / catDenom : 0,
             yoyDelta: mClosed.yoyAvailable && mClosed.yoyEpicerieCA ? ((isHT ? mClosed.epicerieCAHT ?? 0 : mClosed.epicerieCA) - mClosed.yoyEpicerieCA) / mClosed.yoyEpicerieCA : null,
+            n1Share: n1CatDenom > 0 ? (mClosed.yoyEpicerieCA ?? 0) / n1CatDenom : null,
           }}
           merch={{
             value: isHT ? mClosed.merchCAHT ?? 0 : mClosed.merchCA,
             share: catDenom > 0 ? (isHT ? (mClosed.merchCAHT ?? 0) : (mClosed.merchCA ?? 0)) / catDenom : 0,
             yoyDelta: mClosed.yoyAvailable && mClosed.yoyMerchCA ? ((isHT ? mClosed.merchCAHT ?? 0 : mClosed.merchCA) - mClosed.yoyMerchCA) / mClosed.yoyMerchCA : null,
+            n1Share: n1CatDenom > 0 ? (mClosed.yoyMerchCA ?? 0) / n1CatDenom : null,
           }}
         />
         <KPICard
@@ -793,7 +803,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
         return (
           <Card
             title={`C.A. de ${monthName} ${year} · jour par jour`}
-            subtitle={`Arrêté au ${todayDay} ${monthName} · ${isHT ? "HT" : "TTC"} · cliquer une barre pour le détail`}
+            subtitle={`Arrêté au ${todayDay - 1} ${monthName} · ${isHT ? "HT" : "TTC"} · cliquer une barre pour le détail`}
             span={3}
           >
             <div style={{ padding: "0 20px 20px" }}>

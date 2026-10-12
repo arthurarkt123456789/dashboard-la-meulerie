@@ -63,7 +63,7 @@ export function MonthDailyBars({ daily, todayISO, isHT, storeColor, initialLocke
       const day = i + 1;
       const dateStr = `${year}-${pad2(month)}-${pad2(day)}`;
       const real = dailyByDate.get(dateStr);
-      const isFuture = day > todayDay;
+      const isFuture = day >= todayDay;
 
       const n1d = new Date(`${dateStr}T00:00:00Z`);
       n1d.setUTCDate(n1d.getUTCDate() - 364);
@@ -118,6 +118,7 @@ export function MonthDailyBars({ daily, todayISO, isHT, storeColor, initialLocke
   const labelEvery = daysCount > 20 ? 5 : 1;
 
   const FR_MONTHS = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+  const FR_DAYS = ["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
   const monthName = FR_MONTHS[month - 1];
 
   const tickVals = [0.25, 0.5, 0.75, 1.0].map((f) => maxVal * f);
@@ -197,7 +198,7 @@ export function MonthDailyBars({ daily, todayISO, isHT, storeColor, initialLocke
             <div style={{ borderLeft: "1px solid var(--border-light)", alignSelf: "stretch" }} />
             <div>
               <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--fg-tertiary)", marginBottom: 3 }}>
-                Croissance
+                Croissance YOY
               </div>
               <div style={{
                 fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 700,
@@ -226,7 +227,7 @@ export function MonthDailyBars({ daily, todayISO, isHT, storeColor, initialLocke
             transition: "border-color 0.1s",
           }}>
             <span style={{ fontWeight: 600, color: "var(--fg-primary)" }}>
-              {activeData.day} {monthName}
+              {FR_DAYS[new Date(`${activeData.date}T00:00:00Z`).getUTCDay()]} {activeData.day} {monthName}
               {lockedDay !== null && <span style={{ fontSize: 10, color: "var(--fg-tertiary)", marginLeft: 4 }}>🔒</span>}
             </span>
             <span>
