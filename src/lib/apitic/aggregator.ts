@@ -9,10 +9,12 @@ import {
 import { UE_VAT_RATE, getUberEatsForStore } from "../uber-eats";
 import {
   fetchAccounts,
+  fetchCancelledSalesForDate,
   fetchCategories,
   fetchPaymentMeans,
   fetchProducts,
   fetchSalesForDate,
+  type CancelledDayStats,
 } from "./endpoints";
 import {
   buildSegmentMapper,
@@ -768,6 +770,28 @@ async function aggregateOneStore(
       d.uberEatsCa = Math.round(ue.salesTtc);
       d.uberEatsTx = ue.ticketCount;
     }
+  }
+
+  // 3c. Cancelled sales → pertes per day (last 90 days, to limit API load).
+  // Uses /accounts/{id}/sales/{date}/cancelled — confirmed working endpoint.
+  const pertesCutoff = subtractDays(lastDay, 89);
+  const pertesWindow = dates.filter((d) => d >= pertesCutoff);
+  const cancelledResults = await Promise.allSettled(
+    pertesWindow.map((date) => fetchCancelledSalesForDate(accountId, date)),
+  );
+  const cancelledByDate = new Map<string, CancelledDayStats>();
+  pertesWindow.forEach((date, i) => {
+    const r = cancelledResults[i];
+    if (r.status === "fulfilled") cancelledByDate.set(date, r.value);
+  });
+  for (const d of daily) {
+    if (d.closed) continue;
+    const c = cancelledByDate.get(d.date);
+    if (!c) continue;
+    d.pertesAmount = c.cancelledAmount;
+    d.pertesAmountHT = Math.round((c.cancelledAmount / 1.1) * 100) / 100;
+    d.pertesTx = c.cancelledTx;
+    d.pertesUnits = c.cancelledLines;
   }
 
   // 4. Intraday profiles: 7-day, 30-day (default), 90-day windows.

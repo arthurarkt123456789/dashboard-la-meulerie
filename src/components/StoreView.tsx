@@ -29,6 +29,7 @@ import { SegmentFilterInline, useSegmentFilter } from "./SegmentFilter";
 import { BootstrapButton } from "./BootstrapButton";
 import { FinancialBlock } from "./FinancialBlock";
 import { DavsoExtras } from "./DavsoExtras";
+import { LossesView } from "./LossesView";
 import { WeekdayChart } from "./WeekdayChart";
 import { FiscalYearChart } from "./charts/FiscalYearChart";
 import { useStoreData, useProInvoices, useUberEatsMonths, useWebcaisseToday } from "@/lib/queries";
@@ -950,6 +951,8 @@ export function StoreView({ store, period, today, amountMode }: Props) {
       {(store.id === "davso" || store.id === "malmousque" || store.id === "endoume" || store.id === "republique") && (
         <FinancialBlock storeId={store.id} daily={store.daily} period={period} openedDate={store.openedDate} />
       )}
+
+      <LossesView store={store} period={period} amountMode={amountMode} />
 
       {store.id === "davso" && (
         <DavsoExtras store={store} period={period} amountMode={amountMode} />

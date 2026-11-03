@@ -78,6 +78,11 @@ export type StoreDaily = {
   margeCoveredSnackingCAHT?: number;
   margeCoveredEpicerieCAHT?: number;
   margeCoveredMerchCAHT?: number;
+  // Annulations (tickets annulés au POS) — source /sales/{date}/cancelled APITIC
+  pertesAmount?: number;    // € TTC total du jour (= cancelled amount)
+  pertesAmountHT?: number;  // € HT estimé
+  pertesTx?: number;        // nombre de tickets annulés
+  pertesUnits?: number;     // nombre de lignes annulées
 };
 
 export type StoreHourly = {

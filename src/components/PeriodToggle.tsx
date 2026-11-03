@@ -36,17 +36,27 @@ type Props = {
 
 export function PeriodToggle({ value, onChange }: Props) {
   const [openPopover, setOpenPopover] = useState<null | "month" | "range">(null);
-  const ref = useRef<HTMLDivElement | null>(null);
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!openPopover) return;
     const onDoc = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node))
-        setOpenPopover(null);
+      if (
+        ref.current && !ref.current.contains(e.target as Node) &&
+        (!popoverRef.current || !popoverRef.current.contains(e.target as Node))
+      ) setOpenPopover(null);
     };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [openPopover]);
+
+  function togglePopover(which: "month" | "range") {
+    if (openPopover === which) { setOpenPopover(null); return; }
+    if (ref.current) setAnchorRect(ref.current.getBoundingClientRect());
+    setOpenPopover(which);
+  }
 
   const today = new Date();
   const currentYear = today.getFullYear();
@@ -86,13 +96,13 @@ export function PeriodToggle({ value, onChange }: Props) {
         </button>
         <button
           className={"lm-seg-btn " + (isMonth && !isCurrentMonth ? "active" : "")}
-          onClick={() => setOpenPopover((s) => (s === "month" ? null : "month"))}
+          onClick={() => togglePopover("month")}
         >
           {monthLabel} ▾
         </button>
         <button
           className={"lm-seg-btn " + (isRange ? "active" : "")}
-          onClick={() => setOpenPopover((s) => (s === "range" ? null : "range"))}
+          onClick={() => togglePopover("range")}
         >
           {rangeLabel} ▾
         </button>
@@ -114,6 +124,8 @@ export function PeriodToggle({ value, onChange }: Props) {
 
       {openPopover === "month" && (
         <MonthPicker
+          popoverRef={popoverRef}
+          anchorRect={anchorRect}
           value={isMonth ? { year: value.year, month: value.month } : null}
           onPick={(year, month) => {
             onChange({ kind: "month", year, month });
@@ -123,6 +135,8 @@ export function PeriodToggle({ value, onChange }: Props) {
       )}
       {openPopover === "range" && (
         <RangePicker
+          popoverRef={popoverRef}
+          anchorRect={anchorRect}
           value={isRange ? { from: value.from, to: value.to } : null}
           onPick={(from, to) => {
             onChange({ kind: "range", from, to });
@@ -137,9 +151,13 @@ export function PeriodToggle({ value, onChange }: Props) {
 function MonthPicker({
   value,
   onPick,
+  popoverRef,
+  anchorRect,
 }: {
   value: { year: number; month: number } | null;
   onPick: (year: number, month: number) => void;
+  popoverRef: React.RefObject<HTMLDivElement>;
+  anchorRect: DOMRect | null;
 }) {
   const today = new Date();
   const [year, setYear] = useState(value?.year ?? today.getFullYear());
@@ -147,7 +165,7 @@ function MonthPicker({
   const currentMonth = today.getMonth() + 1;
 
   return (
-    <div role="dialog" style={popoverStyle}>
+    <div ref={popoverRef} role="dialog" style={computePopoverStyle(anchorRect)}>
       <div
         style={{
           display: "flex",
@@ -213,9 +231,13 @@ function MonthPicker({
 function RangePicker({
   value,
   onPick,
+  popoverRef,
+  anchorRect,
 }: {
   value: { from: string; to: string } | null;
   onPick: (from: string, to: string) => void;
+  popoverRef: React.RefObject<HTMLDivElement>;
+  anchorRect: DOMRect | null;
 }) {
   const todayStr = new Date().toISOString().slice(0, 10);
   // Default: last 14 days ending yesterday.
@@ -229,7 +251,7 @@ function RangePicker({
   const valid = from && to && from <= to;
 
   return (
-    <div role="dialog" style={popoverStyle}>
+    <div ref={popoverRef} role="dialog" style={computePopoverStyle(anchorRect)}>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <label style={labelStyle}>
           Du
@@ -264,18 +286,34 @@ function RangePicker({
   );
 }
 
-const popoverStyle: React.CSSProperties = {
-  position: "absolute",
-  top: "calc(100% + 6px)",
-  right: 0,
-  background: "var(--color-white)",
-  border: "1px solid var(--border-light)",
-  borderRadius: "var(--radius-md)",
-  boxShadow: "var(--shadow-md)",
-  padding: 12,
-  zIndex: 200,
-  minWidth: 240,
-};
+function computePopoverStyle(anchorRect: DOMRect | null): React.CSSProperties {
+  if (!anchorRect) {
+    return {
+      position: "fixed",
+      top: 80,
+      right: 8,
+      background: "var(--color-white)",
+      border: "1px solid var(--border-light)",
+      borderRadius: "var(--radius-md)",
+      boxShadow: "var(--shadow-md)",
+      padding: 12,
+      zIndex: 9999,
+      minWidth: 240,
+    };
+  }
+  return {
+    position: "fixed",
+    top: anchorRect.bottom + 6,
+    right: Math.max(8, window.innerWidth - anchorRect.right),
+    background: "var(--color-white)",
+    border: "1px solid var(--border-light)",
+    borderRadius: "var(--radius-md)",
+    boxShadow: "var(--shadow-md)",
+    padding: 12,
+    zIndex: 9999,
+    minWidth: 240,
+  };
+}
 
 function pickerBtnStyle(isActive: boolean, isFuture: boolean): React.CSSProperties {
   return {

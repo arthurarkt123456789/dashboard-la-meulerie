@@ -31,9 +31,11 @@ type Props = {
   initialLockedDay?: number;
   onDaySelect?: (dayNum: number | null) => void;
   hideSummary?: boolean;
+  viewYear?: number;
+  viewMonth?: number;
 };
 
-export function MonthDailyBars({ daily, todayISO, isHT, storeColor, initialLockedDay, onDaySelect, hideSummary }: Props) {
+export function MonthDailyBars({ daily, todayISO, isHT, storeColor, initialLockedDay, onDaySelect, hideSummary, viewYear, viewMonth }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(900);
   const [hoveredDay, setHoveredDay] = useState<number | null>(null);
@@ -48,10 +50,15 @@ export function MonthDailyBars({ daily, todayISO, isHT, storeColor, initialLocke
     return () => ro.disconnect();
   }, []);
 
-  const year = Number(todayISO.slice(0, 4));
-  const month = Number(todayISO.slice(5, 7));
+  const todayYear = Number(todayISO.slice(0, 4));
+  const todayMonthNum = Number(todayISO.slice(5, 7));
   const todayDay = Number(todayISO.slice(8, 10));
+  const year = viewYear ?? todayYear;
+  const month = viewMonth ?? todayMonthNum;
+  const isCurrentMonth = year === todayYear && month === todayMonthNum;
   const daysCount = daysInMonth(year, month);
+  // For past months all days are realized; use daysCount+1 so isFuture is never true
+  const effectiveTodayDay = isCurrentMonth ? todayDay : daysCount + 1;
 
   const dailyByDate = useMemo(
     () => new Map(daily.map((d) => [d.date, d])),
@@ -63,7 +70,7 @@ export function MonthDailyBars({ daily, todayISO, isHT, storeColor, initialLocke
       const day = i + 1;
       const dateStr = `${year}-${pad2(month)}-${pad2(day)}`;
       const real = dailyByDate.get(dateStr);
-      const isFuture = day >= todayDay;
+      const isFuture = day >= effectiveTodayDay;
 
       const n1d = new Date(`${dateStr}T00:00:00Z`);
       n1d.setUTCDate(n1d.getUTCDate() - 364);
@@ -334,8 +341,8 @@ export function MonthDailyBars({ daily, todayISO, isHT, storeColor, initialLocke
                   />
                 )}
 
-                {/* Today vertical marker */}
-                {d.day === todayDay && (
+                {/* Today vertical marker — only for current month */}
+                {isCurrentMonth && d.day === todayDay && (
                   <line
                     x1={xc} x2={xc} y1={PAD.top} y2={PAD.top + innerH}
                     stroke={storeColor} strokeWidth={1} strokeDasharray="3 2" opacity={0.45}

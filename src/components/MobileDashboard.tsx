@@ -183,9 +183,9 @@ function DRow({ label, value, color }: { label: string; value: string; color?: s
 }
 
 // ── Stat box (monthly summary) ───────────────────────────────────────────────
-function StatBox({ label, value, sub, delta }: { label: string; value: string; sub?: string; delta?: number | null }) {
+function StatBox({ label, value, sub, delta, dim }: { label: string; value: string; sub?: string; delta?: number | null; dim?: boolean }) {
   return (
-    <div style={{ background: "var(--bg-subtle)", borderRadius: 10, padding: "10px 12px" }}>
+    <div style={{ background: "var(--bg-subtle)", borderRadius: 10, padding: "10px 12px", opacity: dim ? 0.4 : 1 }}>
       <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--fg-tertiary)", marginBottom: 4 }}>{label}</div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
         <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "var(--font-display)", color: "var(--fg-primary)", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" }}>{value}</div>
@@ -201,27 +201,31 @@ function StatBox({ label, value, sub, delta }: { label: string; value: string; s
 }
 
 // ── Horizontal scroll MonthDailyBars ─────────────────────────────────────────
-function MobileMonthBars({ store, daily, isHT, onDaySelect, initialLockedDay }: {
+function MobileMonthBars({ store, daily, isHT, onDaySelect, initialLockedDay, viewYear, viewMonth }: {
   store: StoreData;
   daily: StoreDaily[];
   isHT: boolean;
   onDaySelect?: (dayNum: number | null) => void;
   initialLockedDay?: number;
+  viewYear?: number;
+  viewMonth?: number;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const todayISO = daily[daily.length - 1]?.date ?? "";
   const todayDay = Number(todayISO.slice(8, 10));
   const storeColor = STORE_COLORS[store.id] ?? "var(--color-coral)";
-  const year = Number(todayISO.slice(0, 4));
-  const month = Number(todayISO.slice(5, 7));
-  const daysCount = new Date(year, month, 0).getDate();
+  const displayYear = viewYear ?? Number(todayISO.slice(0, 4));
+  const displayMonth = viewMonth ?? Number(todayISO.slice(5, 7));
+  const isCurrentMonth = displayYear === Number(todayISO.slice(0, 4)) && displayMonth === Number(todayISO.slice(5, 7));
+  const daysCount = new Date(displayYear, displayMonth, 0).getDate();
+  const scrollDay = isCurrentMonth ? todayDay : daysCount;
   const BAR_SLOT = 36;
 
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    el.scrollLeft = (todayDay - 0.5) * BAR_SLOT - el.clientWidth / 2;
-  }, [todayDay]);
+    el.scrollLeft = (scrollDay - 0.5) * BAR_SLOT - el.clientWidth / 2;
+  }, [scrollDay]);
 
   const totalW = daysCount * BAR_SLOT + 64;
 
@@ -236,8 +240,33 @@ function MobileMonthBars({ store, daily, isHT, onDaySelect, initialLockedDay }: 
           onDaySelect={onDaySelect}
           initialLockedDay={initialLockedDay}
           hideSummary
+          viewYear={viewYear}
+          viewMonth={viewMonth}
         />
       </div>
+    </div>
+  );
+}
+
+// ── Live error banner ─────────────────────────────────────────────────────────
+function LiveErrorBanner({ error }: { error: unknown }) {
+  const [showDetail, setShowDetail] = useState(false);
+  const message = (error as Error)?.message ?? "erreur réseau";
+  return (
+    <div style={{ background: "var(--bg-subtle)", borderRadius: 8, padding: "8px 14px", marginBottom: 10, fontSize: 12, color: "var(--fg-tertiary)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      <span style={{ width: 6, height: 6, borderRadius: 3, background: "var(--fg-tertiary)", flexShrink: 0 }} />
+      <span style={{ color: "var(--fg-secondary)" }}>Live indisponible</span>
+      <button
+        onClick={() => setShowDetail(s => !s)}
+        style={{ background: "none", border: 0, padding: 0, fontSize: 11, color: "var(--fg-tertiary)", cursor: "pointer", textDecoration: "underline" }}
+      >
+        {showDetail ? "masquer" : "en savoir plus"}
+      </button>
+      {showDetail && (
+        <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--fg-tertiary)", wordBreak: "break-all" }}>
+          {message}
+        </span>
+      )}
     </div>
   );
 }
@@ -251,7 +280,9 @@ export function MobileDashboard() {
   const stores = storesQ.data ?? [];
   const allData = dataQ.data ?? [];
 
-  const [storeId, setStoreId] = useState<string | null>(null);
+  const [storeId, setStoreId] = useState<string | null>(() => {
+    try { return localStorage.getItem("lm-selected-store"); } catch { return null; }
+  });
   const [isHT, setIsHT] = useState(true);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -262,9 +293,11 @@ export function MobileDashboard() {
   const activeId = storeId ?? stores[0]?.id ?? "davso";
   const store = allData.find((s) => s.id === activeId) ?? null;
 
-  // Inject today's live data as a synthetic daily entry so KPIs include today
+  // Inject today's live data as a synthetic daily entry so KPIs include today.
+  // If live is in error, fall back to APITIC data only (cutoff = yesterday).
   const dailyWithLive = useMemo(() => {
     if (!store) return [];
+    if (liveQ.isError) return store.daily;
     const liveStore = liveQ.data?.stores[store.id];
     const todayLive = liveQ.data?.date;
     if (!liveStore || !todayLive || liveStore.tx === 0) return store.daily;
@@ -343,17 +376,21 @@ export function MobileDashboard() {
     return points;
   }, [periodSlice, dailyByDate, isHT]);
 
-  // Default lockedMonthDay to last data day when store loads
+  // Reset selected day when month/store changes
   useEffect(() => {
-    if (todayISO) setLockedMonthDay(Number(todayISO.slice(8, 10)));
-  }, [todayISO]);
+    if (!todayISO) return;
+    const isCurrentMonthSel = year === baseYear && month === baseMonth;
+    if (isCurrentMonthSel) {
+      setLockedMonthDay(Number(todayISO.slice(8, 10)));
+    } else {
+      setLockedMonthDay(new Date(year, month, 0).getDate());
+    }
+  }, [year, month, todayISO]);
 
-  // Per-day data for the locked day
+  // Per-day data for the locked day (uses selected month)
   const lockedDayData = useMemo(() => {
     if (!store || !todayISO || lockedMonthDay === null) return null;
-    const yr = Number(todayISO.slice(0, 4));
-    const mo = Number(todayISO.slice(5, 7));
-    const dateStr = `${yr}-${String(mo).padStart(2, "0")}-${String(lockedMonthDay).padStart(2, "0")}`;
+    const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(lockedMonthDay).padStart(2, "0")}`;
     const real = dailyByDate.get(dateStr);
     const n1dt = new Date(`${dateStr}T00:00:00Z`);
     n1dt.setUTCDate(n1dt.getUTCDate() - 364);
@@ -361,43 +398,46 @@ export function MobileDashboard() {
     const ca = real && !real.closed ? (isHT ? real.caHT ?? 0 : real.ca) : null;
     const n1ca = n1real && !n1real.closed ? (isHT ? n1real.caHT ?? 0 : n1real.ca) : null;
     const snackingCA = isHT ? (real?.snackingCAHT ?? 0) : (real?.snackingCA ?? 0);
-    const isFuture = lockedMonthDay > Number(todayISO.slice(8, 10));
+    const isCurrentMonthSel = year === baseYear && month === baseMonth;
+    const isFuture = isCurrentMonthSel && lockedMonthDay > Number(todayISO.slice(8, 10));
     return { day: lockedMonthDay, date: dateStr, ca, n1ca, snackingCA, isFuture };
-  }, [store, dailyByDate, todayISO, lockedMonthDay, isHT]);
+  }, [store, dailyByDate, todayISO, lockedMonthDay, isHT, year, month, baseYear, baseMonth]);
 
-  // Monthly stat boxes
+  // Monthly stat boxes — uses selected month (year/month from period selection)
   const monthStats = useMemo(() => {
     if (!store || !todayISO) return null;
-    const mo = Number(todayISO.slice(5, 7));
-    const yr = Number(todayISO.slice(0, 4));
-    const monthStart = `${yr}-${String(mo).padStart(2, "0")}-01`;
-    const monthDays = dailyWithLive.filter(d => d.date >= monthStart && d.date <= todayISO);
+    const isCurrentMonthSel = year === baseYear && month === baseMonth;
+    const monthStart = `${year}-${String(month).padStart(2, "0")}-01`;
+    const daysInSel = new Date(year, month, 0).getDate();
+    const monthEnd = isCurrentMonthSel
+      ? todayISO
+      : `${year}-${String(month).padStart(2, "0")}-${String(daysInSel).padStart(2, "0")}`;
+    const monthDays = dailyWithLive.filter(d => d.date >= monthStart && d.date <= monthEnd && !d.closed);
     const monthTotal = monthDays.reduce((s, d) => s + (isHT ? (d.caHT ?? 0) : d.ca), 0);
     const lastDay = monthDays[monthDays.length - 1];
-    const todayCa = lastDay ? (isHT ? (lastDay.caHT ?? 0) : lastDay.ca) : 0;
+    const todayCa = isCurrentMonthSel && lastDay ? (isHT ? (lastDay.caHT ?? 0) : lastDay.ca) : 0;
     const allMonthDates: string[] = [];
-    const daysInMonth = new Date(yr, mo, 0).getDate();
-    for (let d = 1; d <= daysInMonth; d++) {
-      allMonthDates.push(`${yr}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
+    for (let d = 1; d <= daysInSel; d++) {
+      allMonthDates.push(`${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
     }
-    // N-1 complet: all days of the month (including future)
+    // N-1 complet: compare each day 364 days back (same weekday)
     const n1Total = allMonthDates.reduce((s, dateStr) => {
       const dt = new Date(`${dateStr}T00:00:00Z`);
-      dt.setUTCDate(dt.getUTCDate() - 365);
+      dt.setUTCDate(dt.getUTCDate() - 364);
       const n1d = dailyByDate.get(dt.toISOString().slice(0, 10));
       return s + (n1d && !n1d.closed ? (isHT ? (n1d.caHT ?? 0) : n1d.ca) : 0);
     }, 0);
-    // N-1 même jour: only realized days so far
-    const n1Partial = allMonthDates
-      .filter(dateStr => dateStr <= todayISO)
-      .reduce((s, dateStr) => {
-        const dt = new Date(`${dateStr}T00:00:00Z`);
-        dt.setUTCDate(dt.getUTCDate() - 365);
-        const n1d = dailyByDate.get(dt.toISOString().slice(0, 10));
-        return s + (n1d && !n1d.closed ? (isHT ? (n1d.caHT ?? 0) : n1d.ca) : 0);
-      }, 0);
-    return { todayCa, monthTotal, n1Total, n1Partial, lastDate: lastDay?.date ?? todayISO };
-  }, [store, dailyWithLive, dailyByDate, todayISO, isHT]);
+    // N-1 même jour: only for current month (days elapsed so far)
+    const n1Partial = isCurrentMonthSel
+      ? allMonthDates.filter(d => d <= todayISO).reduce((s, dateStr) => {
+          const dt = new Date(`${dateStr}T00:00:00Z`);
+          dt.setUTCDate(dt.getUTCDate() - 364);
+          const n1d = dailyByDate.get(dt.toISOString().slice(0, 10));
+          return s + (n1d && !n1d.closed ? (isHT ? (n1d.caHT ?? 0) : n1d.ca) : 0);
+        }, 0)
+      : 0;
+    return { todayCa, monthTotal, n1Total, n1Partial, lastDate: lastDay?.date ?? todayISO, isCurrentMonth: isCurrentMonthSel };
+  }, [store, dailyWithLive, dailyByDate, todayISO, isHT, year, month, baseYear, baseMonth]);
 
   // Formule stats (menu-only — used for % formules penetration metric)
   const formules = useMemo(() => {
@@ -513,7 +553,10 @@ export function MobileDashboard() {
         <div style={{ display: "flex", gap: 8, padding: "0 14px 10px" }}>
           <AppSelect
             value={activeId}
-            onChange={v => setStoreId(v)}
+            onChange={v => {
+              setStoreId(v);
+              try { localStorage.setItem("lm-selected-store", v); } catch {}
+            }}
             options={storeOptions}
             color={storeColor}
           />
@@ -593,11 +636,7 @@ export function MobileDashboard() {
       <div style={{ padding: "12px 12px 80px" }}>
 
         {/* ── 0. Live aujourd'hui (WebCaisse) ── */}
-        {liveQ.isError && (
-          <div style={{ background: "#fef2f2", borderRadius: 8, padding: "10px 14px", marginBottom: 12, fontSize: 12, color: "#b91c1c" }}>
-            Live indisponible — {(liveQ.error as Error)?.message ?? "erreur réseau"}
-          </div>
-        )}
+        {liveQ.isError && <LiveErrorBanner error={liveQ.error} />}
         {liveQ.data && (() => {
           const live = liveQ.data;
           const s = live.stores[activeId];
@@ -754,16 +793,24 @@ export function MobileDashboard() {
           {/* Ligne 1 — synthèse mois */}
           <div style={{ padding: "14px 16px 12px", borderBottom: "1px solid var(--border-light)" }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg-primary)", marginBottom: 10 }}>
-              C.A. Mois en cours
+              {monthStats?.isCurrentMonth === false
+                ? `C.A. · ${FR_MONTHS[month - 1]} ${year}`
+                : "C.A. Mois en cours"}
             </div>
             {monthStats && (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
                 <StatBox
-                  label="Mois en cours"
+                  label={monthStats.isCurrentMonth ? "Mois en cours" : "Mois complet"}
                   value={fmtEURshort(monthStats.monthTotal)}
-                  delta={monthStats.n1Partial > 0 ? monthStats.monthTotal / monthStats.n1Partial - 1 : null}
+                  delta={monthStats.isCurrentMonth
+                    ? (monthStats.n1Partial > 0 ? monthStats.monthTotal / monthStats.n1Partial - 1 : null)
+                    : (monthStats.n1Total > 0 ? monthStats.monthTotal / monthStats.n1Total - 1 : null)}
                 />
-                <StatBox label="N-1 même jour" value={monthStats.n1Partial > 0 ? fmtEURshort(monthStats.n1Partial) : "—"} />
+                <StatBox
+                  label="N-1 même jour"
+                  value={monthStats.isCurrentMonth && monthStats.n1Partial > 0 ? fmtEURshort(monthStats.n1Partial) : "—"}
+                  dim={!monthStats.isCurrentMonth}
+                />
                 <StatBox label="N-1 mois complet" value={monthStats.n1Total > 0 ? fmtEURshort(monthStats.n1Total) : "—"} />
               </div>
             )}
@@ -777,9 +824,12 @@ export function MobileDashboard() {
                   ? `${lockedDayData.day} ${FR_MONTHS[month - 1].slice(0, 4)}.`
                   : "—"}
               </span>
-              {lockedMonthDay === Number(todayISO.slice(8, 10)) && (
-                <span>· dernier jour</span>
-              )}
+              {lockedMonthDay !== null && (() => {
+                const isLast = monthStats?.isCurrentMonth
+                  ? lockedMonthDay === Number(todayISO.slice(8, 10))
+                  : lockedMonthDay === new Date(year, month, 0).getDate();
+                return isLast ? <span>· dernier jour</span> : null;
+              })()}
               <span style={{ marginLeft: "auto", fontSize: 10 }}>tap sur le graphe pour changer</span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
@@ -811,6 +861,8 @@ export function MobileDashboard() {
               isHT={isHT}
               onDaySelect={setLockedMonthDay}
               initialLockedDay={lockedMonthDay ?? undefined}
+              viewYear={year}
+              viewMonth={month}
             />
           </div>
         </div>
