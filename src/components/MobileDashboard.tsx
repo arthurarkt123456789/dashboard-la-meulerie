@@ -280,9 +280,14 @@ export function MobileDashboard() {
   const stores = storesQ.data ?? [];
   const allData = dataQ.data ?? [];
 
-  const [storeId, setStoreId] = useState<string | null>(() => {
-    try { return localStorage.getItem("lm-selected-store"); } catch { return null; }
-  });
+  const [storeId, setStoreId] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("lm-selected-store");
+      if (saved) setStoreId(saved);
+    } catch {}
+  }, []);
   const [isHT, setIsHT] = useState(true);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
