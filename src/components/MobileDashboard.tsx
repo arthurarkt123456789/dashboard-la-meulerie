@@ -395,7 +395,9 @@ export function MobileDashboard() {
   // Per-day data for the locked day (uses selected month)
   const lockedDayData = useMemo(() => {
     if (!store || !todayISO || lockedMonthDay === null) return null;
-    const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(lockedMonthDay).padStart(2, "0")}`;
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const safeDay = Math.min(lockedMonthDay, daysInMonth);
+    const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(safeDay).padStart(2, "0")}`;
     const real = dailyByDate.get(dateStr);
     const n1dt = new Date(`${dateStr}T00:00:00Z`);
     n1dt.setUTCDate(n1dt.getUTCDate() - 364);
@@ -404,8 +406,8 @@ export function MobileDashboard() {
     const n1ca = n1real && !n1real.closed ? (isHT ? n1real.caHT ?? 0 : n1real.ca) : null;
     const snackingCA = isHT ? (real?.snackingCAHT ?? 0) : (real?.snackingCA ?? 0);
     const isCurrentMonthSel = year === baseYear && month === baseMonth;
-    const isFuture = isCurrentMonthSel && lockedMonthDay > Number(todayISO.slice(8, 10));
-    return { day: lockedMonthDay, date: dateStr, ca, n1ca, snackingCA, isFuture };
+    const isFuture = isCurrentMonthSel && safeDay > Number(todayISO.slice(8, 10));
+    return { day: safeDay, date: dateStr, ca, n1ca, snackingCA, isFuture };
   }, [store, dailyByDate, todayISO, lockedMonthDay, isHT, year, month, baseYear, baseMonth]);
 
   // Monthly stat boxes — uses selected month (year/month from period selection)
