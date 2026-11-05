@@ -44,7 +44,11 @@ type StoreTreasury = {
   recurringCharges: RecurringCharges;
   breakEven: BreakEvenPoint[];
 };
-type TresoData = { stores: StoreTreasury[]; fetchedAt: string };
+type TresoData = {
+  stores: StoreTreasury[];
+  storeErrors: { id: string; name: string; error: string }[];
+  fetchedAt: string;
+};
 
 // ── Formatting ─────────────────────────────────────────────────────────────────
 
@@ -541,9 +545,31 @@ export function TresorerieView({ stores }: Props) {
           </div>
         )}
         <div className="treso-columns">
-          {loading
-            ? [0, 1, 2, 3].map((i) => <ColumnSkeleton key={i} />)
-            : (data?.stores ?? []).map((store) => <StoreColumn key={store.id} store={store} />)}
+          {loading ? (
+            [0, 1, 2, 3].map((i) => <ColumnSkeleton key={i} />)
+          ) : (
+            <>
+              {(data?.stores ?? []).map((store) => (
+                <StoreColumn key={store.id} store={store} />
+              ))}
+              {(data?.storeErrors ?? []).map((e) => (
+                <div key={e.id} className="treso-col">
+                  <div className="treso-col-head">
+                    <span className="treso-col-name">{e.name}</span>
+                  </div>
+                  <div className="treso-block" style={{ color: "#dc2626", fontSize: 12 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 4 }}>Données indisponibles</div>
+                    <div style={{ color: "var(--fg-tertiary)", wordBreak: "break-all" }}>{e.error}</div>
+                  </div>
+                </div>
+              ))}
+              {!error && data && data.stores.length === 0 && data.storeErrors.length === 0 && (
+                <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "48px 16px", color: "var(--fg-secondary)", fontSize: 13 }}>
+                  Aucune donnée Pennylane disponible. Vérifiez la configuration des tokens.
+                </div>
+              )}
+            </>
+          )}
         </div>
       </main>
     </div>

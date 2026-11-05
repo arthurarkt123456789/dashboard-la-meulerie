@@ -41,6 +41,27 @@ async function sessionValid(cookie: string | undefined, pwd: string): Promise<bo
   return diff === 0;
 }
 
+const TRESO_COOKIE = "lm_treso";
+
+async function tresoSessionValid(cookie: string | undefined, pwd: string): Promise<boolean> {
+  if (!cookie) return false;
+  const dot = cookie.indexOf(".");
+  if (dot <= 0) return false;
+  const payload = cookie.slice(0, dot);
+  const sig = cookie.slice(dot + 1);
+  const issuedAt = Number(payload);
+  if (!Number.isFinite(issuedAt)) return false;
+  const age = Math.floor(Date.now() / 1000) - issuedAt;
+  if (age < 0 || age > 30 * 24 * 60 * 60) return false;
+  const expected = await hmac256(pwd, payload);
+  if (expected.length !== sig.length) return false;
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) {
+    diff |= expected.charCodeAt(i) ^ sig.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -54,6 +75,31 @@ export async function middleware(request: NextRequest) {
 
   // Login page and login API are always public
   if (pathname === "/login" || pathname.startsWith("/api/login")) {
+    return NextResponse.next();
+  }
+
+  // Trésorerie login page and its API are always public (standalone gate)
+  if (pathname === "/tresorerie/login" || pathname.startsWith("/api/treso-login")) {
+    return NextResponse.next();
+  }
+
+  // Trésorerie pages use their own TRESO_PASSWORD gate (independent of main auth)
+  const isTresoPath =
+    pathname.startsWith("/tresorerie") || pathname === "/api/treso";
+  if (isTresoPath) {
+    const tresoPwd = process.env.TRESO_PASSWORD;
+    if (tresoPwd && tresoPwd.trim().length > 0) {
+      const tresoCookie = request.cookies.get(TRESO_COOKIE)?.value;
+      const valid = await tresoSessionValid(tresoCookie, tresoPwd);
+      if (!valid) {
+        if (pathname.startsWith("/api/")) {
+          return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+        const url = request.nextUrl.clone();
+        url.pathname = "/tresorerie/login";
+        return NextResponse.redirect(url);
+      }
+    }
     return NextResponse.next();
   }
 

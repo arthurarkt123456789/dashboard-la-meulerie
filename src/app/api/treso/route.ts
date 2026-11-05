@@ -24,18 +24,29 @@ const STORE_NAMES: Record<string, string> = {
 
 async function buildStoreData(storeId: string) {
   const config = getPennylaneConfig(storeId);
-  if (!config) return null;
+  if (!config) {
+    console.error(`[treso] No Pennylane config for ${storeId}`);
+    return null;
+  }
 
   // 13 months: prev fiscal year (12) + current month (1) = Oct N-1 → Oct N
   const months = getPastMonths(13);
   const fromDate = months[0].start;
   const toDate = months[months.length - 1].end;
 
-  // Bank accounts + transactions run in parallel, trial balance sequential (rate limit safe)
-  const [bankAccounts, transactions] = await Promise.all([
-    fetchBankAccounts(config.token),
-    fetchTransactions(config.token, fromDate, toDate),
-  ]);
+  // Bank accounts + transactions — wrap in try/catch to avoid killing the whole store
+  let bankAccounts: Awaited<ReturnType<typeof fetchBankAccounts>> = [];
+  let transactions: Awaited<ReturnType<typeof fetchTransactions>> = [];
+  try {
+    [bankAccounts, transactions] = await Promise.all([
+      fetchBankAccounts(config.token),
+      fetchTransactions(config.token, fromDate, toDate),
+    ]);
+    console.log(`[treso] ${storeId}: ${bankAccounts.length} accounts, ${transactions.length} transactions`);
+  } catch (err) {
+    console.error(`[treso] ${storeId} bank/txn error:`, (err as Error).message);
+    // Continue: trial balance will still work for break-even + charges
+  }
 
   const trialData: Array<{
     month: string;
@@ -114,16 +125,24 @@ async function buildStoreData(storeId: string) {
 export async function GET() {
   const results = await Promise.allSettled(STORE_IDS.map(buildStoreData));
 
-  const stores = results
-    .map((r, i) => {
-      if (r.status === "fulfilled") return r.value;
-      console.error(`[treso] ${STORE_IDS[i]} failed:`, (r.reason as Error)?.message);
-      return null;
-    })
-    .filter((v): v is NonNullable<typeof v> => v !== null);
+  const stores: NonNullable<Awaited<ReturnType<typeof buildStoreData>>>[] = [];
+  const storeErrors: { id: string; name: string; error: string }[] = [];
+
+  results.forEach((r, i) => {
+    const id = STORE_IDS[i];
+    if (r.status === "fulfilled" && r.value !== null) {
+      stores.push(r.value);
+    } else {
+      const msg = r.status === "rejected"
+        ? (r.reason as Error)?.message ?? "Erreur inconnue"
+        : "Configuration Pennylane manquante";
+      console.error(`[treso] ${id} failed:`, msg);
+      storeErrors.push({ id, name: STORE_NAMES[id] ?? id, error: msg });
+    }
+  });
 
   return NextResponse.json(
-    { stores, fetchedAt: new Date().toISOString() },
+    { stores, storeErrors, fetchedAt: new Date().toISOString() },
     { headers: { "Cache-Control": "no-store" } },
   );
 }
