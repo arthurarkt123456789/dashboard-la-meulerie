@@ -33,12 +33,12 @@ type BreakEvenPoint = {
   chargesVariable: number;
   seuil: number | null;
 };
-type TresoAccount = { number: string; name: string; balance: number };
 type StoreTreasury = {
   id: string;
   name: string;
   totalBalance: number;
-  tresoAccounts: TresoAccount[];
+  bankAccounts: { name: string; balance: number }[];
+  bankSynced: boolean;
   cashflowMonths: MonthCashflow[];
   recurringCharges: RecurringCharges;
   breakEven: BreakEvenPoint[];
@@ -193,6 +193,56 @@ function BreakEvenChart({ data }: { data: BreakEvenPoint[] }) {
   );
 }
 
+function CashSRChart({ months, avgOutflows }: { months: MonthCashflow[]; avgOutflows: number }) {
+  if (months.length < 2) return null;
+  const W = 300, H = 155, PL = 44, PR = 6, PT = 10, PB = 32;
+  const cW = W - PL - PR;
+  const cH = H - PT - PB;
+
+  const allVals = [...months.map((m) => m.inflows), ...months.map((m) => m.outflows), avgOutflows].filter((v) => v > 0);
+  const maxVal = Math.max(...allVals, 1);
+
+  const xPos = (i: number) => PL + (i / (months.length - 1)) * cW;
+  const yPos = (v: number) => PT + cH * (1 - Math.min(v / maxVal, 1));
+  const yLabel = (v: number) => (v >= 10000 ? `${Math.round(v / 1000)}k` : v >= 1000 ? `${(v / 1000).toFixed(1)}k` : `${Math.round(v)}`);
+  const ticks = [0, 0.25, 0.5, 0.75, 1];
+  const srY = yPos(avgOutflows);
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block" }}>
+      {ticks.map((f, i) => (
+        <g key={i}>
+          <line x1={PL} y1={yPos(maxVal * f)} x2={W - PR} y2={yPos(maxVal * f)} stroke="var(--border-light)" strokeWidth={0.5} />
+          <text x={PL - 3} y={yPos(maxVal * f) + 3.5} textAnchor="end" fontSize={7} fill="var(--fg-tertiary)">
+            {yLabel(maxVal * f)}
+          </text>
+        </g>
+      ))}
+      {/* SR tréso = average outflows (orange reference) */}
+      {avgOutflows > 0 && (
+        <line x1={PL} y1={srY} x2={W - PR} y2={srY} stroke="#f97316" strokeWidth={1.5} strokeDasharray="5 3" />
+      )}
+      {/* Outflows line (red dashed) */}
+      <polyline
+        points={months.map((m, i) => `${xPos(i)},${yPos(m.outflows)}`).join(" ")}
+        fill="none" stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" strokeLinejoin="round"
+      />
+      {/* Inflows line (blue solid) */}
+      <polyline
+        points={months.map((m, i) => `${xPos(i)},${yPos(m.inflows)}`).join(" ")}
+        fill="none" stroke="#002FA7" strokeWidth={2} strokeLinejoin="round"
+      />
+      {months.map((m, i) =>
+        (months.length <= 6 || i % 2 === 0) ? (
+          <text key={i} x={xPos(i)} y={H - 3} textAnchor="middle" fontSize={6.5} fill="var(--fg-tertiary)">
+            {fmtMonthShort(m.month).slice(0, 6)}
+          </text>
+        ) : null,
+      )}
+    </svg>
+  );
+}
+
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
 function BalanceKPI({ store }: { store: StoreTreasury }) {
@@ -202,30 +252,38 @@ function BalanceKPI({ store }: { store: StoreTreasury }) {
   return (
     <div className="treso-block">
       <div className="lm-label" style={{ marginBottom: 6 }}>Trésorerie actuelle</div>
-      <div className="treso-balance" style={{ color: isPositive ? "var(--status-success)" : "#dc2626" }}>
-        {fmtEur(store.totalBalance)}
-      </div>
-      {store.tresoAccounts.length > 0 && (
-        <button
-          className="treso-expand-btn"
-          onClick={() => setExpanded((e) => !e)}
-          aria-expanded={expanded}
-        >
-          {store.tresoAccounts.length} compte(s) {expanded ? "▲" : "▼"}
-        </button>
-      )}
-      {expanded && (
-        <div className="treso-accounts">
-          {store.tresoAccounts.map((a, i) => (
-            <div key={i} className="treso-account-row">
-              <span className="treso-account-name" title={a.name}>
-                {a.name.length > 36 ? `${a.name.slice(0, 36)}…` : a.name}
-              </span>
-              <span style={{ color: a.balance >= 0 ? "var(--fg-primary)" : "#dc2626", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", fontSize: 11, fontWeight: 500 }}>
-                {fmtEur(a.balance)}
-              </span>
+      {store.bankSynced ? (
+        <>
+          <div className="treso-balance" style={{ color: isPositive ? "var(--status-success)" : "#dc2626" }}>
+            {fmtEur(store.totalBalance)}
+          </div>
+          {store.bankAccounts.length > 0 && (
+            <button
+              className="treso-expand-btn"
+              onClick={() => setExpanded((e) => !e)}
+              aria-expanded={expanded}
+            >
+              {store.bankAccounts.length} compte(s) {expanded ? "▲" : "▼"}
+            </button>
+          )}
+          {expanded && (
+            <div className="treso-accounts">
+              {store.bankAccounts.map((a, i) => (
+                <div key={i} className="treso-account-row">
+                  <span className="treso-account-name" title={a.name}>
+                    {a.name.length > 36 ? `${a.name.slice(0, 36)}…` : a.name}
+                  </span>
+                  <span style={{ color: a.balance >= 0 ? "var(--fg-primary)" : "#dc2626", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", fontSize: 11, fontWeight: 500 }}>
+                    {fmtEur(a.balance)}
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
+        </>
+      ) : (
+        <div style={{ fontSize: 12, color: "var(--fg-tertiary)", fontStyle: "italic", paddingBottom: 4 }}>
+          Sync. bancaire non configurée
         </div>
       )}
     </div>
@@ -379,6 +437,54 @@ function BreakEvenBlock({ data }: { data: BreakEvenPoint[] }) {
   );
 }
 
+function CashSRBlock({ months }: { months: MonthCashflow[] }) {
+  // SR tréso = average monthly outflows of previous fiscal year (months 0-11)
+  // Outflows from 51x/53x include ALL cash out: salaries, suppliers, loan repayments, taxes
+  const refMonths = months.slice(0, 12).filter((m) => m.outflows > 0);
+  const avgOutflows = refMonths.length > 0
+    ? refMonths.reduce((s, m) => s + m.outflows, 0) / refMonths.length
+    : 0;
+
+  const lastM = months[months.length - 1];
+  const isAbove = lastM && avgOutflows > 0 && lastM.inflows >= avgOutflows;
+
+  return (
+    <div className="treso-block" style={{ borderBottom: 0 }}>
+      <div className="treso-block-head">
+        <span className="lm-label">SR Trésorerie</span>
+        <span className="treso-legend">
+          <span className="treso-legend-dot" style={{ background: "#002FA7" }} />Encaissements
+          <svg width="14" height="8" viewBox="0 0 14 8" style={{ display: "inline-block", verticalAlign: "middle", marginLeft: 4 }}>
+            <line x1="0" y1="4" x2="14" y2="4" stroke="#f97316" strokeWidth="1.5" strokeDasharray="5 3" />
+          </svg>
+          Moy. décaissements
+        </span>
+      </div>
+      <CashSRChart months={months} avgOutflows={avgOutflows} />
+      {avgOutflows > 0 && lastM && (
+        <div className="treso-be-summary">
+          <div>
+            <span className="treso-summary-label">Seuil tréso (moy. N–1)</span>
+            <span className="treso-summary-val">{fmtEur(avgOutflows, true)}</span>
+          </div>
+          <div>
+            <span className="treso-summary-label">Encaissements {fmtMonthShort(lastM.month)}</span>
+            <span className="treso-summary-val" style={{ color: isAbove ? "var(--status-success)" : "#dc2626" }}>
+              {fmtEur(lastM.inflows, true)}
+              <span style={{ fontSize: 10, fontWeight: 400, marginLeft: 4 }}>
+                {isAbove ? "✓ au-dessus" : "⚠ sous seuil"}
+              </span>
+            </span>
+          </div>
+        </div>
+      )}
+      <div style={{ fontSize: 10, color: "var(--fg-tertiary)", marginTop: 6 }}>
+        Inclut remboursements d'emprunts. Source : flux 51x/53x.
+      </div>
+    </div>
+  );
+}
+
 function ColumnSkeleton() {
   return (
     <div className="treso-col">
@@ -404,6 +510,7 @@ function StoreColumn({ store }: { store: StoreTreasury }) {
       <CashflowBlock months={store.cashflowMonths} />
       <RecurringChargesBlock data={store.recurringCharges} />
       <BreakEvenBlock data={store.breakEven} />
+      <CashSRBlock months={store.cashflowMonths} />
     </div>
   );
 }

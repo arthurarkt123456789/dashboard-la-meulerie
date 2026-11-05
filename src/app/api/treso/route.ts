@@ -5,7 +5,10 @@ import {
   aggregateFromLines,
 } from "@/lib/pennylane/client";
 import { getPastMonths } from "@/lib/pennylane/periods";
-import { extractMonthCashflow, extractTresoAccounts } from "@/lib/pennylane/treasury";
+import {
+  fetchBankAccounts,
+  extractMonthCashflow,
+} from "@/lib/pennylane/treasury";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -28,13 +31,16 @@ async function buildStoreData(storeId: string) {
   // 13 months: prev fiscal year (12) + current month (1) = Oct N-1 → Oct N
   const months = getPastMonths(13);
 
-  // Lifetime trial balance for current account balances (51x/53x)
-  let tresoAccounts: ReturnType<typeof extractTresoAccounts> = [];
+  // Bank balance KPI — from bank sync (authoritative).
+  // Outright fails for stores without bank connection: show "N/A" rather than wrong data.
+  let bankAccounts: { name: string; balance: number }[] = [];
+  let bankSynced = false;
   try {
-    const { lines: lifetimeLines } = await fetchTrialBalance(config.token, "2010-01-01", months[months.length - 1].end);
-    tresoAccounts = extractTresoAccounts(lifetimeLines);
+    bankAccounts = await fetchBankAccounts(config.token);
+    bankSynced = bankAccounts.length > 0;
+    console.log(`[treso] ${storeId}: ${bankAccounts.length} bank accounts`);
   } catch (err) {
-    console.error(`[treso] ${storeId} lifetime balance error:`, (err as Error).message);
+    console.log(`[treso] ${storeId} bank sync unavailable:`, (err as Error).message);
   }
 
   const cashflowMonths: ReturnType<typeof extractMonthCashflow>[] = [];
@@ -44,6 +50,7 @@ async function buildStoreData(storeId: string) {
     chargesExploitation: number;
     coutMatiere: number;
     caPennylane: number;
+    remboursementCapital: number;
   }> = [];
 
   for (const { month, start, end } of months) {
@@ -55,13 +62,15 @@ async function buildStoreData(storeId: string) {
     } catch (err) {
       console.error(`[treso] trial balance ${storeId}/${month}:`, (err as Error).message);
       cashflowMonths.push({ month, inflows: 0, outflows: 0, net: 0, categoryBreakdown: [] });
-      trialData.push({ month, masseSalariale: 0, chargesExploitation: 0, coutMatiere: 0, caPennylane: 0 });
+      trialData.push({ month, masseSalariale: 0, chargesExploitation: 0, coutMatiere: 0, caPennylane: 0, remboursementCapital: 0 });
     }
   }
 
-  const totalBalance = tresoAccounts.reduce((s, a) => s + a.balance, 0);
+  const totalBalance = bankSynced
+    ? Math.round(bankAccounts.reduce((s, a) => s + a.balance, 0) * 100) / 100
+    : 0;
 
-  // Break-even for all 13 months
+  // Economic break-even (P&L based, excludes loan repayments)
   const breakEven = trialData.map((m) => {
     const cf = m.masseSalariale + m.chargesExploitation;
     const cv = m.coutMatiere;
@@ -105,8 +114,9 @@ async function buildStoreData(storeId: string) {
   return {
     id: storeId,
     name: STORE_NAMES[storeId] ?? storeId,
-    totalBalance: Math.round(totalBalance * 100) / 100,
-    tresoAccounts,
+    totalBalance,
+    bankAccounts,
+    bankSynced,
     cashflowMonths,
     recurringCharges,
     breakEven,

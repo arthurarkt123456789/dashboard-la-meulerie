@@ -1,6 +1,8 @@
 import "server-only";
 import type { TrialBalanceLine } from "./client";
 
+const PENNYLANE_BASE = "https://app.pennylane.com/api/external/v2";
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 export type CategoryFlow = {
@@ -17,10 +19,9 @@ export type MonthCashflow = {
   categoryBreakdown: CategoryFlow[];
 };
 
-export type TresoAccount = {
-  number: string;
+export type BankAccountSync = {
   name: string;
-  balance: number; // debit - credit = solde actuel
+  balance: number;
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -101,20 +102,36 @@ export function extractMonthCashflow(lines: TrialBalanceLine[], month: string): 
 }
 
 /**
- * Extracts current bank account balances from a lifetime trial balance.
- * balance = debit - credit = net cash position on that account.
+ * Fetches bank accounts with current balances from Pennylane's bank sync API.
+ * This is the authoritative source for current cash position.
+ * Throws if the store has no bank sync configured.
  */
-export function extractTresoAccounts(lines: TrialBalanceLine[]): TresoAccount[] {
-  return lines
-    .filter(
-      (l) =>
-        (l.ledger_account_number.startsWith("51") || l.ledger_account_number.startsWith("53")) &&
-        (Math.abs(l.debit) > 0.01 || Math.abs(l.credit) > 0.01 || Math.abs(l.balance) > 0.01),
-    )
-    .map((l) => ({
-      number: l.ledger_account_number,
-      name: l.ledger_account_name || `Compte ${l.ledger_account_number}`,
-      balance: Math.round(l.balance * 100) / 100,
-    }))
-    .sort((a, b) => b.balance - a.balance);
+export async function fetchBankAccounts(token: string): Promise<BankAccountSync[]> {
+  const res = await fetch(`${PENNYLANE_BASE}/bank_accounts`, {
+    headers: { Authorization: `Bearer ${token}` },
+    next: { revalidate: 0 },
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Pennylane bank_accounts ${res.status}: ${body.slice(0, 120)}`);
+  }
+  const json = await res.json() as Record<string, unknown>;
+  const rawRows: unknown[] =
+    (Array.isArray(json.bank_accounts) ? json.bank_accounts : null) ??
+    (Array.isArray(json.items) ? json.items : null) ??
+    (Array.isArray(json.data) ? json.data : null) ??
+    [];
+
+  const toNum = (v: unknown) =>
+    typeof v === "number" ? v : parseFloat(String(v ?? "0")) || 0;
+
+  return rawRows
+    .map((raw) => {
+      const row = raw as Record<string, unknown>;
+      return {
+        name: String(row.name ?? row.label ?? row.iban ?? row.account_name ?? ""),
+        balance: toNum(row.balance ?? row.current_balance ?? row.amount ?? 0),
+      };
+    })
+    .filter((a) => a.name.length > 0);
 }
