@@ -859,3 +859,266 @@ button { font-family: inherit; cursor: pointer; }
   .snacking-outer > :nth-child(5) { grid-column: 1; grid-row: 3; }
   .snacking-outer > :nth-child(7) { grid-column: 1; grid-row: 4; }
 }
+
+/* ============================================================
+   TRÉSORERIE
+   ============================================================ */
+
+.treso-columns {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.treso-col {
+  background: var(--color-white);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.treso-col-head {
+  padding: 12px 16px 10px;
+  border-bottom: 2px solid var(--color-coral);
+  background: var(--bg-subtle);
+}
+.treso-col-name {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--fg-primary);
+  line-height: 1;
+}
+.treso-block {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-light);
+}
+.treso-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  gap: 8px;
+}
+.treso-balance {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 4px;
+}
+.treso-expand-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 11px;
+  color: var(--fg-secondary);
+  cursor: pointer;
+  font-family: var(--font-body);
+  letter-spacing: 0;
+  margin-top: 2px;
+}
+.treso-expand-btn:hover { color: var(--fg-primary); }
+.treso-accounts {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+}
+.treso-account-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border-light);
+  font-family: var(--font-body);
+}
+.treso-account-row:last-child { border-bottom: none; }
+.treso-account-name {
+  font-size: 11px;
+  color: var(--fg-secondary);
+  flex: 1;
+  min-width: 0;
+  line-height: 1.4;
+}
+.treso-legend {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--fg-secondary);
+  flex-shrink: 0;
+}
+.treso-legend-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.treso-month-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-light);
+}
+.treso-summary-label {
+  display: block;
+  font-size: 9px;
+  color: var(--fg-tertiary);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+  font-family: var(--font-body);
+}
+.treso-summary-val {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-primary);
+}
+.treso-green { color: var(--status-success) !important; }
+.treso-red   { color: #dc2626 !important; }
+.treso-cats {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-light);
+}
+.treso-cats-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-secondary);
+  margin-bottom: 6px;
+  font-family: var(--font-body);
+}
+.treso-cat-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--border-light);
+  font-size: 11px;
+  font-family: var(--font-body);
+}
+.treso-cat-row:last-of-type { border-bottom: none; }
+.treso-cat-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.treso-cat-label {
+  flex: 1;
+  color: var(--fg-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.treso-cat-badge {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 4px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  line-height: 1.6;
+}
+.treso-badge-est {
+  color: var(--status-warning);
+  background: rgba(212, 130, 10, 0.1);
+}
+.treso-badge-unk {
+  color: var(--fg-tertiary);
+  background: var(--bg-subtle);
+}
+.treso-cat-amount {
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-primary);
+  font-weight: 500;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.treso-show-more {
+  background: none;
+  border: none;
+  font-size: 11px;
+  color: var(--color-coral);
+  cursor: pointer;
+  padding: 5px 0 0;
+  font-family: var(--font-body);
+  display: block;
+  width: 100%;
+  text-align: left;
+}
+/* Recurring charges table */
+.treso-rec-table {
+  display: flex;
+  flex-direction: column;
+}
+.treso-rec-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0 10px;
+  align-items: center;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border-light);
+  font-size: 11px;
+  font-family: var(--font-body);
+}
+.treso-rec-row:last-child { border-bottom: none; }
+.treso-rec-header span {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-tertiary);
+  padding-bottom: 4px;
+}
+.treso-rec-label { color: var(--fg-secondary); }
+.treso-rec-val {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--fg-primary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.treso-delta-up { color: #dc2626; font-size: 9px; }
+.treso-delta-dn { color: var(--status-success); font-size: 9px; }
+.treso-rec-total {
+  border-top: 1px solid var(--border-medium) !important;
+  border-bottom: none !important;
+  margin-top: 2px;
+  padding-top: 6px !important;
+}
+.treso-rec-total span {
+  font-weight: 600;
+  color: var(--fg-primary);
+}
+/* Break-even summary */
+.treso-be-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-light);
+}
+
+@media (max-width: 1200px) {
+  .treso-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .treso-columns { grid-template-columns: 1fr; }
+}

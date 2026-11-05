@@ -11,13 +11,14 @@ export function Tabs({ value, stores }: Props) {
   const items = [
     { id: "all", label: "Vue consolidée" },
     ...stores.map((s) => ({ id: s.id, label: s.name })),
+    { id: "tresorerie", label: "Trésorerie" },
   ];
   return (
     <div className="lm-tabs">
       {items.map((it) => (
         <Link
           key={it.id}
-          href={`/${it.id}`}
+          href={it.id === "tresorerie" ? "/tresorerie" : `/${it.id}`}
           className={"lm-tab " + (value === it.id ? "active" : "")}
           style={{ textDecoration: "none" }}
         >
