@@ -184,10 +184,12 @@ async function buildStoreData(storeId: string) {
       ? rawRates.reduce((s, r) => s + r, 0) / rawRates.length
       : null;
 
-    // Apply store-specific correction for known data quality issues
+    // Cap at 50%: a rate above this means Pennylane is missing food cost invoices (60x).
+    // For F&B, the gross margin after raw materials should not realistically exceed 50%.
+    // Apply store-specific correction on top of the cap for stores with known data gaps.
     const correction = MARGIN_CORRECTIONS[storeId] ?? 0;
     const tauxMargeTheorique = rawTaux !== null
-      ? Math.max(0.1, rawTaux + correction)
+      ? Math.max(0.1, Math.min(0.50, rawTaux) + correction)
       : null;
 
     // Fixed charges for DISPLAY: accounting entries (what the user recognises as "charges fixes").
