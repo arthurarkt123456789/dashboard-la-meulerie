@@ -66,10 +66,15 @@ async function buildStoreData(storeId: string) {
     }
   }
 
-  // Exclude loan/debt accounts from the operational cash balance
+  // Exclude loan/debt accounts — only keep operational cash accounts
   const isLoanAccount = (name: string) =>
     /pr[êe]t|emprunt|cr[ée]dit bail|financement|ligne de/i.test(name);
   const operationalAccounts = bankAccounts.filter((a) => !isLoanAccount(a.name));
+  const loanAccounts = bankAccounts.filter((a) => isLoanAccount(a.name));
+  if (loanAccounts.length > 0) {
+    console.log(`[treso] ${storeId} comptes exclus (prêts):`, loanAccounts.map((a) => `${a.name}=${a.balance}`).join(", "));
+  }
+  console.log(`[treso] ${storeId} comptes opéra:`, operationalAccounts.map((a) => `${a.name}=${a.balance}`).join(", "));
 
   const totalBalance = bankSynced
     ? Math.round(operationalAccounts.reduce((s, a) => s + a.balance, 0) * 100) / 100
@@ -120,7 +125,7 @@ async function buildStoreData(storeId: string) {
     id: storeId,
     name: STORE_NAMES[storeId] ?? storeId,
     totalBalance,
-    bankAccounts,
+    bankAccounts: operationalAccounts, // prêts exclus
     bankSynced,
     cashflowMonths,
     recurringCharges,
