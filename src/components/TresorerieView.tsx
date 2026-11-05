@@ -10,7 +10,6 @@ type CategoryFlow = {
   label: string;
   amount: number;
   direction: "in" | "out";
-  justified: boolean;
 };
 type MonthCashflow = {
   month: string;
@@ -34,12 +33,12 @@ type BreakEvenPoint = {
   chargesVariable: number;
   seuil: number | null;
 };
-type BankAccount = { name: string; balance: number };
+type TresoAccount = { number: string; name: string; balance: number };
 type StoreTreasury = {
   id: string;
   name: string;
   totalBalance: number;
-  bankAccounts: BankAccount[];
+  tresoAccounts: TresoAccount[];
   cashflowMonths: MonthCashflow[];
   recurringCharges: RecurringCharges;
   breakEven: BreakEvenPoint[];
@@ -199,13 +198,6 @@ function BreakEvenChart({ data }: { data: BreakEvenPoint[] }) {
 function BalanceKPI({ store }: { store: StoreTreasury }) {
   const [expanded, setExpanded] = useState(false);
   const isPositive = store.totalBalance >= 0;
-  const operationalAccounts = store.bankAccounts.filter(
-    (a) => !a.name.toLowerCase().startsWith("prêt"),
-  );
-  const loanAccounts = store.bankAccounts.filter((a) =>
-    a.name.toLowerCase().startsWith("prêt"),
-  );
-  const operationalBalance = operationalAccounts.reduce((s, a) => s + a.balance, 0);
 
   return (
     <div className="treso-block">
@@ -213,21 +205,18 @@ function BalanceKPI({ store }: { store: StoreTreasury }) {
       <div className="treso-balance" style={{ color: isPositive ? "var(--status-success)" : "#dc2626" }}>
         {fmtEur(store.totalBalance)}
       </div>
-      {loanAccounts.length > 0 && (
-        <div style={{ fontSize: 11, color: "var(--fg-secondary)", marginBottom: 4 }}>
-          Dispo : {fmtEur(operationalBalance)} · Dettes : {fmtEur(loanAccounts.reduce((s, a) => s + a.balance, 0))}
-        </div>
+      {store.tresoAccounts.length > 0 && (
+        <button
+          className="treso-expand-btn"
+          onClick={() => setExpanded((e) => !e)}
+          aria-expanded={expanded}
+        >
+          {store.tresoAccounts.length} compte(s) {expanded ? "▲" : "▼"}
+        </button>
       )}
-      <button
-        className="treso-expand-btn"
-        onClick={() => setExpanded((e) => !e)}
-        aria-expanded={expanded}
-      >
-        {store.bankAccounts.length} compte(s) {expanded ? "▲" : "▼"}
-      </button>
       {expanded && (
         <div className="treso-accounts">
-          {store.bankAccounts.map((a, i) => (
+          {store.tresoAccounts.map((a, i) => (
             <div key={i} className="treso-account-row">
               <span className="treso-account-name" title={a.name}>
                 {a.name.length > 36 ? `${a.name.slice(0, 36)}…` : a.name}
@@ -290,12 +279,6 @@ function CashflowBlock({ months }: { months: MonthCashflow[] }) {
             <div key={i} className="treso-cat-row">
               <span className="treso-cat-dot" style={{ background: c.direction === "in" ? "#16a34a" : "#dc2626" }} />
               <span className="treso-cat-label">{c.label}</span>
-              {!c.justified && c.label !== "Inconnue" && (
-                <span className="treso-cat-badge treso-badge-est">Est.</span>
-              )}
-              {c.label === "Inconnue" && (
-                <span className="treso-cat-badge treso-badge-unk">?</span>
-              )}
               <span className="treso-cat-amount">{fmtEur(c.amount, true)}</span>
             </div>
           ))}

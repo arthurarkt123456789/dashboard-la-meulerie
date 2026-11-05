@@ -5,11 +5,7 @@ import {
   aggregateFromLines,
 } from "@/lib/pennylane/client";
 import { getPastMonths } from "@/lib/pennylane/periods";
-import {
-  fetchBankAccounts,
-  fetchTransactions,
-  buildMonthlyCashflow,
-} from "@/lib/pennylane/treasury";
+import { extractMonthCashflow, extractTresoAccounts } from "@/lib/pennylane/treasury";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -31,23 +27,17 @@ async function buildStoreData(storeId: string) {
 
   // 13 months: prev fiscal year (12) + current month (1) = Oct N-1 → Oct N
   const months = getPastMonths(13);
-  const fromDate = months[0].start;
-  const toDate = months[months.length - 1].end;
 
-  // Bank accounts + transactions — wrap in try/catch to avoid killing the whole store
-  let bankAccounts: Awaited<ReturnType<typeof fetchBankAccounts>> = [];
-  let transactions: Awaited<ReturnType<typeof fetchTransactions>> = [];
+  // Lifetime trial balance for current account balances (51x/53x)
+  let tresoAccounts: ReturnType<typeof extractTresoAccounts> = [];
   try {
-    [bankAccounts, transactions] = await Promise.all([
-      fetchBankAccounts(config.token),
-      fetchTransactions(config.token, fromDate, toDate),
-    ]);
-    console.log(`[treso] ${storeId}: ${bankAccounts.length} accounts, ${transactions.length} transactions`);
+    const { lines: lifetimeLines } = await fetchTrialBalance(config.token, "2010-01-01", months[months.length - 1].end);
+    tresoAccounts = extractTresoAccounts(lifetimeLines);
   } catch (err) {
-    console.error(`[treso] ${storeId} bank/txn error:`, (err as Error).message);
-    // Continue: trial balance will still work for break-even + charges
+    console.error(`[treso] ${storeId} lifetime balance error:`, (err as Error).message);
   }
 
+  const cashflowMonths: ReturnType<typeof extractMonthCashflow>[] = [];
   const trialData: Array<{
     month: string;
     masseSalariale: number;
@@ -59,16 +49,17 @@ async function buildStoreData(storeId: string) {
   for (const { month, start, end } of months) {
     try {
       const { lines } = await fetchTrialBalance(config.token, start, end);
+      cashflowMonths.push(extractMonthCashflow(lines, month));
       const costs = aggregateFromLines(lines);
       trialData.push({ month, ...costs });
     } catch (err) {
       console.error(`[treso] trial balance ${storeId}/${month}:`, (err as Error).message);
+      cashflowMonths.push({ month, inflows: 0, outflows: 0, net: 0, categoryBreakdown: [] });
       trialData.push({ month, masseSalariale: 0, chargesExploitation: 0, coutMatiere: 0, caPennylane: 0 });
     }
   }
 
-  const totalBalance = bankAccounts.reduce((s, a) => s + a.balance, 0);
-  const cashflowMonths = buildMonthlyCashflow(transactions, months);
+  const totalBalance = tresoAccounts.reduce((s, a) => s + a.balance, 0);
 
   // Break-even for all 13 months
   const breakEven = trialData.map((m) => {
@@ -115,7 +106,7 @@ async function buildStoreData(storeId: string) {
     id: storeId,
     name: STORE_NAMES[storeId] ?? storeId,
     totalBalance: Math.round(totalBalance * 100) / 100,
-    bankAccounts: bankAccounts.map((a) => ({ name: a.name, balance: a.balance })),
+    tresoAccounts,
     cashflowMonths,
     recurringCharges,
     breakEven,
