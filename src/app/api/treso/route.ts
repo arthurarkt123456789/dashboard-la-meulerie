@@ -150,29 +150,54 @@ async function buildStoreData(storeId: string) {
     jours: { elapsed: number; total: number };
   } | null = null;
 
+  // Known data quality corrections: Pennylane for these stores is missing supplier invoices,
+  // making food costs (60x) understated and the apparent margin rate inflated.
+  const MARGIN_CORRECTIONS: Record<string, number> = {
+    republique: -0.15,
+    malmousque: -0.15,
+  };
+
   try {
     const { lines: curLines } = await fetchTrialBalance(config.token, moStart, moEnd);
-    const curCosts = aggregateFromLines(curLines);
 
-    // Theoretical margin rate from last 12 complete months (filter incomplete months)
-    const last12 = trialData.slice(-12);
-    const validM = last12.filter((m) => m.caPennylane > 500 && m.masseSalariale > 100);
-    const tauxMargeTheorique =
-      validM.length >= 3
-        ? validM.reduce((s, m) => s + (m.caPennylane - m.coutMatiere) / m.caPennylane, 0) / validM.length
-        : null;
+    // CA this month = cash inflows on bank accounts (51x/53x) — more reliable than
+    // 70x accounting entries which are often delayed by the accountant.
+    const curFlow = extractMonthCashflow(curLines, moStr);
+    const caToDate = curFlow.inflows;
 
-    // Average fixed charges from months with complete payroll data
-    const fixedMonths = last12.filter((m) => m.masseSalariale > 100);
-    const chargesFixesMoyennes =
-      fixedMonths.length > 0
-        ? fixedMonths.reduce(
-            (s, m) => s + m.masseSalariale + m.chargesExploitation + m.remboursementCapital,
-            0,
-          ) / fixedMonths.length
-        : 0;
+    // Last 12 months of cash data — 51x/53x movements are authoritative regardless
+    // of how complete the P&L entries are.
+    const last12Flow = cashflowMonths.slice(-12).filter((m) => m.inflows > 500 && m.outflows > 500);
 
-    const caToDate = curCosts.caPennylane;
+    // Theoretical margin rate: (cash inflows - food costs from accounting) / cash inflows.
+    // Cash inflows ≈ real CA; coutMatiere (60x) is the best available variable cost estimate.
+    const rawRates = last12Flow
+      .map((m) => {
+        const trial = trialData.find((t) => t.month === m.month);
+        if (!trial) return null;
+        const rate = (m.inflows - trial.coutMatiere) / m.inflows;
+        return rate > 0.05 && rate < 0.99 ? rate : null;
+      })
+      .filter((r): r is number => r !== null);
+
+    const rawTaux = rawRates.length >= 3
+      ? rawRates.reduce((s, r) => s + r, 0) / rawRates.length
+      : null;
+
+    // Apply store-specific correction for known data quality issues
+    const correction = MARGIN_CORRECTIONS[storeId] ?? 0;
+    const tauxMargeTheorique = rawTaux !== null
+      ? Math.max(0.1, rawTaux + correction)
+      : null;
+
+    // Fixed charges: total average cash outflows minus the variable (food) portion.
+    // Average cash outflows from bank statements captures everything paid — payroll,
+    // suppliers, rent, loans — regardless of whether it's been categorised yet.
+    const avgCashOut = last12Flow.reduce((s, m) => s + m.outflows, 0) / last12Flow.length;
+    const avgCashIn  = last12Flow.reduce((s, m) => s + m.inflows,  0) / last12Flow.length;
+    const foodRatio = tauxMargeTheorique !== null ? 1 - tauxMargeTheorique : 0.3;
+    const chargesFixesMoyennes = Math.max(0, avgCashOut - foodRatio * avgCashIn);
+
     const margeToDate = tauxMargeTheorique !== null ? caToDate * tauxMargeTheorique : null;
     const caRequis =
       tauxMargeTheorique && tauxMargeTheorique > 0 ? chargesFixesMoyennes / tauxMargeTheorique : null;
@@ -188,7 +213,7 @@ async function buildStoreData(storeId: string) {
       caManquant: caManquant !== null ? Math.round(caManquant * 100) / 100 : null,
       jours: { elapsed: now.getDate(), total: daysInMonth },
     };
-    console.log(`[treso] ${storeId} current month: CA=${caToDate} tauxMarge=${tauxMargeTheorique?.toFixed(3)} caRequis=${caRequis?.toFixed(0)}`);
+    console.log(`[treso] ${storeId} current month: CA=${caToDate} rawTaux=${rawTaux?.toFixed(3)} adjTaux=${tauxMargeTheorique?.toFixed(3)} caRequis=${caRequis?.toFixed(0)}`);
   } catch (err) {
     console.error(`[treso] current month ${storeId}:`, (err as Error).message);
   }
