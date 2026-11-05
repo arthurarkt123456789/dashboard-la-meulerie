@@ -103,17 +103,22 @@ async function buildStoreData(storeId: string) {
         lastMonthAmount: Math.round(lastM.masseSalariale * 100) / 100,
       },
       {
-        label: "Charges d'exploitation",
+        label: "Dépenses d'exploitation",
         prevYearAvg: Math.round(avg(prevFy.map((m) => m.chargesExploitation)) * 100) / 100,
         lastMonthAmount: Math.round(lastM.chargesExploitation * 100) / 100,
+      },
+      {
+        label: "Remb. emprunts",
+        prevYearAvg: Math.round(avg(prevFy.map((m) => m.remboursementCapital)) * 100) / 100,
+        lastMonthAmount: Math.round(lastM.remboursementCapital * 100) / 100,
       },
     ],
     totalPrevYearAvg:
       Math.round(
-        avg(prevFy.map((m) => m.masseSalariale + m.chargesExploitation)) * 100,
+        avg(prevFy.map((m) => m.masseSalariale + m.chargesExploitation + m.remboursementCapital)) * 100,
       ) / 100,
     totalLastMonth:
-      Math.round((lastM.masseSalariale + lastM.chargesExploitation) * 100) / 100,
+      Math.round((lastM.masseSalariale + lastM.chargesExploitation + lastM.remboursementCapital) * 100) / 100,
     prevFiscalYearLabel:
       prevFy.length >= 2
         ? `${prevFy[0].month.slice(0, 7)} – ${prevFy[11]?.month.slice(0, 7) ?? ""}`

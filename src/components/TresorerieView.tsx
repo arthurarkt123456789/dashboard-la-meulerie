@@ -172,16 +172,16 @@ function CashflowChart({ months }: { months: MonthCashflow[] }) {
       {hov !== null && (() => {
         const m = months[hov];
         const bx = PL + hov * barW + barW / 2;
-        const tx = Math.max(2, Math.min(W - 102, bx - 50));
+        const tx = Math.max(2, Math.min(W - 128, bx - 64));
         const ty = PT + 2;
         const netCol = m.net >= 0 ? "#86efac" : "#fca5a5";
         return (
           <g style={{ pointerEvents: "none" }}>
-            <rect x={tx} y={ty} width={100} height={48} fill="#0d1117" rx={3} stroke="#30363d" strokeWidth={0.5} opacity={0.97} />
-            <text x={tx + 5} y={ty + 11} fontSize={7.5} fill="#e2e8f0" fontWeight="600">{fmtMonthShort(m.month)}</text>
-            <text x={tx + 5} y={ty + 23} fontSize={7} fill="#86efac">▲ {fmtEur(m.inflows, true)}</text>
-            <text x={tx + 5} y={ty + 34} fontSize={7} fill="#fca5a5">▼ {fmtEur(m.outflows, true)}</text>
-            <text x={tx + 5} y={ty + 45} fontSize={7} fill={netCol}>= {fmtEur(m.net, true)}</text>
+            <rect x={tx} y={ty} width={126} height={62} fill="#0d1117" rx={4} stroke="#30363d" strokeWidth={0.5} opacity={0.97} />
+            <text x={tx + 6} y={ty + 14} fontSize={11} fill="#e2e8f0" fontWeight="600">{fmtMonthShort(m.month)}</text>
+            <text x={tx + 6} y={ty + 29} fontSize={10} fill="#86efac">▲ {fmtEur(m.inflows, true)}</text>
+            <text x={tx + 6} y={ty + 43} fontSize={10} fill="#fca5a5">▼ {fmtEur(m.outflows, true)}</text>
+            <text x={tx + 6} y={ty + 57} fontSize={10} fill={netCol}>= {fmtEur(m.net, true)}</text>
           </g>
         );
       })()}
@@ -234,8 +234,8 @@ function BreakEvenChart({ data }: { data: BreakEvenPoint[] }) {
       {/* Dots on lines */}
       {data.map((d, i) => (
         <g key={i}>
-          <circle cx={xPos(i)} cy={yPos(d.ca)} r={hov === i ? 3.5 : 2} fill="#002FA7" opacity={hov === i ? 1 : 0.6} />
-          {d.seuil && <circle cx={xPos(i)} cy={yPos(d.seuil)} r={hov === i ? 3 : 1.5} fill="#dc2626" opacity={hov === i ? 1 : 0.6} />}
+          <circle cx={xPos(i)} cy={yPos(d.ca)} r={hov === i ? 5 : 3} fill="#002FA7" opacity={hov === i ? 1 : 0.65} />
+          {d.seuil && <circle cx={xPos(i)} cy={yPos(d.seuil)} r={hov === i ? 4.5 : 2.5} fill="#dc2626" opacity={hov === i ? 1 : 0.65} />}
           {(data.length <= 6 || i % 2 === 0) && (
             <text x={xPos(i)} y={H - 3} textAnchor="middle" fontSize={6.5} fill="var(--fg-tertiary)">{fmtMonthShort(d.month).slice(0, 6)}</text>
           )}
@@ -244,17 +244,18 @@ function BreakEvenChart({ data }: { data: BreakEvenPoint[] }) {
       {/* Hover tooltip */}
       {hov !== null && (() => {
         const d = data[hov];
-        const tx = Math.max(2, Math.min(W - 110, xPos(hov) - 54));
+        const tx = Math.max(2, Math.min(W - 128, xPos(hov) - 64));
         const ty = PT + 2;
         const above = d.seuil !== null && d.ca >= d.seuil;
+        const h = d.seuil ? 68 : 46;
         return (
           <g style={{ pointerEvents: "none" }}>
-            <rect x={tx} y={ty} width={108} height={d.seuil ? 48 : 36} fill="#0d1117" rx={3} stroke="#30363d" strokeWidth={0.5} opacity={0.97} />
-            <text x={tx + 5} y={ty + 11} fontSize={7.5} fill="#e2e8f0" fontWeight="600">{fmtMonthShort(d.month)}</text>
-            <text x={tx + 5} y={ty + 23} fontSize={7} fill="#93c5fd">CA : {fmtEur(d.ca, true)}</text>
+            <rect x={tx} y={ty} width={126} height={h} fill="#0d1117" rx={4} stroke="#30363d" strokeWidth={0.5} opacity={0.97} />
+            <text x={tx + 6} y={ty + 14} fontSize={11} fill="#e2e8f0" fontWeight="600">{fmtMonthShort(d.month)}</text>
+            <text x={tx + 6} y={ty + 29} fontSize={10} fill="#93c5fd">CA : {fmtEur(d.ca, true)}</text>
             {d.seuil && <>
-              <text x={tx + 5} y={ty + 34} fontSize={7} fill="#fca5a5">SR : {fmtEur(d.seuil, true)}</text>
-              <text x={tx + 5} y={ty + 45} fontSize={6.5} fill={above ? "#86efac" : "#fca5a5"}>{above ? "✓ au-dessus" : "⚠ sous SR"}</text>
+              <text x={tx + 6} y={ty + 44} fontSize={10} fill="#fca5a5">SR : {fmtEur(d.seuil, true)}</text>
+              <text x={tx + 6} y={ty + 59} fontSize={9} fill={above ? "#86efac" : "#fca5a5"}>{above ? "✓ au-dessus" : "⚠ sous SR"}</text>
             </>}
           </g>
         );
@@ -332,31 +333,31 @@ function StackedCashflowChart({ months }: { months: MonthCashflow[] }) {
       {/* CA / inflows line */}
       <polyline points={months.map((m, i) => `${xC(i)},${yPos(m.inflows)}`).join(" ")} fill="none" stroke="#002FA7" strokeWidth={2} strokeLinejoin="round" />
       {months.map((m, i) => (
-        <circle key={i} cx={xC(i)} cy={yPos(m.inflows)} r={hov === i ? 3.5 : 2} fill="#002FA7" opacity={hov === i ? 1 : 0.65} />
+        <circle key={i} cx={xC(i)} cy={yPos(m.inflows)} r={hov === i ? 5 : 3} fill="#002FA7" opacity={hov === i ? 1 : 0.65} />
       ))}
 
       {/* Hover tooltip */}
       {hov !== null && (() => {
         const m = months[hov];
         const outCats = m.categoryBreakdown.filter((c) => c.direction === "out" && c.amount > 0.01).sort((a, b) => b.amount - a.amount);
-        const lines = outCats.length + 3;
-        const th = lines * 11 + 10;
-        const tw = 130;
+        const lh = 14;
+        const th = (outCats.length + 3) * lh + 14;
+        const tw = 155;
         const tx = Math.max(2, Math.min(W - tw - 2, xC(hov) - tw / 2));
-        const ty = Math.max(PT, Math.min(PT + cH - th, yPos(m.inflows) - th - 6));
+        const ty = Math.max(PT, Math.min(PT + cH - th, yPos(m.inflows) - th - 8));
         return (
           <g style={{ pointerEvents: "none" }}>
-            <rect x={tx} y={ty} width={tw} height={th} fill="#0d1117" rx={3} stroke="#30363d" strokeWidth={0.5} opacity={0.97} />
-            <text x={tx + 5} y={ty + 11} fontSize={7.5} fill="#e2e8f0" fontWeight="600">{fmtMonthShort(m.month)}</text>
-            <text x={tx + 5} y={ty + 22} fontSize={7} fill="#93c5fd">Encaiss. {fmtEur(m.inflows, true)}</text>
+            <rect x={tx} y={ty} width={tw} height={th} fill="#0d1117" rx={4} stroke="#30363d" strokeWidth={0.5} opacity={0.97} />
+            <text x={tx + 6} y={ty + 14} fontSize={11} fill="#e2e8f0" fontWeight="600">{fmtMonthShort(m.month)}</text>
+            <text x={tx + 6} y={ty + 14 + lh} fontSize={10} fill="#93c5fd">Encaiss. {fmtEur(m.inflows, true)}</text>
             {outCats.map((c, i) => (
               <g key={i}>
-                <rect x={tx + 5} y={ty + 28 + i * 11} width={5} height={5} fill={catColor(c.label)} rx={1} />
-                <text x={tx + 13} y={ty + 34 + i * 11} fontSize={6.5} fill="#cbd5e1">{c.label} {fmtEur(c.amount, true)}</text>
+                <rect x={tx + 6} y={ty + 10 + (i + 2) * lh} width={7} height={7} fill={catColor(c.label)} rx={1} />
+                <text x={tx + 16} y={ty + 17 + (i + 2) * lh} fontSize={9} fill="#cbd5e1">{c.label} {fmtEur(c.amount, true)}</text>
               </g>
             ))}
-            <line x1={tx + 5} y1={ty + 29 + outCats.length * 11} x2={tx + tw - 5} y2={ty + 29 + outCats.length * 11} stroke="#30363d" strokeWidth={0.5} />
-            <text x={tx + 5} y={ty + 39 + outCats.length * 11} fontSize={7} fill="#fca5a5">Total dép. {fmtEur(m.outflows, true)}</text>
+            <line x1={tx + 6} y1={ty + 11 + (outCats.length + 2) * lh} x2={tx + tw - 6} y2={ty + 11 + (outCats.length + 2) * lh} stroke="#30363d" strokeWidth={0.5} />
+            <text x={tx + 6} y={ty + 10 + (outCats.length + 3) * lh} fontSize={10} fill="#fca5a5">Total dép. {fmtEur(m.outflows, true)}</text>
           </g>
         );
       })()}
