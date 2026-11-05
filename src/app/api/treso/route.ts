@@ -66,8 +66,13 @@ async function buildStoreData(storeId: string) {
     }
   }
 
+  // Exclude loan/debt accounts from the operational cash balance
+  const isLoanAccount = (name: string) =>
+    /pr[êe]t|emprunt|cr[ée]dit bail|financement|ligne de/i.test(name);
+  const operationalAccounts = bankAccounts.filter((a) => !isLoanAccount(a.name));
+
   const totalBalance = bankSynced
-    ? Math.round(bankAccounts.reduce((s, a) => s + a.balance, 0) * 100) / 100
+    ? Math.round(operationalAccounts.reduce((s, a) => s + a.balance, 0) * 100) / 100
     : 0;
 
   // Economic break-even (P&L based, excludes loan repayments)

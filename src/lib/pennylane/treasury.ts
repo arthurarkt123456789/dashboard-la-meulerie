@@ -36,7 +36,7 @@ function accountCategory(n: string): { label: string; direction: "in" | "out" } 
   if (n.startsWith("65")) return { label: "Autres charges", direction: "out" };
   if (n.startsWith("66")) return { label: "Charges financières", direction: "out" };
   if (n.startsWith("67")) return { label: "Charges exceptionnelles", direction: "out" };
-  if (n.startsWith("16")) return { label: "Remboursements emprunts", direction: "out" };
+  // 16x (emprunts) : flux de financement, pas une charge — exclus de la ventilation
   return null;
 }
 
