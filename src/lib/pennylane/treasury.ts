@@ -30,13 +30,13 @@ function accountCategory(n: string): { label: string; direction: "in" | "out" } 
   if (n.startsWith("70") || n.startsWith("71") || n.startsWith("72")) return { label: "Ventes / Produits", direction: "in" };
   if (n.startsWith("74") || n.startsWith("75") || n.startsWith("77")) return { label: "Autres produits", direction: "in" };
   if (n.startsWith("60")) return { label: "Achats matières", direction: "out" };
-  if (n.startsWith("61") || n.startsWith("62")) return { label: "Charges externes", direction: "out" };
+  if (n.startsWith("61") || n.startsWith("62")) return { label: "Dépenses externes", direction: "out" };
   if (n.startsWith("63")) return { label: "Impôts & taxes", direction: "out" };
-  if (n.startsWith("64")) return { label: "Charges personnel", direction: "out" };
-  if (n.startsWith("65")) return { label: "Autres charges", direction: "out" };
-  if (n.startsWith("66")) return { label: "Charges financières", direction: "out" };
-  if (n.startsWith("67")) return { label: "Charges exceptionnelles", direction: "out" };
-  // 16x (emprunts) : flux de financement, pas une charge — exclus de la ventilation
+  if (n.startsWith("64")) return { label: "Dépenses personnel", direction: "out" };
+  if (n.startsWith("65")) return { label: "Autres dépenses", direction: "out" };
+  if (n.startsWith("66")) return { label: "Dépenses financières", direction: "out" };
+  if (n.startsWith("67")) return { label: "Dépenses except.", direction: "out" };
+  if (n.startsWith("16")) return { label: "Remb. emprunts", direction: "out" };
   return null;
 }
 

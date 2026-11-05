@@ -74,9 +74,36 @@ const fmtMonthShort = (ym: string) => {
   return `${mon.charAt(0).toUpperCase()}${mon.slice(1)} ${String(y).slice(2)}`;
 };
 
+// ── Category colours ───────────────────────────────────────────────────────────
+
+const CAT_COLORS: Record<string, string> = {
+  "Achats matières":      "#f59e0b",
+  "Dépenses personnel":   "#7c3aed",
+  "Dépenses externes":    "#0891b2",
+  "Impôts & taxes":       "#dc2626",
+  "Remb. emprunts":       "#be185d",
+  "Dépenses financières": "#64748b",
+  "Autres dépenses":      "#9ca3af",
+  "Dépenses except.":     "#374151",
+};
+const STACK_ORDER = [
+  "Achats matières",
+  "Dépenses personnel",
+  "Dépenses externes",
+  "Impôts & taxes",
+  "Remb. emprunts",
+  "Dépenses financières",
+  "Autres dépenses",
+  "Dépenses except.",
+];
+function catColor(label: string): string {
+  return CAT_COLORS[label] ?? "#9ca3af";
+}
+
 // ── Charts ──────────────────────────────────────────────────────────────────────
 
 function CashflowChart({ months }: { months: MonthCashflow[] }) {
+  const [hov, setHov] = useState<number | null>(null);
   const W = 300, H = 165, PL = 42, PR = 6, PT = 10, PB = 32;
   const cW = W - PL - PR;
   const cH = H - PT - PB;
@@ -88,8 +115,16 @@ function CashflowChart({ months }: { months: MonthCashflow[] }) {
   const yLabel = (v: number) => (v >= 10000 ? `${Math.round(v / 1000)}k` : v >= 1000 ? `${(v / 1000).toFixed(1)}k` : `${Math.round(v)}`);
   const ticks = [0, 0.25, 0.5, 0.75, 1];
 
+  const onMM = (e: React.MouseEvent<SVGSVGElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const sx = (e.clientX - r.left) / r.width * W;
+    const idx = Math.floor((sx - PL) / barW);
+    setHov(idx >= 0 && idx < months.length ? idx : null);
+  };
+
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", overflow: "visible" }}>
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", overflow: "visible" }}
+      onMouseMove={onMM} onMouseLeave={() => setHov(null)}>
       {ticks.map((f, i) => (
         <g key={i}>
           <line x1={PL} y1={yPos(maxVal * f)} x2={W - PR} y2={yPos(maxVal * f)} stroke="var(--border-light)" strokeWidth={0.5} />
@@ -103,12 +138,13 @@ function CashflowChart({ months }: { months: MonthCashflow[] }) {
         const x = PL + i * barW;
         const inH = (m.inflows / maxVal) * cH;
         const outH = (m.outflows / maxVal) * cH;
-        const showLabel = months.length <= 6 || i % 2 === 0;
+        const isH = hov === i;
         return (
           <g key={i}>
-            <rect x={x + pad} y={yPos(m.inflows)} width={bw} height={inH} fill="#16a34a" opacity={0.8} rx={1} />
-            <rect x={x + pad * 2 + bw} y={yPos(m.outflows)} width={bw} height={outH} fill="#dc2626" opacity={0.8} rx={1} />
-            {showLabel && (
+            {isH && <rect x={x} y={PT} width={barW} height={cH} fill="white" opacity={0.07} />}
+            <rect x={x + pad} y={yPos(m.inflows)} width={bw} height={inH} fill="#16a34a" opacity={isH ? 1 : 0.8} rx={1} />
+            <rect x={x + pad * 2 + bw} y={yPos(m.outflows)} width={bw} height={outH} fill="#dc2626" opacity={isH ? 1 : 0.8} rx={1} />
+            {(months.length <= 6 || i % 2 === 0) && (
               <text x={x + barW / 2} y={H - 3} textAnchor="middle" fontSize={6.5} fill="var(--fg-tertiary)">
                 {fmtMonthShort(m.month).slice(0, 6)}
               </text>
@@ -129,8 +165,24 @@ function CashflowChart({ months }: { months: MonthCashflow[] }) {
           const y = midY - ((m.net - (netMax + netMin) / 2) / range) * cH * 0.4;
           return `${x},${Math.max(PT + 2, Math.min(PT + cH - 2, y))}`;
         });
+        return <polyline points={pts.join(" ")} fill="none" stroke="#6366f1" strokeWidth={1.5} strokeDasharray="3 2" opacity={0.65} />;
+      })()}
+
+      {/* Hover tooltip */}
+      {hov !== null && (() => {
+        const m = months[hov];
+        const bx = PL + hov * barW + barW / 2;
+        const tx = Math.max(2, Math.min(W - 102, bx - 50));
+        const ty = PT + 2;
+        const netCol = m.net >= 0 ? "#86efac" : "#fca5a5";
         return (
-          <polyline points={pts.join(" ")} fill="none" stroke="#6366f1" strokeWidth={1.5} strokeDasharray="3 2" opacity={0.65} />
+          <g style={{ pointerEvents: "none" }}>
+            <rect x={tx} y={ty} width={100} height={48} fill="#0d1117" rx={3} stroke="#30363d" strokeWidth={0.5} opacity={0.97} />
+            <text x={tx + 5} y={ty + 11} fontSize={7.5} fill="#e2e8f0" fontWeight="600">{fmtMonthShort(m.month)}</text>
+            <text x={tx + 5} y={ty + 23} fontSize={7} fill="#86efac">▲ {fmtEur(m.inflows, true)}</text>
+            <text x={tx + 5} y={ty + 34} fontSize={7} fill="#fca5a5">▼ {fmtEur(m.outflows, true)}</text>
+            <text x={tx + 5} y={ty + 45} fontSize={7} fill={netCol}>= {fmtEur(m.net, true)}</text>
+          </g>
         );
       })()}
     </svg>
@@ -138,116 +190,192 @@ function CashflowChart({ months }: { months: MonthCashflow[] }) {
 }
 
 function BreakEvenChart({ data }: { data: BreakEvenPoint[] }) {
+  const [hov, setHov] = useState<number | null>(null);
   if (data.length < 2) return null;
   const W = 300, H = 155, PL = 44, PR = 6, PT = 10, PB = 32;
   const cW = W - PL - PR;
   const cH = H - PT - PB;
 
-  const allVals = [
-    ...data.map((d) => d.ca),
-    ...data.map((d) => d.seuil ?? 0),
-  ].filter((v) => v > 0);
+  const allVals = [...data.map((d) => d.ca), ...data.map((d) => d.seuil ?? 0)].filter((v) => v > 0);
   const maxVal = Math.max(...allVals, 1);
 
   const xPos = (i: number) => PL + (i / (data.length - 1)) * cW;
   const yPos = (v: number) => PT + cH * (1 - Math.min(v / maxVal, 1));
   const yLabel = (v: number) => (v >= 10000 ? `${Math.round(v / 1000)}k` : v >= 1000 ? `${(v / 1000).toFixed(1)}k` : `${Math.round(v)}`);
   const ticks = [0, 0.25, 0.5, 0.75, 1];
+  const ptW = cW / (data.length - 1);
 
   const caPoints = data.map((d, i) => `${xPos(i)},${yPos(d.ca)}`).join(" ");
-
-  let seuilPath = "";
-  let seuilStarted = false;
+  let seuilPath = ""; let started = false;
   data.forEach((d, i) => {
-    if (d.seuil === null || d.seuil === 0) { seuilStarted = false; return; }
-    seuilPath += seuilStarted ? `L${xPos(i)},${yPos(d.seuil)} ` : `M${xPos(i)},${yPos(d.seuil)} `;
-    seuilStarted = true;
+    if (!d.seuil) { started = false; return; }
+    seuilPath += started ? `L${xPos(i)},${yPos(d.seuil)} ` : `M${xPos(i)},${yPos(d.seuil)} `;
+    started = true;
   });
 
+  const onMM = (e: React.MouseEvent<SVGSVGElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const sx = (e.clientX - r.left) / r.width * W;
+    const idx = Math.round((sx - PL) / ptW);
+    setHov(idx >= 0 && idx < data.length ? idx : null);
+  };
+
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block" }}>
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block" }}
+      onMouseMove={onMM} onMouseLeave={() => setHov(null)}>
       {ticks.map((f, i) => (
         <g key={i}>
           <line x1={PL} y1={yPos(maxVal * f)} x2={W - PR} y2={yPos(maxVal * f)} stroke="var(--border-light)" strokeWidth={0.5} />
-          <text x={PL - 3} y={yPos(maxVal * f) + 3.5} textAnchor="end" fontSize={7} fill="var(--fg-tertiary)">
-            {yLabel(maxVal * f)}
-          </text>
+          <text x={PL - 3} y={yPos(maxVal * f) + 3.5} textAnchor="end" fontSize={7} fill="var(--fg-tertiary)">{yLabel(maxVal * f)}</text>
         </g>
       ))}
-      {/* Area between lines for visual context */}
-      {seuilPath && caPoints && (
-        <clipPath id="chartClip">
-          <rect x={PL} y={PT} width={cW} height={cH} />
-        </clipPath>
-      )}
       <polyline points={caPoints} fill="none" stroke="#002FA7" strokeWidth={2} strokeLinejoin="round" />
       {seuilPath && <path d={seuilPath} fill="none" stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
+      {/* Dots on lines */}
       {data.map((d, i) => (
-        (data.length <= 6 || i % 2 === 0) && (
-          <text key={i} x={xPos(i)} y={H - 3} textAnchor="middle" fontSize={6.5} fill="var(--fg-tertiary)">
-            {fmtMonthShort(d.month).slice(0, 6)}
-          </text>
-        )
+        <g key={i}>
+          <circle cx={xPos(i)} cy={yPos(d.ca)} r={hov === i ? 3.5 : 2} fill="#002FA7" opacity={hov === i ? 1 : 0.6} />
+          {d.seuil && <circle cx={xPos(i)} cy={yPos(d.seuil)} r={hov === i ? 3 : 1.5} fill="#dc2626" opacity={hov === i ? 1 : 0.6} />}
+          {(data.length <= 6 || i % 2 === 0) && (
+            <text x={xPos(i)} y={H - 3} textAnchor="middle" fontSize={6.5} fill="var(--fg-tertiary)">{fmtMonthShort(d.month).slice(0, 6)}</text>
+          )}
+        </g>
       ))}
+      {/* Hover tooltip */}
+      {hov !== null && (() => {
+        const d = data[hov];
+        const tx = Math.max(2, Math.min(W - 110, xPos(hov) - 54));
+        const ty = PT + 2;
+        const above = d.seuil !== null && d.ca >= d.seuil;
+        return (
+          <g style={{ pointerEvents: "none" }}>
+            <rect x={tx} y={ty} width={108} height={d.seuil ? 48 : 36} fill="#0d1117" rx={3} stroke="#30363d" strokeWidth={0.5} opacity={0.97} />
+            <text x={tx + 5} y={ty + 11} fontSize={7.5} fill="#e2e8f0" fontWeight="600">{fmtMonthShort(d.month)}</text>
+            <text x={tx + 5} y={ty + 23} fontSize={7} fill="#93c5fd">CA : {fmtEur(d.ca, true)}</text>
+            {d.seuil && <>
+              <text x={tx + 5} y={ty + 34} fontSize={7} fill="#fca5a5">SR : {fmtEur(d.seuil, true)}</text>
+              <text x={tx + 5} y={ty + 45} fontSize={6.5} fill={above ? "#86efac" : "#fca5a5"}>{above ? "✓ au-dessus" : "⚠ sous SR"}</text>
+            </>}
+          </g>
+        );
+      })()}
     </svg>
   );
 }
 
-function CashSRChart({ months, avgOutflows }: { months: MonthCashflow[]; avgOutflows: number }) {
+function StackedCashflowChart({ months }: { months: MonthCashflow[] }) {
+  const [hov, setHov] = useState<number | null>(null);
   if (months.length < 2) return null;
-  const W = 300, H = 155, PL = 44, PR = 6, PT = 10, PB = 32;
+  const W = 300, H = 165, PL = 44, PR = 6, PT = 10, PB = 32;
   const cW = W - PL - PR;
   const cH = H - PT - PB;
-
-  const allVals = [...months.map((m) => m.inflows), ...months.map((m) => m.outflows), avgOutflows].filter((v) => v > 0);
-  const maxVal = Math.max(...allVals, 1);
-
-  const xPos = (i: number) => PL + (i / (months.length - 1)) * cW;
+  const maxVal = Math.max(...months.map((m) => m.inflows), ...months.map((m) => m.outflows), 1);
+  const barW = cW / months.length;
+  const pad = 1.5;
+  const bw = Math.max(barW - pad * 2, 2);
   const yPos = (v: number) => PT + cH * (1 - Math.min(v / maxVal, 1));
-  const yLabel = (v: number) => (v >= 10000 ? `${Math.round(v / 1000)}k` : v >= 1000 ? `${(v / 1000).toFixed(1)}k` : `${Math.round(v)}`);
+  const yLabel = (v: number) => v >= 10000 ? `${Math.round(v / 1000)}k` : v >= 1000 ? `${(v / 1000).toFixed(1)}k` : `${Math.round(v)}`;
+  const xL = (i: number) => PL + i * barW + pad;
+  const xC = (i: number) => PL + i * barW + pad + bw / 2;
   const ticks = [0, 0.25, 0.5, 0.75, 1];
-  const srY = yPos(avgOutflows);
+  const knownSet = new Set(STACK_ORDER);
+
+  const onMM = (e: React.MouseEvent<SVGSVGElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const sx = (e.clientX - r.left) / r.width * W;
+    const idx = Math.floor((sx - PL) / barW);
+    setHov(idx >= 0 && idx < months.length ? idx : null);
+  };
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block" }}>
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block" }}
+      onMouseMove={onMM} onMouseLeave={() => setHov(null)}>
       {ticks.map((f, i) => (
         <g key={i}>
           <line x1={PL} y1={yPos(maxVal * f)} x2={W - PR} y2={yPos(maxVal * f)} stroke="var(--border-light)" strokeWidth={0.5} />
-          <text x={PL - 3} y={yPos(maxVal * f) + 3.5} textAnchor="end" fontSize={7} fill="var(--fg-tertiary)">
-            {yLabel(maxVal * f)}
-          </text>
+          <text x={PL - 3} y={yPos(maxVal * f) + 3.5} textAnchor="end" fontSize={7} fill="var(--fg-tertiary)">{yLabel(maxVal * f)}</text>
         </g>
       ))}
-      {/* SR tréso = average outflows (orange reference) */}
-      {avgOutflows > 0 && (
-        <line x1={PL} y1={srY} x2={W - PR} y2={srY} stroke="#f97316" strokeWidth={1.5} strokeDasharray="5 3" />
-      )}
-      {/* Outflows line (red dashed) */}
-      <polyline
-        points={months.map((m, i) => `${xPos(i)},${yPos(m.outflows)}`).join(" ")}
-        fill="none" stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" strokeLinejoin="round"
-      />
-      {/* Inflows line (blue solid) */}
-      <polyline
-        points={months.map((m, i) => `${xPos(i)},${yPos(m.inflows)}`).join(" ")}
-        fill="none" stroke="#002FA7" strokeWidth={2} strokeLinejoin="round"
-      />
-      {months.map((m, i) =>
-        (months.length <= 6 || i % 2 === 0) ? (
-          <text key={i} x={xPos(i)} y={H - 3} textAnchor="middle" fontSize={6.5} fill="var(--fg-tertiary)">
-            {fmtMonthShort(m.month).slice(0, 6)}
-          </text>
-        ) : null,
-      )}
+
+      {/* Stacked bars per month */}
+      {months.map((m, mi) => {
+        const ordered = STACK_ORDER
+          .map((label) => ({ label, amount: m.categoryBreakdown.find((c) => c.label === label && c.direction === "out")?.amount ?? 0 }))
+          .filter((c) => c.amount > 0.01);
+        const extras = m.categoryBreakdown.filter((c) => c.direction === "out" && !knownSet.has(c.label) && c.amount > 0.01);
+        const all = [...ordered, ...extras];
+        const catSum = all.reduce((s, c) => s + c.amount, 0);
+        const uncat = Math.max(0, m.outflows - catSum);
+        const isH = hov === mi;
+        let yB = PT + cH;
+        return (
+          <g key={mi}>
+            {isH && <rect x={PL + mi * barW} y={PT} width={barW} height={cH} fill="white" opacity={0.07} />}
+            {all.map((cat, ci) => {
+              const segH = Math.max(0, (cat.amount / maxVal) * cH);
+              const y = yB - segH;
+              yB -= segH;
+              return <rect key={ci} x={xL(mi)} y={y} width={bw} height={segH} fill={catColor(cat.label)} opacity={isH ? 1 : 0.85} />;
+            })}
+            {uncat > 0.01 && (() => {
+              const segH = (uncat / maxVal) * cH;
+              const y = yB - segH;
+              return <rect x={xL(mi)} y={y} width={bw} height={segH} fill="#374151" opacity={isH ? 0.6 : 0.3} />;
+            })()}
+            {(months.length <= 6 || mi % 2 === 0) && (
+              <text x={xC(mi)} y={H - 3} textAnchor="middle" fontSize={6.5} fill="var(--fg-tertiary)">{fmtMonthShort(m.month).slice(0, 6)}</text>
+            )}
+          </g>
+        );
+      })}
+
+      {/* CA / inflows line */}
+      <polyline points={months.map((m, i) => `${xC(i)},${yPos(m.inflows)}`).join(" ")} fill="none" stroke="#002FA7" strokeWidth={2} strokeLinejoin="round" />
+      {months.map((m, i) => (
+        <circle key={i} cx={xC(i)} cy={yPos(m.inflows)} r={hov === i ? 3.5 : 2} fill="#002FA7" opacity={hov === i ? 1 : 0.65} />
+      ))}
+
+      {/* Hover tooltip */}
+      {hov !== null && (() => {
+        const m = months[hov];
+        const outCats = m.categoryBreakdown.filter((c) => c.direction === "out" && c.amount > 0.01).sort((a, b) => b.amount - a.amount);
+        const lines = outCats.length + 3;
+        const th = lines * 11 + 10;
+        const tw = 130;
+        const tx = Math.max(2, Math.min(W - tw - 2, xC(hov) - tw / 2));
+        const ty = Math.max(PT, Math.min(PT + cH - th, yPos(m.inflows) - th - 6));
+        return (
+          <g style={{ pointerEvents: "none" }}>
+            <rect x={tx} y={ty} width={tw} height={th} fill="#0d1117" rx={3} stroke="#30363d" strokeWidth={0.5} opacity={0.97} />
+            <text x={tx + 5} y={ty + 11} fontSize={7.5} fill="#e2e8f0" fontWeight="600">{fmtMonthShort(m.month)}</text>
+            <text x={tx + 5} y={ty + 22} fontSize={7} fill="#93c5fd">Encaiss. {fmtEur(m.inflows, true)}</text>
+            {outCats.map((c, i) => (
+              <g key={i}>
+                <rect x={tx + 5} y={ty + 28 + i * 11} width={5} height={5} fill={catColor(c.label)} rx={1} />
+                <text x={tx + 13} y={ty + 34 + i * 11} fontSize={6.5} fill="#cbd5e1">{c.label} {fmtEur(c.amount, true)}</text>
+              </g>
+            ))}
+            <line x1={tx + 5} y1={ty + 29 + outCats.length * 11} x2={tx + tw - 5} y2={ty + 29 + outCats.length * 11} stroke="#30363d" strokeWidth={0.5} />
+            <text x={tx + 5} y={ty + 39 + outCats.length * 11} fontSize={7} fill="#fca5a5">Total dép. {fmtEur(m.outflows, true)}</text>
+          </g>
+        );
+      })()}
     </svg>
   );
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
+const DECOUVERT_AUTORISE: Record<string, number> = {
+  endoume:    5000,
+  malmousque: 10000,
+  republique: 10000,
+};
+
 function BalanceKPI({ store }: { store: StoreTreasury }) {
   const [expanded, setExpanded] = useState(false);
   const isPositive = store.totalBalance >= 0;
+  const decouvert = DECOUVERT_AUTORISE[store.id];
 
   return (
     <div className="treso-block">
@@ -284,6 +412,11 @@ function BalanceKPI({ store }: { store: StoreTreasury }) {
       ) : (
         <div style={{ fontSize: 12, color: "var(--fg-tertiary)", fontStyle: "italic", paddingBottom: 4 }}>
           Sync. bancaire non configurée
+        </div>
+      )}
+      {decouvert && (
+        <div style={{ marginTop: 6, fontSize: 10, color: "var(--fg-tertiary)", borderTop: "1px solid var(--border-light)", paddingTop: 5 }}>
+          Auth. découvert : <span style={{ color: "var(--fg-secondary)", fontWeight: 500 }}>{fmtEur(decouvert)}</span>
         </div>
       )}
     </div>
@@ -335,7 +468,7 @@ function CashflowBlock({ months }: { months: MonthCashflow[] }) {
           </div>
           {topCats.map((c, i) => (
             <div key={i} className="treso-cat-row">
-              <span className="treso-cat-dot" style={{ background: c.direction === "in" ? "#16a34a" : "#dc2626" }} />
+              <span className="treso-cat-dot" style={{ background: c.direction === "in" ? "#16a34a" : catColor(c.label) }} />
               <span className="treso-cat-label">{c.label}</span>
               <span className="treso-cat-amount">{fmtEur(c.amount, true)}</span>
             </div>
@@ -354,7 +487,7 @@ function CashflowBlock({ months }: { months: MonthCashflow[] }) {
 function RecurringChargesBlock({ data }: { data: RecurringCharges }) {
   return (
     <div className="treso-block">
-      <div className="lm-label" style={{ marginBottom: 8 }}>Charges récurrentes estimées</div>
+      <div className="lm-label" style={{ marginBottom: 8 }}>Dépenses récurrentes estimées</div>
       <div className="treso-rec-table">
         <div className="treso-rec-row treso-rec-header">
           <span />
@@ -438,49 +571,50 @@ function BreakEvenBlock({ data }: { data: BreakEvenPoint[] }) {
 }
 
 function CashSRBlock({ months }: { months: MonthCashflow[] }) {
-  // SR tréso = average monthly outflows of previous fiscal year (months 0-11)
-  // Outflows from 51x/53x include ALL cash out: salaries, suppliers, loan repayments, taxes
-  const refMonths = months.slice(0, 12).filter((m) => m.outflows > 0);
-  const avgOutflows = refMonths.length > 0
-    ? refMonths.reduce((s, m) => s + m.outflows, 0) / refMonths.length
-    : 0;
-
   const lastM = months[months.length - 1];
-  const isAbove = lastM && avgOutflows > 0 && lastM.inflows >= avgOutflows;
+  const isAbove = lastM && lastM.outflows > 0 && lastM.inflows >= lastM.outflows;
+
+  // Active categories legend
+  const activeCats = STACK_ORDER.filter((label) =>
+    months.some((m) => m.categoryBreakdown.some((c) => c.label === label && c.direction === "out" && c.amount > 0.01)),
+  );
 
   return (
-    <div className="treso-block" style={{ borderBottom: 0 }}>
+    <div className="treso-block">
       <div className="treso-block-head">
         <span className="lm-label">SR Trésorerie</span>
         <span className="treso-legend">
-          <span className="treso-legend-dot" style={{ background: "#002FA7" }} />Encaissements
-          <svg width="14" height="8" viewBox="0 0 14 8" style={{ display: "inline-block", verticalAlign: "middle", marginLeft: 4 }}>
-            <line x1="0" y1="4" x2="14" y2="4" stroke="#f97316" strokeWidth="1.5" strokeDasharray="5 3" />
+          <svg width="14" height="8" viewBox="0 0 14 8" style={{ display: "inline-block", verticalAlign: "middle" }}>
+            <line x1="0" y1="4" x2="14" y2="4" stroke="#002FA7" strokeWidth="2" />
           </svg>
-          Moy. décaissements
+          CA
         </span>
       </div>
-      <CashSRChart months={months} avgOutflows={avgOutflows} />
-      {avgOutflows > 0 && lastM && (
-        <div className="treso-be-summary">
+      <StackedCashflowChart months={months} />
+      {/* Category legend */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "3px 8px", marginTop: 6, marginBottom: 2 }}>
+        {activeCats.map((label) => (
+          <span key={label} style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 9, color: "var(--fg-secondary)" }}>
+            <span style={{ display: "inline-block", width: 7, height: 7, background: catColor(label), borderRadius: 1, flexShrink: 0 }} />
+            {label}
+          </span>
+        ))}
+      </div>
+      {lastM && lastM.outflows > 0 && (
+        <div className="treso-be-summary" style={{ marginTop: 6 }}>
           <div>
-            <span className="treso-summary-label">Seuil tréso (moy. N–1)</span>
-            <span className="treso-summary-val">{fmtEur(avgOutflows, true)}</span>
-          </div>
-          <div>
-            <span className="treso-summary-label">Encaissements {fmtMonthShort(lastM.month)}</span>
+            <span className="treso-summary-label">Encaiss. {fmtMonthShort(lastM.month)}</span>
             <span className="treso-summary-val" style={{ color: isAbove ? "var(--status-success)" : "#dc2626" }}>
               {fmtEur(lastM.inflows, true)}
-              <span style={{ fontSize: 10, fontWeight: 400, marginLeft: 4 }}>
-                {isAbove ? "✓ au-dessus" : "⚠ sous seuil"}
-              </span>
+              <span style={{ fontSize: 10, fontWeight: 400, marginLeft: 4 }}>{isAbove ? "✓" : "⚠"}</span>
             </span>
+          </div>
+          <div>
+            <span className="treso-summary-label">Dép. {fmtMonthShort(lastM.month)}</span>
+            <span className="treso-summary-val">{fmtEur(lastM.outflows, true)}</span>
           </div>
         </div>
       )}
-      <div style={{ fontSize: 10, color: "var(--fg-tertiary)", marginTop: 6 }}>
-        Inclut remboursements d'emprunts. Source : flux 51x/53x.
-      </div>
     </div>
   );
 }
@@ -509,8 +643,8 @@ function StoreColumn({ store }: { store: StoreTreasury }) {
       <BalanceKPI store={store} />
       <CashflowBlock months={store.cashflowMonths} />
       <RecurringChargesBlock data={store.recurringCharges} />
-      <BreakEvenBlock data={store.breakEven} />
       <CashSRBlock months={store.cashflowMonths} />
+      <BreakEvenBlock data={store.breakEven} />
     </div>
   );
 }
