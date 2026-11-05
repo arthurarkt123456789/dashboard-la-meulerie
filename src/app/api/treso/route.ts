@@ -190,17 +190,29 @@ async function buildStoreData(storeId: string) {
       ? Math.max(0.1, rawTaux + correction)
       : null;
 
-    // Fixed charges: total average cash outflows minus the variable (food) portion.
-    // Average cash outflows from bank statements captures everything paid — payroll,
-    // suppliers, rent, loans — regardless of whether it's been categorised yet.
+    // Fixed charges for DISPLAY: accounting entries (what the user recognises as "charges fixes").
+    // Even if Pennylane is incomplete, these are the well-known labelled costs.
+    const last12 = trialData.slice(-12);
+    const fixedMonths = last12.filter((m) => m.masseSalariale > 100);
+    const chargesFixesMoyennes =
+      fixedMonths.length > 0
+        ? fixedMonths.reduce(
+            (s, m) => s + m.masseSalariale + m.chargesExploitation + m.remboursementCapital,
+            0,
+          ) / fixedMonths.length
+        : 0;
+
+    // SR calculation: use cash outflows (51x) which capture ALL payments regardless
+    // of accounting delay. This avoids the broken-SR problem caused by missing food
+    // invoices (60x near-zero → taux near 100% → SR too low).
     const avgCashOut = last12Flow.reduce((s, m) => s + m.outflows, 0) / last12Flow.length;
     const avgCashIn  = last12Flow.reduce((s, m) => s + m.inflows,  0) / last12Flow.length;
     const foodRatio = tauxMargeTheorique !== null ? 1 - tauxMargeTheorique : 0.3;
-    const chargesFixesMoyennes = Math.max(0, avgCashOut - foodRatio * avgCashIn);
+    const cashBasedFixed = Math.max(0, avgCashOut - foodRatio * avgCashIn);
 
     const margeToDate = tauxMargeTheorique !== null ? caToDate * tauxMargeTheorique : null;
     const caRequis =
-      tauxMargeTheorique && tauxMargeTheorique > 0 ? chargesFixesMoyennes / tauxMargeTheorique : null;
+      tauxMargeTheorique && tauxMargeTheorique > 0 ? cashBasedFixed / tauxMargeTheorique : null;
     const caManquant = caRequis !== null ? Math.max(0, caRequis - caToDate) : null;
 
     currentMonthForecast = {
