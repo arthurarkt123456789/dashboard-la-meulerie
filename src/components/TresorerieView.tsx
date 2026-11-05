@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { Store } from "@/lib/apitic/types";
 
@@ -33,6 +33,15 @@ type BreakEvenPoint = {
   chargesVariable: number;
   seuil: number | null;
 };
+type Creditor = {
+  name: string;
+  totalAmount: number;
+  count: number;
+  categorizedAmount: number;
+  uncategorizedAmount: number;
+  inferredCategory: string | null;
+};
+
 type CurrentMonthForecast = {
   month: string;
   caToDate: number;
@@ -111,6 +120,49 @@ const STACK_ORDER = [
 ];
 function catColor(label: string): string {
   return CAT_COLORS[label] ?? "#9ca3af";
+}
+
+const ASSIGNABLE_CATEGORIES = STACK_ORDER.filter((c) => c !== "Non classé");
+
+// Applies localStorage creditor→category mappings to the current month's breakdown,
+// moving amounts from "Non classé" into the mapped categories.
+function applyCreditorMappings(
+  months: MonthCashflow[],
+  creditors: Creditor[],
+  userMappings: Record<string, string>,
+  currentMonthStr: string,
+): MonthCashflow[] {
+  return months.map((m) => {
+    if (m.month !== currentMonthStr) return m;
+    const breakdown = m.categoryBreakdown.map((c) => ({ ...c }));
+    const ncIdx = breakdown.findIndex((c) => c.label === "Non classé" && c.direction === "out");
+    if (ncIdx === -1) return m;
+
+    for (const creditor of creditors) {
+      const cat = userMappings[creditor.name] ?? creditor.inferredCategory;
+      if (!cat || creditor.uncategorizedAmount <= 0.01) continue;
+      const transfer = Math.min(creditor.uncategorizedAmount, breakdown[ncIdx].amount);
+      if (transfer < 0.01) continue;
+      breakdown[ncIdx].amount -= transfer;
+      const catIdx = breakdown.findIndex((c) => c.label === cat && c.direction === "out");
+      if (catIdx !== -1) {
+        breakdown[catIdx].amount += transfer;
+      } else {
+        breakdown.push({ label: cat, amount: transfer, direction: "out" });
+      }
+    }
+
+    return {
+      ...m,
+      categoryBreakdown: breakdown
+        .filter((c) => c.amount > 0.01)
+        .sort((a, b) => {
+          if (a.label === "Non classé") return 1;
+          if (b.label === "Non classé") return -1;
+          return b.amount - a.amount;
+        }),
+    };
+  });
 }
 
 // ── Charts ──────────────────────────────────────────────────────────────────────
@@ -707,6 +759,146 @@ function CashSRBlock({ months }: { months: MonthCashflow[] }) {
   );
 }
 
+function CreditorsList({
+  storeId,
+  onLoaded,
+  userMappings,
+  onMappingChange,
+}: {
+  storeId: string;
+  onLoaded: (creditors: Creditor[]) => void;
+  userMappings: Record<string, string>;
+  onMappingChange: (name: string, cat: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<{
+    creditors: Creditor[];
+    totalUncategorized: number;
+    error?: string;
+  } | null>(null);
+  const onLoadedRef = useRef(onLoaded);
+  onLoadedRef.current = onLoaded;
+
+  useEffect(() => {
+    if (!open || data !== null || loading) return;
+    setLoading(true);
+    fetch(`/api/treso/creditors?store=${storeId}`)
+      .then((r) => r.json())
+      .then((d) => {
+        const result = d as { creditors: Creditor[]; totalUncategorized: number; error?: string };
+        setData(result);
+        onLoadedRef.current(result.creditors);
+      })
+      .catch((e) => setData({ creditors: [], totalUncategorized: 0, error: (e as Error).message }))
+      .finally(() => setLoading(false));
+  }, [open, storeId, data, loading]);
+
+  const uncatCreditors = data?.creditors.filter((c) => c.uncategorizedAmount > 0) ?? [];
+  const catCreditors = data?.creditors.filter((c) => c.uncategorizedAmount <= 0 && c.totalAmount > 0) ?? [];
+
+  return (
+    <div className="treso-block" style={{ borderBottom: 0 }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          width: "100%", textAlign: "left", background: "none", border: "none",
+          cursor: "pointer", padding: 0,
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+        }}
+      >
+        <span className="lm-label" style={{ margin: 0, color: uncatCreditors.length > 0 ? "#f59e0b" : undefined }}>
+          Créanciers ce mois
+        </span>
+        <span style={{ fontSize: 11, color: "var(--fg-muted)" }}>
+          {data && uncatCreditors.length > 0
+            ? `${uncatCreditors.length} non classé${uncatCreditors.length > 1 ? "s" : ""}`
+            : data && !data.error
+            ? "✓"
+            : ""}{" "}
+          {open ? "▲" : "▼"}
+        </span>
+      </button>
+
+      {open && (
+        <div style={{ marginTop: 10 }}>
+          {loading && (
+            <p style={{ fontSize: 11, color: "var(--fg-muted)" }}>Chargement...</p>
+          )}
+
+          {data?.error && data.creditors.length === 0 && (
+            <p style={{ fontSize: 11, color: "var(--fg-muted)" }}>
+              Transactions non disponibles pour ce commerce
+            </p>
+          )}
+
+          {data && data.creditors.length === 0 && !data.error && (
+            <p style={{ fontSize: 11, color: "var(--fg-muted)" }}>Aucune transaction ce mois.</p>
+          )}
+
+          {/* Uncategorized creditors */}
+          {uncatCreditors.map((cr) => {
+            const userCat = userMappings[cr.name];
+            const effectiveCat = userCat ?? cr.inferredCategory ?? "";
+            const isAuto = !userCat && !!cr.inferredCategory;
+            return (
+              <div key={cr.name} style={{ marginBottom: 7, paddingBottom: 7, borderBottom: "1px solid var(--border)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                  <span
+                    style={{ fontSize: 11, color: "var(--fg-primary)", maxWidth: "62%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                    title={cr.name}
+                  >
+                    {cr.name}
+                  </span>
+                  <span style={{ fontSize: 11, color: "#ef4444", fontVariantNumeric: "tabular-nums" }}>
+                    {fmtEur(cr.uncategorizedAmount, true)}
+                    {cr.categorizedAmount > 0 && (
+                      <span style={{ color: "var(--fg-muted)", marginLeft: 3 }}>
+                        (+{fmtEur(cr.categorizedAmount, true)} ✓)
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+                  <select
+                    value={effectiveCat}
+                    onChange={(e) => onMappingChange(cr.name, e.target.value)}
+                    style={{
+                      flex: 1, fontSize: 11,
+                      background: "var(--bg-row-alt)",
+                      color: effectiveCat ? catColor(effectiveCat) : "var(--fg-muted)",
+                      border: `1px solid ${effectiveCat ? catColor(effectiveCat) : "var(--border)"}`,
+                      borderRadius: 4, padding: "2px 4px",
+                    }}
+                  >
+                    <option value="">— Non classé —</option>
+                    {ASSIGNABLE_CATEGORIES.map((cat) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                  {isAuto && (
+                    <span style={{ fontSize: 9, color: "#10b981", whiteSpace: "nowrap" }}>★ auto</span>
+                  )}
+                  {userCat && (
+                    <span style={{ fontSize: 9, color: "#3b82f6", whiteSpace: "nowrap" }}>✓</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Classified creditors (collapsed summary) */}
+          {catCreditors.length > 0 && (
+            <p style={{ fontSize: 10, color: "var(--fg-muted)", marginTop: 4 }}>
+              {catCreditors.length} créancier{catCreditors.length > 1 ? "s" : ""} déjà classifié{catCreditors.length > 1 ? "s" : ""} ✓
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ColumnSkeleton() {
   return (
     <div className="treso-col">
@@ -723,6 +915,32 @@ function ColumnSkeleton() {
 }
 
 function StoreColumn({ store }: { store: StoreTreasury }) {
+  const [creditors, setCreditors] = useState<Creditor[]>([]);
+  const [userMappings, setUserMappings] = useState<Record<string, string>>(() => {
+    if (typeof window === "undefined") return {};
+    try { return JSON.parse(localStorage.getItem("lm_cred_cats") ?? "{}") as Record<string, string>; }
+    catch { return {}; }
+  });
+
+  const handleLoaded = useCallback((loaded: Creditor[]) => setCreditors(loaded), []);
+
+  const handleMappingChange = useCallback((name: string, cat: string) => {
+    setUserMappings((prev) => {
+      const next = { ...prev };
+      if (cat) next[name] = cat; else delete next[name];
+      try { localStorage.setItem("lm_cred_cats", JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, []);
+
+  // Apply creditor category mappings to current month display only
+  const adjustedMonths = useMemo(() => {
+    if (!store.currentMonthForecast || creditors.length === 0) return store.cashflowMonths;
+    return applyCreditorMappings(
+      store.cashflowMonths, creditors, userMappings, store.currentMonthForecast.month,
+    );
+  }, [store.cashflowMonths, creditors, userMappings, store.currentMonthForecast]);
+
   return (
     <div className="treso-col">
       <div className="treso-col-head">
@@ -730,10 +948,16 @@ function StoreColumn({ store }: { store: StoreTreasury }) {
       </div>
       {store.currentMonthForecast && <CurrentMonthBlock data={store.currentMonthForecast} />}
       <BalanceKPI store={store} />
-      <CashflowBlock months={store.cashflowMonths} />
+      <CashflowBlock months={adjustedMonths} />
       <RecurringChargesBlock data={store.recurringCharges} />
-      <CashSRBlock months={store.cashflowMonths} />
+      <CashSRBlock months={adjustedMonths} />
       <BreakEvenBlock data={store.breakEven} />
+      <CreditorsList
+        storeId={store.id}
+        onLoaded={handleLoaded}
+        userMappings={userMappings}
+        onMappingChange={handleMappingChange}
+      />
     </div>
   );
 }

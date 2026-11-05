@@ -85,7 +85,9 @@ export async function middleware(request: NextRequest) {
 
   // Trésorerie pages use their own TRESO_PASSWORD gate (independent of main auth)
   const isTresoPath =
-    pathname.startsWith("/tresorerie") || pathname === "/api/treso";
+    pathname.startsWith("/tresorerie") ||
+    pathname === "/api/treso" ||
+    pathname.startsWith("/api/treso/");
   if (isTresoPath) {
     const tresoPwd = process.env.TRESO_PASSWORD;
     if (tresoPwd && tresoPwd.trim().length > 0) {
