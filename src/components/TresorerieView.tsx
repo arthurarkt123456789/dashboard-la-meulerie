@@ -33,6 +33,16 @@ type BreakEvenPoint = {
   chargesVariable: number;
   seuil: number | null;
 };
+type CurrentMonthForecast = {
+  month: string;
+  caToDate: number;
+  tauxMargeTheorique: number | null;
+  margeToDate: number | null;
+  chargesFixesMoyennes: number;
+  caRequis: number | null;
+  caManquant: number | null;
+  jours: { elapsed: number; total: number };
+};
 type StoreTreasury = {
   id: string;
   name: string;
@@ -42,6 +52,7 @@ type StoreTreasury = {
   cashflowMonths: MonthCashflow[];
   recurringCharges: RecurringCharges;
   breakEven: BreakEvenPoint[];
+  currentMonthForecast: CurrentMonthForecast | null;
 };
 type TresoData = {
   stores: StoreTreasury[];
@@ -85,6 +96,7 @@ const CAT_COLORS: Record<string, string> = {
   "Dépenses financières": "#64748b",
   "Autres dépenses":      "#9ca3af",
   "Dépenses except.":     "#374151",
+  "Non classé":           "#d1d5db",
 };
 const STACK_ORDER = [
   "Achats matières",
@@ -95,6 +107,7 @@ const STACK_ORDER = [
   "Dépenses financières",
   "Autres dépenses",
   "Dépenses except.",
+  "Non classé",
 ];
 function catColor(label: string): string {
   return CAT_COLORS[label] ?? "#9ca3af";
@@ -373,6 +386,80 @@ const DECOUVERT_AUTORISE: Record<string, number> = {
   republique: 10000,
 };
 
+function CurrentMonthBlock({ data }: { data: CurrentMonthForecast }) {
+  if (data.tauxMargeTheorique === null || data.caRequis === null || data.caRequis === 0) {
+    return (
+      <div className="treso-block">
+        <div className="lm-label" style={{ marginBottom: 6 }}>
+          Mois en cours — {fmtMonthShort(data.month)}
+        </div>
+        <p style={{ fontSize: 11, color: "var(--fg-muted)" }}>
+          Données insuffisantes (12 mois complets requis)
+        </p>
+      </div>
+    );
+  }
+
+  const pct = Math.min(100, Math.round((data.caToDate / data.caRequis) * 100));
+  const dayPct = Math.round((data.jours.elapsed / data.jours.total) * 100);
+  const isAhead = pct >= dayPct;
+  const barColor = pct >= 100 ? "#10b981" : isAhead ? "#3b82f6" : "#f59e0b";
+
+  return (
+    <div className="treso-block">
+      <div className="lm-label" style={{ marginBottom: 10 }}>
+        Mois en cours — {fmtMonthShort(data.month)}
+        <span style={{ fontSize: 10, color: "var(--fg-muted)", marginLeft: 6, fontWeight: 400 }}>
+          j{data.jours.elapsed}/{data.jours.total}
+        </span>
+      </div>
+
+      {[
+        { label: "Taux de marge théorique", value: `${Math.round((data.tauxMargeTheorique ?? 0) * 100)}%`, color: "#f59e0b" },
+        { label: "CA réalisé à ce jour", value: fmtEur(data.caToDate), color: "var(--fg-primary)" },
+        { label: "Marge dégagée", value: fmtEur(data.margeToDate ?? 0), color: "#10b981" },
+        { label: "Charges fixes estimées", value: fmtEur(data.chargesFixesMoyennes), color: "#ef4444" },
+      ].map(({ label, value, color }) => (
+        <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 3 }}>
+          <span style={{ fontSize: 11, color: "var(--fg-muted)" }}>{label}</span>
+          <span style={{ fontSize: 11, fontWeight: 600, color, fontVariantNumeric: "tabular-nums" }}>{value}</span>
+        </div>
+      ))}
+
+      <div style={{ borderTop: "1px solid var(--border)", paddingTop: 8, marginTop: 6 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+          <span style={{ fontSize: 11, color: "var(--fg-muted)" }}>CA requis ce mois</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--fg-primary)", fontVariantNumeric: "tabular-nums" }}>
+            {fmtEur(data.caRequis)}
+          </span>
+        </div>
+
+        <div style={{ position: "relative", height: 10, background: "var(--bg-row-alt)", borderRadius: 5, overflow: "hidden" }}>
+          <div style={{
+            position: "absolute", left: 0, top: 0, bottom: 0,
+            width: `${pct}%`,
+            background: barColor,
+            borderRadius: 5,
+          }} />
+          <div style={{
+            position: "absolute", top: 0, bottom: 0, width: 2,
+            background: "rgba(255,255,255,0.35)",
+            left: `${dayPct}%`,
+          }} />
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+          <span style={{ fontSize: 10, color: "var(--fg-muted)" }}>{pct}% réalisé</span>
+          {(data.caManquant ?? 0) > 0
+            ? <span style={{ fontSize: 10, color: "#f59e0b" }}>encore {fmtEur(data.caManquant ?? 0)}</span>
+            : <span style={{ fontSize: 10, color: "#10b981" }}>Objectif atteint ✓</span>
+          }
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BalanceKPI({ store }: { store: StoreTreasury }) {
   const [expanded, setExpanded] = useState(false);
   const isPositive = store.totalBalance >= 0;
@@ -641,6 +728,7 @@ function StoreColumn({ store }: { store: StoreTreasury }) {
       <div className="treso-col-head">
         <span className="treso-col-name">{store.name}</span>
       </div>
+      {store.currentMonthForecast && <CurrentMonthBlock data={store.currentMonthForecast} />}
       <BalanceKPI store={store} />
       <CashflowBlock months={store.cashflowMonths} />
       <RecurringChargesBlock data={store.recurringCharges} />

@@ -54,48 +54,84 @@ export function extractMonthCashflow(lines: TrialBalanceLine[], month: string): 
   for (const line of lines) {
     const n = line.ledger_account_number;
 
-    // Cash accounts: 51x (bank), 53x (caisse)
+    // Cash accounts: 51x (bank), 53x (caisse) — authoritative cash movements
     if (n.startsWith("51") || n.startsWith("53")) {
       inflows += line.debit;    // debit on bank = money received
       outflows += line.credit;  // credit on bank = money paid
       continue;
     }
 
-    // Counterpart accounts — build category breakdown using movement direction
+    // Counterpart accounts — accounting categorization (may be accrual-timed)
     const cat = accountCategory(n);
     if (!cat) continue;
 
-    // For revenue accounts (7x): credit = revenue recognized → cash inflow
-    // For expense accounts (6x/16x): debit = expense recognized → cash outflow
     const movement = cat.direction === "in"
-      ? Math.max(0, line.credit - line.debit)   // net credit on revenue accounts
-      : Math.max(0, line.debit - line.credit);   // net debit on expense accounts
+      ? Math.max(0, line.credit - line.debit)
+      : Math.max(0, line.debit - line.credit);
 
     if (movement > 0.01) {
       catMap.set(cat.label, (catMap.get(cat.label) ?? 0) + movement);
     }
   }
 
-  // Build direction map from first seen account per label
+  // Build direction map
   const dirMap = new Map<string, "in" | "out">();
   for (const line of lines) {
     const cat = accountCategory(line.ledger_account_number);
     if (cat && !dirMap.has(cat.label)) dirMap.set(cat.label, cat.direction);
   }
 
-  const categoryBreakdown: CategoryFlow[] = [];
+  // Separate out vs in categories
+  let totalCatOut = 0;
+  const outEntries: { label: string; amount: number }[] = [];
+  const inEntries: { label: string; amount: number }[] = [];
   for (const [label, amount] of catMap.entries()) {
     if (amount < 0.01) continue;
-    categoryBreakdown.push({ label, amount: Math.round(amount * 100) / 100, direction: dirMap.get(label) ?? "out" });
+    if ((dirMap.get(label) ?? "out") === "out") {
+      totalCatOut += amount;
+      outEntries.push({ label, amount });
+    } else {
+      inEntries.push({ label, amount });
+    }
   }
 
-  // Sort by amount descending
-  categoryBreakdown.sort((a, b) => b.amount - a.amount);
+  const roundedOutflows = Math.round(outflows * 100) / 100;
+
+  // If accounting totals exceed actual cash outflows (accrual timing), scale down proportionally
+  const scale = totalCatOut > roundedOutflows && roundedOutflows > 0
+    ? roundedOutflows / totalCatOut
+    : 1;
+
+  const categoryBreakdown: CategoryFlow[] = [];
+
+  for (const { label, amount } of inEntries) {
+    categoryBreakdown.push({ label, amount: Math.round(amount * 100) / 100, direction: "in" });
+  }
+
+  for (const { label, amount } of outEntries) {
+    const scaled = Math.round(amount * scale * 100) / 100;
+    if (scaled < 0.01) continue;
+    categoryBreakdown.push({ label, amount: scaled, direction: "out" });
+  }
+
+  // "Non classé" = cash that left the bank but has no matching accounting entry yet
+  const scaledCatOut = Math.round(totalCatOut * scale * 100) / 100;
+  const uncategorizedOut = Math.max(0, roundedOutflows - scaledCatOut);
+  if (uncategorizedOut > 0.01) {
+    categoryBreakdown.push({ label: "Non classé", amount: Math.round(uncategorizedOut * 100) / 100, direction: "out" });
+  }
+
+  // Sort: amount desc, "Non classé" always last
+  categoryBreakdown.sort((a, b) => {
+    if (a.label === "Non classé") return 1;
+    if (b.label === "Non classé") return -1;
+    return b.amount - a.amount;
+  });
 
   return {
     month,
     inflows: Math.round(inflows * 100) / 100,
-    outflows: Math.round(outflows * 100) / 100,
+    outflows: roundedOutflows,
     net: Math.round((inflows - outflows) * 100) / 100,
     categoryBreakdown,
   };

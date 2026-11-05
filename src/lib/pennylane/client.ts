@@ -149,7 +149,9 @@ export function aggregateFromLines(lines: TrialBalanceLine[]): CostData {
     else if (inRange(n, "61") || inRange(n, "62") || inRange(n, "63") || inRange(n, "65"))
       chargesExploitation += Math.max(0, line.balance);
     else if (inRange(n, "64")) masseSalariale += Math.max(0, line.balance);
-    else if (inRange(n, "16")) remboursementCapital += line.debit;
+    // Use debit (period repayment) if populated; fallback to positive balance for systems
+    // that return net-balance only on liability accounts
+    else if (inRange(n, "16")) remboursementCapital += line.debit > 0 ? line.debit : Math.max(0, line.balance);
     else if (inRange(n, "661")) interetsEmprunt += Math.max(0, line.balance);
     // Revenue (70x): credit balance → negate to get positive CA figure
     else if (inRange(n, "70")) caPennylane += Math.max(0, -line.balance);

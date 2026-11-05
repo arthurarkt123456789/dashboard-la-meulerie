@@ -86,7 +86,11 @@ async function buildStoreData(storeId: string) {
     const cv = m.coutMatiere;
     const ca = m.caPennylane;
     const mcvRate = ca > 0 ? (ca - cv) / ca : null;
-    const seuil = mcvRate && mcvRate > 0 ? Math.round((cf / mcvRate) * 100) / 100 : null;
+    // Guard against months with incomplete accounting data (e.g. payroll not yet entered)
+    const hasCompleteData = m.masseSalariale > 100 && cf > 500;
+    const seuil = hasCompleteData && mcvRate && mcvRate > 0
+      ? Math.round((cf / mcvRate) * 100) / 100
+      : null;
     return { month: m.month, ca, chargesFixed: cf, chargesVariable: cv, seuil };
   });
 
@@ -126,6 +130,69 @@ async function buildStoreData(storeId: string) {
     lastMonthLabel: lastM.month,
   };
 
+  // Current month forecast
+  const now = new Date();
+  const yr = now.getFullYear();
+  const mo = now.getMonth() + 1;
+  const moStr = `${yr}-${String(mo).padStart(2, "0")}`;
+  const moStart = `${moStr}-01`;
+  const moEnd = now.toISOString().slice(0, 10);
+  const daysInMonth = new Date(yr, mo, 0).getDate();
+
+  let currentMonthForecast: {
+    month: string;
+    caToDate: number;
+    tauxMargeTheorique: number | null;
+    margeToDate: number | null;
+    chargesFixesMoyennes: number;
+    caRequis: number | null;
+    caManquant: number | null;
+    jours: { elapsed: number; total: number };
+  } | null = null;
+
+  try {
+    const { lines: curLines } = await fetchTrialBalance(config.token, moStart, moEnd);
+    const curCosts = aggregateFromLines(curLines);
+
+    // Theoretical margin rate from last 12 complete months (filter incomplete months)
+    const last12 = trialData.slice(-12);
+    const validM = last12.filter((m) => m.caPennylane > 500 && m.masseSalariale > 100);
+    const tauxMargeTheorique =
+      validM.length >= 3
+        ? validM.reduce((s, m) => s + (m.caPennylane - m.coutMatiere) / m.caPennylane, 0) / validM.length
+        : null;
+
+    // Average fixed charges from months with complete payroll data
+    const fixedMonths = last12.filter((m) => m.masseSalariale > 100);
+    const chargesFixesMoyennes =
+      fixedMonths.length > 0
+        ? fixedMonths.reduce(
+            (s, m) => s + m.masseSalariale + m.chargesExploitation + m.remboursementCapital,
+            0,
+          ) / fixedMonths.length
+        : 0;
+
+    const caToDate = curCosts.caPennylane;
+    const margeToDate = tauxMargeTheorique !== null ? caToDate * tauxMargeTheorique : null;
+    const caRequis =
+      tauxMargeTheorique && tauxMargeTheorique > 0 ? chargesFixesMoyennes / tauxMargeTheorique : null;
+    const caManquant = caRequis !== null ? Math.max(0, caRequis - caToDate) : null;
+
+    currentMonthForecast = {
+      month: moStr,
+      caToDate: Math.round(caToDate * 100) / 100,
+      tauxMargeTheorique: tauxMargeTheorique !== null ? Math.round(tauxMargeTheorique * 10000) / 10000 : null,
+      margeToDate: margeToDate !== null ? Math.round(margeToDate * 100) / 100 : null,
+      chargesFixesMoyennes: Math.round(chargesFixesMoyennes * 100) / 100,
+      caRequis: caRequis !== null ? Math.round(caRequis * 100) / 100 : null,
+      caManquant: caManquant !== null ? Math.round(caManquant * 100) / 100 : null,
+      jours: { elapsed: now.getDate(), total: daysInMonth },
+    };
+    console.log(`[treso] ${storeId} current month: CA=${caToDate} tauxMarge=${tauxMargeTheorique?.toFixed(3)} caRequis=${caRequis?.toFixed(0)}`);
+  } catch (err) {
+    console.error(`[treso] current month ${storeId}:`, (err as Error).message);
+  }
+
   return {
     id: storeId,
     name: STORE_NAMES[storeId] ?? storeId,
@@ -135,6 +202,7 @@ async function buildStoreData(storeId: string) {
     cashflowMonths,
     recurringCharges,
     breakEven,
+    currentMonthForecast,
   };
 }
 
