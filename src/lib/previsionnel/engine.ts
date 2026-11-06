@@ -632,19 +632,20 @@ export function buildPlan(input: EngineInput): Plan {
     const base = baseline(dailyMap, d, model.growth, model.weekdayMeans, eventMap);
     const wd = weekdayOf(d);
     let effectiveBase = base;
-    // Jours forcés ouverts (normalement fermés) : on estime le CA.
-    if (base.source === "closed" && d >= today && forcedOpenWeekdays.includes(wd)) {
+    // Jours forcés ouverts : si un montant spécifique est saisi, il prime sur tout (N-1 inclus).
+    // Sans montant : on estime seulement si le jour était historiquement fermé.
+    if (d >= today && forcedOpenWeekdays.includes(wd)) {
       const specific = settings.forceOpenCa?.[String(wd)];
-      let est: number;
       if (specific !== undefined && specific > 0) {
-        est = specific;
-      } else {
+        effectiveBase = { value: round2(specific), source: "weekday-mean", n1: null };
+      } else if (base.source === "closed") {
         const nonZero = model.weekdayMeans.filter((v) => v > 0);
-        est = nonZero.length ? mean(nonZero) * 0.7 : 0;
+        const est = nonZero.length ? mean(nonZero) * 0.7 : 0;
+        effectiveBase = { value: round2(est), source: "weekday-mean", n1: null };
       }
-      effectiveBase = { value: round2(est), source: "weekday-mean", n1: null };
+      // Si pas de montant et jour historiquement ouvert → prévision normale conservée.
     }
-    // Jours forcés fermés (normalement ouverts) : CA = 0 sur les jours futurs uniquement.
+    // Jours forcés fermés : CA = 0 sur les jours futurs uniquement.
     if (d >= today && forcedClosedWeekdays.includes(wd)) {
       effectiveBase = { value: 0, source: "closed", n1: null };
     }

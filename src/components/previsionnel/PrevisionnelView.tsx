@@ -896,45 +896,44 @@ function ScenariosPanel({ plan, storeId, onSaved }: { plan: Plan; storeId: strin
                 <span className="prev-muted" style={{ width: 110, flexShrink: 0, fontSize: 12 }}>
                   {histOpen ? `ouvert · moy. ${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(Math.round(Math.abs(histMean)))} €` : "fermé historiquement"}
                 </span>
-                {/* Boutons 3 états */}
+                {/* Boutons 3 états — toujours accessibles */}
                 <div style={{ display: "flex", gap: 4 }}>
                   <button
                     className={`prev-choice${state === "auto" ? " selected" : ""}`}
                     onClick={() => setWdState(wd, "auto")}
                     disabled={busy}
-                    title="Utiliser l'historique"
+                    title="Prévision automatique (N-1 ou moyenne)"
                   >
                     Auto
                   </button>
                   <button
                     className={`prev-choice${state === "ouvert" ? " selected" : ""}`}
                     onClick={() => setWdState(wd, "ouvert")}
-                    disabled={busy || (histOpen && state !== "ouvert")}
-                    title={histOpen ? "Déjà ouvert selon l'historique" : "Forcer l'ouverture"}
-                    style={histOpen && state !== "ouvert" ? { opacity: 0.4 } : {}}
+                    disabled={busy}
+                    title="Fixer un CA spécifique pour ce jour"
                   >
-                    Ouvert
+                    CA fixe
                   </button>
                   <button
                     className={`prev-choice${state === "ferme" ? " selected" : ""}`}
                     onClick={() => setWdState(wd, "ferme")}
                     disabled={busy || (!histOpen && state !== "ferme")}
                     title={!histOpen ? "Déjà fermé selon l'historique" : "Forcer la fermeture"}
-                    style={!histOpen && state !== "ferme" ? { opacity: 0.4 } : {}}
+                    style={!histOpen && state !== "ferme" ? { opacity: 0.35 } : {}}
                   >
                     Fermé
                   </button>
                 </div>
-                {/* CA input pour jours forcés ouverts et normalement fermés */}
-                {state === "ouvert" && !histOpen && (
+                {/* CA input pour tous les jours en mode "CA fixe" */}
+                {state === "ouvert" && (
                   <>
                     <input
                       className="prev-input prev-input-sm"
                       type="number"
-                      placeholder="auto"
+                      placeholder={histOpen ? `auto (≈${Math.round(Math.abs(histMean))} €)` : "montant"}
                       value={caInputs[String(wd)] ?? ""}
                       step={100}
-                      style={{ width: 80 }}
+                      style={{ width: 100 }}
                       onChange={(e) => setCaInputs((p) => ({ ...p, [String(wd)]: e.target.value }))}
                       onKeyDown={(e) => { if (e.key === "Enter") saveCa(wd); }}
                     />
@@ -942,7 +941,7 @@ function ScenariosPanel({ plan, storeId, onSaved }: { plan: Plan; storeId: strin
                     <button className="prev-btn-link" onClick={() => saveCa(wd)} disabled={busy} style={{ fontSize: 12 }}>
                       appliquer
                     </button>
-                    {caSaved === wd && <span style={{ fontSize: 11, color: "var(--prev-ok, #22c55e)" }}>✓ sauvegardé</span>}
+                    {caSaved === wd && <span style={{ fontSize: 11, color: "var(--prev-ok, #22c55e)" }}>✓</span>}
                   </>
                 )}
               </div>
