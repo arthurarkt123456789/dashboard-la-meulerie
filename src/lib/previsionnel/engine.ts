@@ -330,6 +330,16 @@ function mode(values: number[]): number | null {
   return [...c.entries()].sort((a, b) => b[1] - a[1])[0][0];
 }
 
+/** Nature annuelle probable : taxes locales, assurances, cotisations, abonnements annuels. */
+const ANNUAL_RE = /\b(CFE|CVAE|TAXE|FONCIER|FONCIERE|ASSURANCE|ASSURANCES|AXA|ALLIANZ|HISCOX|GENERALI|MAAF|MMA|SACEM|SPRE|COTISATION|ADHESION|ANNUEL|ANNUELLE|CCI|CMA|FORMATION)\b/;
+const ANNUAL_ACCOUNTS = /^(616|635|637|6281|6283|6354)/;
+
+function annualLikely(rule: Rule | undefined, key: string, label: string): boolean {
+  if (rule?.kind !== "fixe") return false;
+  if (ANNUAL_RE.test(`${key} ${label}`.toUpperCase())) return true;
+  return (rule.accounts ?? []).some((a) => ANNUAL_ACCOUNTS.test(a.replace(/\D/g, "")));
+}
+
 /** Construit le calendrier projeté d'une contrepartie fixe / hors exploitation. */
 function scheduleItem(
   st: KeyStats,
@@ -347,10 +357,12 @@ function scheduleItem(
 
   const allDays = present.flatMap((m) => st.byMonth.get(m)!.days);
   const allWeekdays = present.flatMap((m) => st.byMonth.get(m)!.weekdays);
-  const perOccurrence = present.flatMap((m) => {
+  const perOccurrence = present.map((m) => {
     const mm = st.byMonth.get(m)!;
-    return [mm.total / mm.count];
+    return mm.total / mm.count;
   });
+  const sortedDates = [...st.dates].sort();
+  const lastDate = sortedDates[sortedDates.length - 1] ?? null;
 
   let frequency: FixedScheduleItem["frequency"];
   if (avgCount >= 3.5) frequency = "hebdo";
@@ -365,57 +377,85 @@ function scheduleItem(
   const paidThisMonth = actualDatesThisMonth.length;
   const dates = monthDates(month);
   const projected = [] as string[];
+  let status: FixedScheduleItem["status"] = "projete";
+  let statusReason = "";
+
+  const placeOnDay = (day: number) => {
+    const dim = daysInMonth(month);
+    let d = `${month}-${String(Math.min(Math.max(1, day), dim)).padStart(2, "0")}`;
+    // Échéance passée sans sortie constatée : décalée à demain.
+    if (d < today) d = addDays(today, 1);
+    if (d.slice(0, 7) === month) projected.push(d);
+  };
 
   if (frequency === "hebdo" && weekday !== null) {
     for (const d of dates) {
       if (d < today) continue;
       if (weekdayOf(d) === weekday) projected.push(d);
     }
+    statusReason = `Hebdomadaire, ${present.length} mois observés`;
   } else if (frequency === "mensuel") {
-    if (paidThisMonth === 0 && expectedDay) {
-      const dim = daysInMonth(month);
-      let d = `${month}-${String(Math.min(expectedDay, dim)).padStart(2, "0")}`;
-      // Échéance passée sans sortie constatée : on la décale à demain.
-      if (d < today) d = addDays(today, 1) <= dates[dates.length - 1] ? addDays(today, 1) : today;
-      if (d.slice(0, 7) === month) projected.push(d);
-    }
+    if (paidThisMonth === 0 && expectedDay) placeOnDay(expectedDay);
+    statusReason = `Mensuel, ${present.length}/${histMonths.length} mois observés`;
   } else {
-    // Irrégulier : projeter si c'est sorti le même mois N-1, ou si l'intervalle médian tombe ce mois.
+    // Irrégulier : jamais reprojeté sur la seule base de l'an dernier.
     const n1Month = shiftMonth(month, -12);
-    const sortedDates = [...st.dates].sort();
-    const last = sortedDates[sortedDates.length - 1];
+    const n1 = st.byMonth.get(n1Month);
     const gaps: number[] = [];
-    const monthsSorted = present.sort();
+    const monthsSorted = [...present].sort();
     for (let i = 1; i < monthsSorted.length; i++) {
       const [y0, m0] = monthsSorted[i - 1].split("-").map(Number);
       const [y1, m1] = monthsSorted[i].split("-").map(Number);
       gaps.push((y1 - y0) * 12 + (m1 - m0));
     }
-    const gap = gaps.length ? Math.round(median(gaps)) : null;
-    const dueByGap = gap && last ? shiftMonth(last.slice(0, 7), gap) === month : false;
-    const n1Hit = st.byMonth.has(n1Month);
-    if (paidThisMonth === 0 && (n1Hit || dueByGap)) {
-      const amt = n1Hit ? st.byMonth.get(n1Month)!.total : expectedAmount;
-      const day = n1Hit ? Math.round(median(st.byMonth.get(n1Month)!.days)) : expectedDay ?? 15;
-      const dim = daysInMonth(month);
-      let d = `${month}-${String(Math.min(day, dim)).padStart(2, "0")}`;
-      if (d < today) d = addDays(today, 1);
-      if (d.slice(0, 7) === month) projected.push(d);
-      return {
-        key: st.key,
-        label: st.label,
-        kind: st.kind,
-        frequency,
-        expectedAmount: round2(rule?.expectedAmount ?? amt),
-        expectedDay: day,
-        weekday: null,
-        observedMonths: present.length,
-        observedAmounts: monthlyTotals.map(round2),
-        projectedDates: projected,
-        paidThisMonth,
-        overridden,
-      };
+    const regularGap = gaps.length >= 2 && gaps.every((g) => g === gaps[0]) ? gaps[0] : null; // trimestriel, semestriel…
+    const dueByGap = regularGap !== null && lastDate !== null && shiftMonth(lastDate.slice(0, 7), regularGap) === month;
+    const recurrence = rule?.recurrence ?? "auto";
+    const amountGuess = rule?.expectedAmount ?? n1?.total ?? expectedAmount;
+    const dayGuess = rule?.expectedDay ?? (n1 ? Math.round(median(n1.days)) : expectedDay ?? 15);
+
+    if (recurrence === "exclure") {
+      status = "exclu";
+      statusReason = "Exclu par toi";
+    } else if (recurrence === "inclure") {
+      status = "projete";
+      statusReason = "Attendu ce mois-ci (ta décision)";
+      if (paidThisMonth === 0) placeOnDay(dayGuess);
+    } else if (dueByGap) {
+      status = "projete";
+      statusReason = `Périodicité ${regularGap} mois constatée sur ${present.length} occurrences, échéance ce mois`;
+      if (paidThisMonth === 0) placeOnDay(dayGuess);
+    } else if (rule?.kind === "hors_exploitation") {
+      status = "exclu";
+      statusReason = `Hors exploitation irrégulier (dividendes, impôt sur les sociétés, compte courant…) : non retenu sans ta décision${n1 ? `, sorti en ${n1Month}` : ""}`;
+    } else if (n1 && annualLikely(rule, st.key, st.label)) {
+      status = "propose";
+      statusReason = `Nature annuelle probable, sorti en ${n1Month} (${Math.round(n1.total)} €) : retenu, retirable`;
+      if (paidThisMonth === 0) placeOnDay(dayGuess);
+    } else {
+      status = "exclu";
+      statusReason = n1
+        ? `Sorti en ${n1Month} mais sans périodicité prouvée : non retenu`
+        : `Irrégulier (${present.length} mois sur ${histMonths.length}) : non retenu`;
     }
+
+    return {
+      key: st.key,
+      label: st.label,
+      kind: st.kind,
+      frequency,
+      expectedAmount: round2(amountGuess),
+      expectedDay: dayGuess,
+      weekday: null,
+      observedMonths: present.length,
+      observedAmounts: monthlyTotals.map(round2),
+      projectedDates: projected,
+      paidThisMonth,
+      overridden,
+      status,
+      statusReason,
+      lastDate,
+    };
   }
 
   const perOcc = frequency === "hebdo" ? median(perOccurrence) : expectedAmount;
@@ -432,6 +472,9 @@ function scheduleItem(
     projectedDates: projected,
     paidThisMonth,
     overridden,
+    status,
+    statusReason,
+    lastDate,
   };
 }
 
@@ -542,9 +585,14 @@ export function buildPlan(input: EngineInput): Plan {
     if (kind !== "fixe" && kind !== "hors_exploitation") continue;
     const actualDates = txThisMonth.filter((t) => t.key === g.key && t.amount < 0).map((t) => t.date);
     const item = scheduleItem({ ...g, kind }, rule, month, today, windowMonths, actualDates);
-    if (item.projectedDates.length || item.paidThisMonth) fixedSchedule.push(item);
+    if (item.projectedDates.length || item.paidThisMonth || item.status !== "projete") fixedSchedule.push(item);
   }
-  fixedSchedule.sort((a, b) => b.expectedAmount - a.expectedAmount);
+  const rank = (i: FixedScheduleItem) => (i.projectedDates.length || i.paidThisMonth ? 0 : i.status === "propose" ? 1 : 2);
+  fixedSchedule.sort((a, b) => rank(a) - rank(b) || b.expectedAmount - a.expectedAmount);
+  const excluded = fixedSchedule.filter((i) => i.status === "exclu" && !i.paidThisMonth);
+  if (excluded.length) {
+    warnings.push(`${excluded.length} sortie(s) irrégulière(s) non retenue(s) (${excluded.slice(0, 3).map((i) => i.label).join(", ")}${excluded.length > 3 ? "…" : ""}) : voir l'échéancier pour les attendre ce mois-ci.`);
+  }
 
   // ── Jour par jour ──
   const dates = monthDates(month);

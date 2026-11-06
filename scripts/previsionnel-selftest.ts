@@ -35,6 +35,9 @@ for (let m = 0; m < 13; m++) {
   for (const day of [4, 11, 18, 25]) push(day, -900, "CARTE FROMAGERIE X", "FROMAGERIE X");
   push(20, -60, "PRLV SPOTIFY", "SPOTIFY");
   for (let day = 2; day <= 28; day += 2) push(day, 3000, "REMISE CB", "REMISE CB");
+  if (ym === "2025-11") push(20, -12000, "VIR DIVIDENDES ASSOCIES", "DIVIDENDES ASSOCIES");
+  if (ym === "2025-11") push(15, -1240, "PRLV DGFIP CFE", "DGFIP CFE");
+  if (["2026-02", "2026-05", "2026-08"].includes(ym)) push(18, -2600, "PRLV DGFIP TVA TRIM", "DGFIP TVA");
 }
 
 const plan = buildPlan({
@@ -51,6 +54,9 @@ const plan = buildPlan({
     { key: "CHEESE INC MANAGEMENT FEES", kind: "hors_exploitation", label: "Management fees" },
     { key: "METRO", kind: "matiere", label: "Metro" },
     { key: "FROMAGERIE X", kind: "matiere", label: "Fromagerie X" },
+    { key: "DIVIDENDES ASSOCIES", kind: "hors_exploitation", label: "Dividendes" },
+    { key: "DGFIP CFE", kind: "fixe", label: "CFE", accounts: ["635110"] },
+    { key: "DGFIP TVA", kind: "fixe", label: "TVA trimestrielle" },
   ],
   events: [{ date: "2026-11-18", label: "Manif", impact: -0.3 }],
   weather: [],
@@ -62,7 +68,7 @@ const plan = buildPlan({
 const fmt = (n: number) => n.toFixed(0).padStart(7);
 console.log("growth", plan.hypotheses.growth, "matiereRatio", plan.hypotheses.matiereRatio);
 console.log("warnings", plan.warnings);
-console.log("fixed:", plan.fixedSchedule.map((f) => `${f.label} ${f.frequency} ${f.expectedAmount} -> ${f.projectedDates.join(",")}`));
+console.log("fixed:", plan.fixedSchedule.map((f) => `${f.label} ${f.frequency} ${f.status} ${f.expectedAmount} -> ${f.projectedDates.join(",")} [${f.statusReason}]`));
 for (const d of plan.days) {
   console.log(
     d.date, d.weekday, d.ca.source.padEnd(8), fmt(d.ca.value), "in", fmt(d.encaissements.bank),
@@ -83,4 +89,8 @@ assert(plan.fixedSchedule.some((f) => f.label === "Salaires" && f.projectedDates
 assert(plan.fixedSchedule.some((f) => f.label === "Loyer" && f.paidThisMonth === 1 && f.projectedDates.length === 0), "loyer déjà payé non reprojeté");
 assert(plan.fixedSchedule.some((f) => f.label === "URSSAF" && f.paidThisMonth === 1 && f.projectedDates.length === 0), "URSSAF payé le 5 non reprojeté");
 assert(plan.days[4].solde === 12000, "solde au 5 = solde synchro");
+const byLabel = (l: string) => plan.fixedSchedule.find((f) => f.label === l)!;
+assert(byLabel("Dividendes").status === "exclu" && byLabel("Dividendes").projectedDates.length === 0, "dividendes N-1 non reprojetés");
+assert(byLabel("CFE").status === "propose" && byLabel("CFE").projectedDates.length === 1, "CFE annuelle proposée");
+assert(byLabel("TVA trimestrielle").status === "projete" && byLabel("TVA trimestrielle").projectedDates.length === 1, "TVA trimestrielle projetée par périodicité");
 console.log("OK");

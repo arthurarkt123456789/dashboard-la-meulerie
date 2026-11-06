@@ -28,6 +28,8 @@ async function ensureSchema(): Promise<void> {
   await s`alter table previsionnel_rules add column if not exists source text not null default 'utilisateur'`;
   await s`alter table previsionnel_rules add column if not exists confidence numeric not null default 1`;
   await s`alter table previsionnel_rules add column if not exists reason text not null default ''`;
+  await s`alter table previsionnel_rules add column if not exists recurrence text not null default 'auto'`;
+  await s`alter table previsionnel_rules add column if not exists accounts text not null default ''`;
   await s`
     create table if not exists previsionnel_events (
       id serial primary key,
@@ -100,8 +102,8 @@ export function isRuleKind(v: unknown): v is RuleKind {
 export async function getRules(storeId: string): Promise<Rule[]> {
   if (!isConfigured()) return fsRead<Rule[]>(`rules-${storeId}`, []);
   await ready();
-  const rows = await getSql()<{ key: string; kind: string; label: string; expected_amount: string | null; expected_day: number | null; source: string; confidence: string; reason: string; updated_at: string }[]>`
-    select key, kind, label, expected_amount, expected_day, source, confidence, reason, updated_at from previsionnel_rules where store_id = ${storeId}
+  const rows = await getSql()<{ key: string; kind: string; label: string; expected_amount: string | null; expected_day: number | null; source: string; confidence: string; reason: string; recurrence: string; accounts: string; updated_at: string }[]>`
+    select key, kind, label, expected_amount, expected_day, source, confidence, reason, recurrence, accounts, updated_at from previsionnel_rules where store_id = ${storeId}
   `;
   return rows
     .filter((r) => isRuleKind(r.kind))
@@ -114,6 +116,8 @@ export async function getRules(storeId: string): Promise<Rule[]> {
       source: (SOURCES as string[]).includes(r.source) ? (r.source as RuleSource) : "utilisateur",
       confidence: Number(r.confidence),
       reason: r.reason ?? "",
+      recurrence: r.recurrence === "inclure" || r.recurrence === "exclure" ? r.recurrence : "auto",
+      accounts: r.accounts ? r.accounts.split(",").filter(Boolean) : [],
       updatedAt: new Date(r.updated_at).toISOString(),
     }));
 }
@@ -131,8 +135,8 @@ export async function upsertRules(storeId: string, rules: Rule[]): Promise<void>
   const sql = getSql();
   for (const r of rules) {
     await sql`
-      insert into previsionnel_rules (store_id, key, kind, label, expected_amount, expected_day, source, confidence, reason, updated_at)
-      values (${storeId}, ${r.key}, ${r.kind}, ${r.label}, ${r.expectedAmount ?? null}, ${r.expectedDay ?? null}, ${r.source ?? "utilisateur"}, ${r.confidence ?? 1}, ${r.reason ?? ""}, now())
+      insert into previsionnel_rules (store_id, key, kind, label, expected_amount, expected_day, source, confidence, reason, recurrence, accounts, updated_at)
+      values (${storeId}, ${r.key}, ${r.kind}, ${r.label}, ${r.expectedAmount ?? null}, ${r.expectedDay ?? null}, ${r.source ?? "utilisateur"}, ${r.confidence ?? 1}, ${r.reason ?? ""}, ${r.recurrence ?? "auto"}, ${(r.accounts ?? []).join(",")}, now())
       on conflict (store_id, key) do update set
         kind = excluded.kind,
         label = excluded.label,
@@ -141,6 +145,8 @@ export async function upsertRules(storeId: string, rules: Rule[]): Promise<void>
         source = excluded.source,
         confidence = excluded.confidence,
         reason = excluded.reason,
+        recurrence = excluded.recurrence,
+        accounts = case when excluded.accounts = '' then previsionnel_rules.accounts else excluded.accounts end,
         updated_at = now()
     `;
   }

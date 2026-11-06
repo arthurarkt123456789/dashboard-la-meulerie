@@ -27,6 +27,10 @@ export type Rule = {
   expectedAmount?: number | null;
   /** Jour du mois forcé par l'utilisateur (sinon médiane observée). */
   expectedDay?: number | null;
+  /** Pour les sorties irrégulières : auto (règle de nature), inclure ce mois, exclure. */
+  recurrence?: "auto" | "inclure" | "exclure";
+  /** Comptes PCG dominants relevés par l'agent. */
+  accounts?: string[];
   /** Qui a décidé. */
   source?: RuleSource;
   confidence?: number;
@@ -210,6 +214,10 @@ export type FixedScheduleItem = {
   projectedDates: string[];
   paidThisMonth: number;
   overridden: boolean;
+  /** projete : échéance régulière ; propose : annuelle probable, retirable ; exclu : irrégulier non retenu. */
+  status: "projete" | "propose" | "exclu";
+  statusReason: string;
+  lastDate: string | null;
 };
 
 export type Plan = {

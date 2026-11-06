@@ -92,14 +92,14 @@ export async function runTresorier(
       const strong = ev.share >= PENNYLANE_MIN_SHARE && ev.matched >= 1;
       const confidence = strong ? (ev.matched / Math.max(1, ev.total) >= 0.5 ? 0.95 : 0.8) : 0.5;
       if (strong) {
-        newRules.push({ key: s.key, kind: ev.kind, label: s.label, source: "pennylane", confidence, reason: ev.reason });
+        newRules.push({ key: s.key, kind: ev.kind, label: s.label, source: "pennylane", confidence, reason: ev.reason, accounts: ev.accounts.slice(0, 3).map((a) => a.number) });
         continue;
       }
       hints.push({ source: "pennylane", kind: ev.kind, confidence, reason: ev.reason });
     }
     const kw = suggestKind(s.key, s.samples[0] ?? "");
     if (kw) {
-      newRules.push({ key: s.key, kind: kw, label: s.label, source: "mots-cles", confidence: 0.85, reason: "Libellé reconnu" });
+      newRules.push({ key: s.key, kind: kw, label: s.label, source: "mots-cles", confidence: 0.85, reason: "Libellé reconnu", accounts: ev?.accounts.slice(0, 3).map((a) => a.number) ?? [] });
       continue;
     }
     hintsByKey.set(s.key, hints);
@@ -128,7 +128,7 @@ export async function runTresorier(
           const s = stats.get(r.key);
           if (!s || ruleMap.has(r.key) || newRules.some((n) => n.key === r.key)) continue;
           if (r.confidence >= LLM_ACCEPT) {
-            newRules.push({ key: r.key, kind: r.kind, label: s.label, source: "ia", confidence: r.confidence, reason: r.reason });
+            newRules.push({ key: r.key, kind: r.kind, label: s.label, source: "ia", confidence: r.confidence, reason: r.reason, accounts: evidence.get(r.key)?.accounts.slice(0, 3).map((a) => a.number) ?? [] });
           } else {
             hintsByKey.get(r.key)?.push({ source: "ia", kind: r.kind, confidence: r.confidence, reason: r.reason });
           }

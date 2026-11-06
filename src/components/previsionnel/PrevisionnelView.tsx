@@ -545,26 +545,43 @@ function FixedSchedulePanel({ plan, storeId, onSaved }: { plan: Plan; storeId: s
       onSaved();
     } finally { setBusy(null); }
   };
+  const setRecurrence = async (f: Plan["fixedSchedule"][number], recurrence: "auto" | "inclure" | "exclure") => {
+    setBusy(f.key);
+    try {
+      await api(`/api/previsionnel/reponses?store=${storeId}`, {
+        method: "POST",
+        body: JSON.stringify({ answers: [{ key: f.key, kind: f.kind, label: f.label, recurrence, reason: recurrence === "inclure" ? "Attendue ce mois-ci" : recurrence === "exclure" ? "Exclue" : "Règle automatique" }] }),
+      });
+      onSaved();
+    } finally { setBusy(null); }
+  };
   return (
     <div className="prev-card">
       <div className="lm-label">Échéancier des sorties fixes et hors exploitation</div>
-      <p className="prev-muted" style={{ margin: "6px 0 10px" }}>Montant = médiane des mois observés, date = jour habituel. Modifier pour forcer une valeur.</p>
+      <p className="prev-muted" style={{ margin: "6px 0 10px" }}>
+        Mensuel et hebdo : projetés à leur rythme. Irrégulier : retenu seulement si une périodicité est prouvée ou si la nature est annuelle (proposé, retirable). Dividendes, impôt sur les sociétés, compte courant : jamais sans ta décision.
+      </p>
       <table className="prev-sched">
         <thead>
-          <tr><th>Contrepartie</th><th>Type</th><th>Fréq.</th><th className="num">Montant</th><th>Jour</th><th>Projeté</th><th /></tr>
+          <tr><th>Contrepartie</th><th>Type</th><th>Statut</th><th className="num">Montant</th><th>Jour</th><th>Projeté</th><th /></tr>
         </thead>
         <tbody>
           {plan.fixedSchedule.map((f) => {
             const e = edit[f.key];
             return (
-              <tr key={f.key} className={f.kind === "hors_exploitation" ? "hors" : ""}>
+              <tr key={f.key} className={`${f.kind === "hors_exploitation" ? "hors" : ""}${f.status === "exclu" ? " excluded" : ""}`}>
                 <td>
                   {f.label}
                   {f.overridden && <span className="prev-src prev-src-forecast">forcé</span>}
-                  <div className="prev-muted">{f.observedMonths} mois · {f.observedAmounts.slice(-4).map((a) => fmtEur(a)).join(", ")}</div>
+                  <div className="prev-muted">{f.observedMonths} mois · {f.observedAmounts.slice(-4).map((a) => fmtEur(a)).join(", ")}{f.lastDate ? ` · dernière ${fmtDate(f.lastDate)}` : ""}</div>
+                  <div className="prev-muted">{f.statusReason}</div>
                 </td>
                 <td>{RULE_KIND_LABELS[f.kind]}</td>
-                <td>{f.frequency}</td>
+                <td>
+                  <span className={`prev-src ${f.status === "projete" ? "prev-src-forecast" : f.status === "propose" ? "prev-src-partial" : ""}`}>
+                    {f.status === "projete" ? f.frequency : f.status === "propose" ? "proposé" : "non retenu"}
+                  </span>
+                </td>
                 <td className="num">
                   {e ? <input className="prev-input prev-input-sm" value={e.amount} onChange={(ev) => setEdit({ ...edit, [f.key]: { ...e, amount: ev.target.value } })} /> : fmtEur(f.expectedAmount)}
                 </td>
@@ -583,6 +600,15 @@ function FixedSchedulePanel({ plan, storeId, onSaved }: { plan: Plan; storeId: s
                     </>
                   ) : (
                     <>
+                      {f.frequency === "irregulier" && f.status !== "projete" && (
+                        <button className="prev-btn-link" onClick={() => setRecurrence(f, "inclure")} disabled={busy === f.key}>attendre ce mois-ci</button>
+                      )}
+                      {f.frequency === "irregulier" && f.status !== "exclu" && (
+                        <button className="prev-btn-link" onClick={() => setRecurrence(f, "exclure")} disabled={busy === f.key}>retirer</button>
+                      )}
+                      {f.frequency === "irregulier" && f.statusReason.includes("ta décision") && (
+                        <button className="prev-btn-link" onClick={() => setRecurrence(f, "auto")} disabled={busy === f.key}>auto</button>
+                      )}
                       <button className="prev-btn-link" onClick={() => setEdit({ ...edit, [f.key]: { amount: String(f.expectedAmount), day: String(f.expectedDay ?? "") } })}>modifier</button>
                       <button className="prev-btn-link" onClick={() => reclass(f.key)} disabled={busy === f.key} title="Reposer la question de classification">reclasser</button>
                     </>
