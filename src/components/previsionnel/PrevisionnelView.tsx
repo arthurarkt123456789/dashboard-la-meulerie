@@ -826,7 +826,14 @@ function ScenariosPanel({ plan, storeId, onSaved }: { plan: Plan; storeId: strin
   const [caInputs, setCaInputs] = useState<Record<string, string>>(
     Object.fromEntries(Object.entries(forcedCa).map(([k, v]) => [k, v ? String(v) : ""])),
   );
+  // Sync caInputs when plan reloads (new forceOpenCa from server)
+  const forcedCaRef = JSON.stringify(forcedCa);
+  useEffect(() => {
+    setCaInputs(Object.fromEntries(Object.entries(forcedCa).map(([k, v]) => [k, v ? String(v) : ""])));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forcedCaRef]);
   const [busy, setBusy] = useState(false);
+  const [caSaved, setCaSaved] = useState<number | null>(null); // wd of last saved CA
 
   const saveSettings = async (patch: Partial<Settings>) => {
     setBusy(true);
@@ -853,6 +860,8 @@ function ScenariosPanel({ plan, storeId, onSaved }: { plan: Plan; storeId: strin
   const saveCa = (wd: number) => {
     const val = Number(caInputs[String(wd)]);
     const next = { ...forcedCa, [String(wd)]: Number.isFinite(val) && val > 0 ? val : 0 };
+    setCaSaved(wd);
+    setTimeout(() => setCaSaved((p) => (p === wd ? null : p)), 2000);
     void saveSettings({ forceOpenCa: next });
   };
 
@@ -884,8 +893,8 @@ function ScenariosPanel({ plan, storeId, onSaved }: { plan: Plan; storeId: strin
               <div key={wd} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                 {/* Jour + statut historique */}
                 <span style={{ width: 34, fontWeight: 600, flexShrink: 0 }}>{WD_LABELS[wd]}</span>
-                <span className="prev-muted" style={{ width: 90, flexShrink: 0, fontSize: 12 }}>
-                  {histOpen ? `~${fmtEur(histMean)} hist.` : "fermé hist."}
+                <span className="prev-muted" style={{ width: 110, flexShrink: 0, fontSize: 12 }}>
+                  {histOpen ? `ouvert · moy. ${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(Math.round(Math.abs(histMean)))} €` : "fermé historiquement"}
                 </span>
                 {/* Boutons 3 états */}
                 <div style={{ display: "flex", gap: 4 }}>
@@ -922,15 +931,18 @@ function ScenariosPanel({ plan, storeId, onSaved }: { plan: Plan; storeId: strin
                     <input
                       className="prev-input prev-input-sm"
                       type="number"
-                      placeholder="CA auto"
+                      placeholder="auto"
                       value={caInputs[String(wd)] ?? ""}
                       step={100}
-                      style={{ width: 90 }}
+                      style={{ width: 80 }}
                       onChange={(e) => setCaInputs((p) => ({ ...p, [String(wd)]: e.target.value }))}
-                      onBlur={() => saveCa(wd)}
                       onKeyDown={(e) => { if (e.key === "Enter") saveCa(wd); }}
                     />
-                    <span className="prev-muted" style={{ fontSize: 12 }}>€ / j (vide = 70 % moy.)</span>
+                    <span className="prev-muted" style={{ fontSize: 12 }}>€/j</span>
+                    <button className="prev-btn-link" onClick={() => saveCa(wd)} disabled={busy} style={{ fontSize: 12 }}>
+                      appliquer
+                    </button>
+                    {caSaved === wd && <span style={{ fontSize: 11, color: "var(--prev-ok, #22c55e)" }}>✓ sauvegardé</span>}
                   </>
                 )}
               </div>
