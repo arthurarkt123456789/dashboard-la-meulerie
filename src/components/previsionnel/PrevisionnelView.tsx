@@ -810,11 +810,15 @@ const WD_LABELS = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
 function ScenariosPanel({ plan, storeId, onSaved }: { plan: Plan; storeId: string; onSaved: () => void }) {
   const settings = plan.hypotheses.settings;
   const forcedWeekdays = settings.forceOpenWeekdays ?? [];
+  const forcedCa = settings.forceOpenCa ?? {};
   const calcPct = plan.hypotheses.matiereRatioCalcule !== null ? (plan.hypotheses.matiereRatioCalcule * 100).toFixed(1) : null;
   const [ratioInput, setRatioInput] = useState(
     settings.matiereRatioOverride !== null
       ? String((settings.matiereRatioOverride * 100).toFixed(1))
       : (calcPct ?? ""),
+  );
+  const [caInputs, setCaInputs] = useState<Record<string, string>>(
+    Object.fromEntries(Object.entries(forcedCa).map(([k, v]) => [k, v ? String(v) : ""])),
   );
   const [busy, setBusy] = useState(false);
 
@@ -829,6 +833,12 @@ function ScenariosPanel({ plan, storeId, onSaved }: { plan: Plan; storeId: strin
   const toggleWeekday = (wd: number) => {
     const next = forcedWeekdays.includes(wd) ? forcedWeekdays.filter((d) => d !== wd) : [...forcedWeekdays, wd];
     void saveSettings({ forceOpenWeekdays: next });
+  };
+
+  const saveCa = (wd: number) => {
+    const val = Number(caInputs[String(wd)]);
+    const next = { ...forcedCa, [String(wd)]: Number.isFinite(val) && val > 0 ? val : 0 };
+    void saveSettings({ forceOpenCa: next });
   };
 
   const applyRatio = async () => {
@@ -856,7 +866,26 @@ function ScenariosPanel({ plan, storeId, onSaved }: { plan: Plan; storeId: strin
           ))}
         </div>
         {forcedWeekdays.length > 0 && (
-          <p className="prev-muted" style={{ margin: "6px 0 0" }}>Estimation : 70 % de la moyenne des autres jours (aucun historique sur ces jours).</p>
+          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+            <div className="prev-muted" style={{ fontSize: 12 }}>CA estimé par jour (laisser vide = 70 % de la moyenne des autres jours)</div>
+            {forcedWeekdays.map((wd) => (
+              <div key={wd} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ width: 32, fontWeight: 600 }}>{WD_LABELS[wd]}</span>
+                <input
+                  className="prev-input prev-input-sm"
+                  type="number"
+                  placeholder="auto"
+                  value={caInputs[String(wd)] ?? ""}
+                  step={100}
+                  style={{ width: 90 }}
+                  onChange={(e) => setCaInputs((p) => ({ ...p, [String(wd)]: e.target.value }))}
+                  onBlur={() => saveCa(wd)}
+                  onKeyDown={(e) => { if (e.key === "Enter") saveCa(wd); }}
+                />
+                <span className="prev-muted">€ / jour</span>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
