@@ -457,6 +457,67 @@ function AnalyseStep({ saved }: { saved: number }) {
 
 // ── Étape 3 : plan ─────────────────────────────────────────────────────────────
 
+function SoldeCorrection({ opening, storeId, onReload }: {
+  opening: { source: string; balance: number; asOf: string };
+  storeId: string;
+  onReload: () => void;
+}) {
+  const pbKey = `prev-pb:${storeId}`;
+
+  const [pennylane, setPennylane] = useState<number | null>(() => {
+    if (opening.source === "bank-sync") return opening.balance;
+    try {
+      const raw = localStorage.getItem(pbKey);
+      return raw ? (JSON.parse(raw) as { b: number }).b : null;
+    } catch { return null; }
+  });
+
+  useEffect(() => {
+    if (opening.source === "bank-sync") {
+      setPennylane(opening.balance);
+      try { localStorage.setItem(pbKey, JSON.stringify({ b: opening.balance, d: opening.asOf })); } catch {}
+    }
+  }, [opening.source, opening.balance, opening.asOf, pbKey]);
+
+  const currentOffset = pennylane !== null && opening.source === "override"
+    ? Math.round(opening.balance - pennylane) : 0;
+
+  const [offset, setOffset] = useState(currentOffset);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => { setOffset(currentOffset); }, [currentOffset]);
+
+  const apply = async () => {
+    const base = pennylane ?? opening.balance;
+    setBusy(true);
+    try {
+      await api(`/api/previsionnel/reglages?store=${storeId}`, {
+        method: "PUT",
+        body: JSON.stringify({ openingBalanceOverride: offset === 0 ? null : base + offset }),
+      });
+      onReload();
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, flexWrap: "wrap" }} className="prev-muted">
+      <span>Correction</span>
+      <input
+        className="prev-input prev-input-sm"
+        type="number"
+        value={offset}
+        step={500}
+        style={{ width: 80 }}
+        onChange={(e) => setOffset(Number(e.target.value))}
+        onKeyDown={(e) => { if (e.key === "Enter") void apply(); }}
+      />
+      <span>€</span>
+      <button className="prev-btn-link" onClick={() => void apply()} disabled={busy}>appliquer</button>
+      {offset !== 0 && pennylane !== null && <span>= {fmtEur(pennylane + offset)}</span>}
+    </div>
+  );
+}
+
 function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "ok" | "warn" | "bad" }) {
   return (
     <div className={`prev-kpi${tone ? ` prev-kpi-${tone}` : ""}`}>
@@ -791,7 +852,12 @@ function PlanStep({ data, storeId, onReview, onReload, cachedAt, onRefresh }: {
       )}
 
       <div className="prev-kpis">
-        <Kpi label="Solde actuel" value={fmtEur(k.soldeActuel)} sub={`au ${fmtDate(plan.opening.asOf)}`} />
+        <div className="prev-kpi">
+          <div className="lm-label">Solde actuel</div>
+          <div className="prev-kpi-value">{fmtEur(k.soldeActuel)}</div>
+          <div className="prev-muted">au {fmtDate(plan.opening.asOf)}</div>
+          <SoldeCorrection opening={plan.opening} storeId={storeId} onReload={onReload} />
+        </div>
         <Kpi label="Solde fin de mois" value={fmtEur(k.soldeFinMois)} sub={`${fmtEur(k.soldeFinMoisPessimiste)} à ${fmtEur(k.soldeFinMoisOptimiste)}`} tone={finTone} />
         <Kpi label="Point bas" value={fmtEur(k.pointBas.solde)} sub={fmtDate(k.pointBas.date)} tone={pbTone} />
         <Kpi label="CA du mois" value={fmtEur(k.caMoisPrevu)} sub={`réalisé ${fmtEur(k.caMoisRealise)}${k.caMoisN1 ? ` · N-1 ${fmtEur(k.caMoisN1)} (${fmtPct(k.caMoisPrevu / k.caMoisN1 - 1)})` : ""}`} />
