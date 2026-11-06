@@ -2,7 +2,7 @@ import "server-only";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { getSql, isConfigured, ready as apiticReady } from "@/lib/apitic/db";
-import { DEFAULT_SETTINGS, type EventDay, type Rule, type RuleKind, type Settings } from "./types";
+import { DEFAULT_SETTINGS, type EventDay, type EventStatus, type Rule, type RuleKind, type RuleSource, type Settings } from "./types";
 
 // Persistance du module prévisionnel : règles de classification, événements,
 // réglages, cache JSON. Postgres (DATABASE_URL) si dispo, sinon fichiers JSON
@@ -25,6 +25,9 @@ async function ensureSchema(): Promise<void> {
       primary key (store_id, key)
     )
   `;
+  await s`alter table previsionnel_rules add column if not exists source text not null default 'utilisateur'`;
+  await s`alter table previsionnel_rules add column if not exists confidence numeric not null default 1`;
+  await s`alter table previsionnel_rules add column if not exists reason text not null default ''`;
   await s`
     create table if not exists previsionnel_events (
       id serial primary key,
@@ -35,6 +38,10 @@ async function ensureSchema(): Promise<void> {
       created_at timestamptz not null default now()
     )
   `;
+  await s`alter table previsionnel_events add column if not exists source text not null default 'utilisateur'`;
+  await s`alter table previsionnel_events add column if not exists status text not null default 'confirme'`;
+  await s`alter table previsionnel_events add column if not exists confidence numeric not null default 1`;
+  await s`alter table previsionnel_events add column if not exists url text`;
   await s`
     create table if not exists previsionnel_settings (
       store_id text primary key,
@@ -84,6 +91,7 @@ async function fsWrite(name: string, data: unknown): Promise<void> {
 // ── Règles ─────────────────────────────────────────────────────────────────────
 
 const KINDS: RuleKind[] = ["matiere", "fixe", "hors_exploitation", "variable", "ignorer"];
+const SOURCES: RuleSource[] = ["utilisateur", "pennylane", "mots-cles", "ia"];
 
 export function isRuleKind(v: unknown): v is RuleKind {
   return typeof v === "string" && (KINDS as string[]).includes(v);
@@ -92,8 +100,8 @@ export function isRuleKind(v: unknown): v is RuleKind {
 export async function getRules(storeId: string): Promise<Rule[]> {
   if (!isConfigured()) return fsRead<Rule[]>(`rules-${storeId}`, []);
   await ready();
-  const rows = await getSql()<{ key: string; kind: string; label: string; expected_amount: string | null; expected_day: number | null }[]>`
-    select key, kind, label, expected_amount, expected_day from previsionnel_rules where store_id = ${storeId}
+  const rows = await getSql()<{ key: string; kind: string; label: string; expected_amount: string | null; expected_day: number | null; source: string; confidence: string; reason: string; updated_at: string }[]>`
+    select key, kind, label, expected_amount, expected_day, source, confidence, reason, updated_at from previsionnel_rules where store_id = ${storeId}
   `;
   return rows
     .filter((r) => isRuleKind(r.kind))
@@ -103,6 +111,10 @@ export async function getRules(storeId: string): Promise<Rule[]> {
       label: r.label,
       expectedAmount: r.expected_amount !== null ? Number(r.expected_amount) : null,
       expectedDay: r.expected_day,
+      source: (SOURCES as string[]).includes(r.source) ? (r.source as RuleSource) : "utilisateur",
+      confidence: Number(r.confidence),
+      reason: r.reason ?? "",
+      updatedAt: new Date(r.updated_at).toISOString(),
     }));
 }
 
@@ -111,7 +123,7 @@ export async function upsertRules(storeId: string, rules: Rule[]): Promise<void>
   if (!isConfigured()) {
     const current = await fsRead<Rule[]>(`rules-${storeId}`, []);
     const map = new Map(current.map((r) => [r.key, r]));
-    for (const r of rules) map.set(r.key, r);
+    for (const r of rules) map.set(r.key, { ...r, source: r.source ?? "utilisateur", confidence: r.confidence ?? 1, reason: r.reason ?? "", updatedAt: new Date().toISOString() });
     await fsWrite(`rules-${storeId}`, [...map.values()]);
     return;
   }
@@ -119,13 +131,16 @@ export async function upsertRules(storeId: string, rules: Rule[]): Promise<void>
   const sql = getSql();
   for (const r of rules) {
     await sql`
-      insert into previsionnel_rules (store_id, key, kind, label, expected_amount, expected_day, updated_at)
-      values (${storeId}, ${r.key}, ${r.kind}, ${r.label}, ${r.expectedAmount ?? null}, ${r.expectedDay ?? null}, now())
+      insert into previsionnel_rules (store_id, key, kind, label, expected_amount, expected_day, source, confidence, reason, updated_at)
+      values (${storeId}, ${r.key}, ${r.kind}, ${r.label}, ${r.expectedAmount ?? null}, ${r.expectedDay ?? null}, ${r.source ?? "utilisateur"}, ${r.confidence ?? 1}, ${r.reason ?? ""}, now())
       on conflict (store_id, key) do update set
         kind = excluded.kind,
         label = excluded.label,
         expected_amount = excluded.expected_amount,
         expected_day = excluded.expected_day,
+        source = excluded.source,
+        confidence = excluded.confidence,
+        reason = excluded.reason,
         updated_at = now()
     `;
   }
@@ -144,35 +159,51 @@ export async function deleteRule(storeId: string, key: string): Promise<void> {
 // ── Événements (manifs, fermetures…) ───────────────────────────────────────────
 
 export async function getEvents(storeId: string): Promise<EventDay[]> {
-  if (!isConfigured()) return fsRead<EventDay[]>(`events-${storeId}`, []);
+  if (!isConfigured()) {
+    const own = await fsRead<EventDay[]>(`events-${storeId}`, []);
+    const all = storeId === "all" ? [] : await fsRead<EventDay[]>("events-all", []);
+    return [...own, ...all].sort((a, b) => a.date.localeCompare(b.date));
+  }
   await ready();
-  const rows = await getSql()<{ id: number; date: string; label: string; impact: string }[]>`
-    select id, to_char(date, 'YYYY-MM-DD') as date, label, impact
+  const rows = await getSql()<{ id: number; date: string; label: string; impact: string; source: string; status: string; confidence: string; url: string | null }[]>`
+    select id, to_char(date, 'YYYY-MM-DD') as date, label, impact, source, status, confidence, url
     from previsionnel_events where store_id in (${storeId}, 'all') order by date
   `;
-  return rows.map((r) => ({ id: r.id, date: r.date, label: r.label, impact: Number(r.impact) }));
+  return rows.map((r) => ({
+    id: r.id,
+    date: r.date,
+    label: r.label,
+    impact: Number(r.impact),
+    source: r.source === "presse" ? "presse" : "utilisateur",
+    status: (["propose", "confirme", "rejete"] as string[]).includes(r.status) ? (r.status as EventStatus) : "confirme",
+    confidence: Number(r.confidence),
+    url: r.url,
+  }));
 }
 
 export async function addEvent(storeId: string, ev: Omit<EventDay, "id">): Promise<EventDay> {
   if (!isConfigured()) {
     const current = await fsRead<EventDay[]>(`events-${storeId}`, []);
-    const id = (current.reduce((m, e) => Math.max(m, e.id ?? 0), 0) || 0) + 1;
-    const created = { ...ev, id };
+    const id = Date.now() % 1_000_000_000 + Math.floor(Math.random() * 1000);
+    const created = { source: "utilisateur" as const, status: "confirme" as const, confidence: 1, url: null, ...ev, id };
     await fsWrite(`events-${storeId}`, [...current, created]);
     return created;
   }
   await ready();
   const rows = await getSql()<{ id: number }[]>`
-    insert into previsionnel_events (store_id, date, label, impact)
-    values (${storeId}, ${ev.date}, ${ev.label}, ${ev.impact}) returning id
+    insert into previsionnel_events (store_id, date, label, impact, source, status, confidence, url)
+    values (${storeId}, ${ev.date}, ${ev.label}, ${ev.impact}, ${ev.source ?? "utilisateur"}, ${ev.status ?? "confirme"}, ${ev.confidence ?? 1}, ${ev.url ?? null}) returning id
   `;
-  return { ...ev, id: rows[0].id };
+  return { source: "utilisateur", status: "confirme", confidence: 1, url: null, ...ev, id: rows[0].id };
 }
 
 export async function updateEvent(storeId: string, id: number, patch: Partial<Omit<EventDay, "id">>): Promise<void> {
+  // Les événements « presse » sont stockés sous store_id 'all' : l'id suffit.
   if (!isConfigured()) {
-    const current = await fsRead<EventDay[]>(`events-${storeId}`, []);
-    await fsWrite(`events-${storeId}`, current.map((e) => (e.id === id ? { ...e, ...patch } : e)));
+    for (const name of [`events-${storeId}`, "events-all"]) {
+      const current = await fsRead<EventDay[]>(name, []);
+      if (current.some((e) => e.id === id)) await fsWrite(name, current.map((e) => (e.id === id ? { ...e, ...patch } : e)));
+    }
     return;
   }
   await ready();
@@ -180,12 +211,15 @@ export async function updateEvent(storeId: string, id: number, patch: Partial<Om
   if (patch.impact !== undefined) await sql`update previsionnel_events set impact = ${patch.impact} where id = ${id}`;
   if (patch.label !== undefined) await sql`update previsionnel_events set label = ${patch.label} where id = ${id}`;
   if (patch.date !== undefined) await sql`update previsionnel_events set date = ${patch.date} where id = ${id}`;
+  if (patch.status !== undefined) await sql`update previsionnel_events set status = ${patch.status} where id = ${id}`;
 }
 
 export async function deleteEvent(storeId: string, id: number): Promise<void> {
   if (!isConfigured()) {
-    const current = await fsRead<EventDay[]>(`events-${storeId}`, []);
-    await fsWrite(`events-${storeId}`, current.filter((e) => e.id !== id));
+    for (const name of [`events-${storeId}`, "events-all"]) {
+      const current = await fsRead<EventDay[]>(name, []);
+      if (current.some((e) => e.id === id)) await fsWrite(name, current.filter((e) => e.id !== id));
+    }
     return;
   }
   await ready();

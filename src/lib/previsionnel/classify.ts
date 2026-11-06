@@ -10,6 +10,10 @@ const NOISE = new Set([
   "ID", "MANDAT", "RUM", "ICS", "NUM", "N", "NO", "COMMERCE", "CLIENTS", "CLIENT", "PRELEVEMENT",
   "PRELEV", "RETRAIT", "DAB", "DEPOT", "REMISE", "CHEQUE", "CHQ", "FRAIS", "COMMISSION", "COMMISSIONS",
   "EUR", "EUROS", "TTC", "HT",
+  // mois et périodes, qui changent d'une opération à l'autre
+  "JANVIER", "FEVRIER", "MARS", "AVRIL", "MAI", "JUIN", "JUILLET", "AOUT", "SEPTEMBRE", "OCTOBRE", "NOVEMBRE", "DECEMBRE",
+  "JAN", "FEV", "AVR", "JUIL", "SEPT", "SEP", "OCT", "NOV", "DEC", "MOIS", "TRIMESTRE", "ANNEE", "PERIODE",
+  "ACOMPTE", "SOLDE", "REGUL", "REGULARISATION", "REMBOURSEMENT", "RBT",
 ]);
 
 const KEEP_SHORT = new Set(["EDF", "SFR", "AXA", "UP", "BPI", "AG2R", "URSSAF", "DGFIP", "SEM", "FREE", "SCI"]);
@@ -18,7 +22,7 @@ export function stripAccents(s: string): string {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
 
-/** Clé de contrepartie : majuscules, sans accents, sans dates/numéros/mots de bruit, 3 premiers mots. */
+/** Clé de contrepartie : majuscules, sans accents, sans dates/numéros/mots de bruit, 2 premiers mots. */
 export function counterpartyKey(label: string): string {
   const up = stripAccents(label).toUpperCase();
   const tokens = up
@@ -30,9 +34,11 @@ export function counterpartyKey(label: string): string {
     .filter((t) => !/^X+\d+$/.test(t)) // X1234 (cartes)
     .filter((t) => !/^[A-Z]{1,2}\d+$/.test(t)) // refs type FR12, A1234
     .filter((t) => !/\d{4,}/.test(t)) // tokens avec longues séquences de chiffres
+    .filter((t) => !(/\d/.test(t) && /[A-Z]/.test(t))) // références mixtes (FR47EDF001, RUM12A)
     .filter((t) => !NOISE.has(t))
     .filter((t) => t.length >= 3 || KEEP_SHORT.has(t));
-  const key = tokens.slice(0, 3).join(" ");
+  // Deux mots suffisent à identifier un tiers ; le troisième varie souvent (objet, mois, référence).
+  const key = tokens.slice(0, 2).join(" ");
   return key || up.slice(0, 24).trim() || "SANS LIBELLE";
 }
 

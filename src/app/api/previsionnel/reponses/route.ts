@@ -28,6 +28,9 @@ export async function POST(req: NextRequest) {
       label: typeof a.label === "string" && a.label.trim() ? a.label.trim().slice(0, 80) : key,
       expectedAmount: amount !== null && Number.isFinite(amount) ? Math.abs(amount) : null,
       expectedDay: day !== null && Number.isFinite(day) ? Math.min(31, Math.max(1, Math.round(day))) : null,
+      source: "utilisateur",
+      confidence: 1,
+      reason: typeof a.reason === "string" ? a.reason.slice(0, 200) : "Décision manuelle",
     });
   }
   try {

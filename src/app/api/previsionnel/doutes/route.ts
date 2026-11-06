@@ -1,34 +1,28 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { buildDoubts, loadStoreContext, todayParis } from "@/lib/previsionnel/data";
+import { runTresorier } from "@/lib/previsionnel/agent";
+import { loadStoreContext, todayParis } from "@/lib/previsionnel/data";
 import { noStore, parseMonth, parseStore } from "../_shared";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 180;
 
-/** GET /api/previsionnel/doutes?store=davso → contreparties à classer + contexte. */
+/** GET /api/previsionnel/doutes?store=davso → briefing de l'agent : décisions, questions, veille presse. */
 export async function GET(req: NextRequest) {
   const storeId = parseStore(req);
   if (storeId instanceof NextResponse) return storeId;
   const month = parseMonth(req, todayParis());
   if (month instanceof NextResponse) return month;
   const force = req.nextUrl.searchParams.get("force") === "1";
+  const scout = req.nextUrl.searchParams.get("scout") !== "0";
   try {
     const ctx = await loadStoreContext(storeId, month, { force });
-    const doubts = buildDoubts(ctx);
+    const briefing = await runTresorier(ctx, { scout });
     return noStore({
-      storeId,
-      month,
-      today: ctx.today,
-      doubts,
-      rulesCount: ctx.rules.length,
-      events: ctx.events,
+      ...briefing,
       settings: ctx.settings,
       bankSynced: ctx.openingBalance !== null,
       openingBalance: ctx.openingBalance,
       balanceAsOf: ctx.balanceAsOf,
-      txCount: ctx.rawTxCount,
-      txError: ctx.txError,
-      dailyError: ctx.dailyError,
       dailyDays: ctx.daily.length,
     });
   } catch (err) {

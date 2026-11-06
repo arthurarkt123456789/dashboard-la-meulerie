@@ -10,6 +10,15 @@ export const RULE_KIND_LABELS: Record<RuleKind, string> = {
   ignorer: "Ignorer",
 };
 
+export type RuleSource = "utilisateur" | "pennylane" | "mots-cles" | "ia";
+
+export const RULE_SOURCE_LABELS: Record<RuleSource, string> = {
+  utilisateur: "toi",
+  pennylane: "écritures Pennylane",
+  "mots-cles": "mots-clés",
+  ia: "Claude",
+};
+
 export type Rule = {
   key: string;
   kind: RuleKind;
@@ -18,6 +27,11 @@ export type Rule = {
   expectedAmount?: number | null;
   /** Jour du mois forcé par l'utilisateur (sinon médiane observée). */
   expectedDay?: number | null;
+  /** Qui a décidé. */
+  source?: RuleSource;
+  confidence?: number;
+  reason?: string;
+  updatedAt?: string;
 };
 
 export type Tx = {
@@ -39,12 +53,19 @@ export type DailyHist = {
   partial?: boolean;
 };
 
+export type EventSource = "utilisateur" | "presse";
+export type EventStatus = "propose" | "confirme" | "rejete";
+
 export type EventDay = {
   id?: number;
   date: string;
   label: string;
   /** Impact relatif sur le CA, ex. -0.3 = -30 %. */
   impact: number;
+  source?: EventSource;
+  status?: EventStatus;
+  confidence?: number;
+  url?: string | null;
 };
 
 export type WeatherDay = {
@@ -87,6 +108,36 @@ export const DEFAULT_SETTINGS: Settings = {
   scenarioSpread: 0.1,
 };
 
+export type Decision = {
+  key: string;
+  label: string;
+  kind: RuleKind;
+  source: RuleSource;
+  confidence: number;
+  reason: string;
+  total: number;
+  count: number;
+  matched: number;
+  isNew: boolean;
+};
+
+export type Briefing = {
+  storeId: string;
+  month: string;
+  today: string;
+  generatedAt: string;
+  txCount: number;
+  ledgerLines: number;
+  decisions: Decision[];
+  questions: Doubt[];
+  /** Transactions sortantes sans écriture lettrée trouvée : conservées telles quelles dans les flux. */
+  unmatched: { count: number; total: number; txCount: number; items: { date: string; label: string; amount: number; key: string; kind: RuleKind | null }[] };
+  events: EventDay[];
+  scout: { ran: boolean; found: number; error: string | null; at: string | null };
+  llm: { enabled: boolean; error: string | null };
+  warnings: string[];
+};
+
 export type Doubt = {
   key: string;
   label: string;
@@ -98,6 +149,8 @@ export type Doubt = {
   monthsWindow: number;
   suggested: RuleKind | null;
   samples: string[];
+  /** Avis des sources automatiques, insuffisants pour trancher. */
+  hints: { source: RuleSource; kind: RuleKind; confidence: number; reason: string }[];
 };
 
 export type PlanDay = {

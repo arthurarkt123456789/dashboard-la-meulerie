@@ -1253,3 +1253,15 @@ button { font-family: inherit; cursor: pointer; }
   .prev-detail-grid { grid-template-columns: 1fr; }
   .prev-dl { grid-template-columns: 1fr; }
 }
+
+/* Briefing de l'agent */
+.prev-kind { font-size: 10px; border: 1px solid; border-radius: var(--radius-full); padding: 1px 8px; white-space: nowrap; }
+.prev-decision { padding: 7px 0; border-bottom: 1px solid var(--border-light); }
+.prev-decision.new { background: rgba(0,47,167,0.03); }
+.prev-decision-main { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: var(--text-xs); }
+.prev-decision-label { font-weight: var(--fw-medium); min-width: 160px; }
+.prev-decision-meta { flex: 1; }
+.prev-decision-reason { margin-top: 2px; }
+.prev-event-row.rejected { opacity: 0.5; }
+.prev-event-label a { color: var(--fg-primary); }
+.prev-narrative p { margin: 6px 0 0; font-size: var(--text-sm); line-height: 1.55; max-width: 900px; }

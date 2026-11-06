@@ -3,11 +3,14 @@ import { getStoreData } from "@/lib/apitic/client";
 import { getPennylaneConfig } from "@/lib/pennylane/client";
 import { fetchBankAccounts } from "@/lib/pennylane/treasury";
 import { fetchAllTransactions, type RawBankTx } from "@/lib/pennylane/transactions-all";
-import { counterpartyKey, prettyLabel, suggestKind } from "./classify";
+import { LEDGER_WINDOW_MONTHS, fetchLedgerAccounts, fetchLedgerEntryLines, type LedgerAccount, type LedgerLine } from "@/lib/pennylane/ledger";
+import { STORE_META } from "@/lib/apitic/mapping";
+import { llmEnabled, narratePlan } from "./llm";
+import { counterpartyKey } from "./classify";
 import { cacheGet, cacheSet, getEvents, getRules, getSettings } from "./db";
 import { addDays, buildPlan, shiftMonth } from "./engine";
 import { getWeather } from "./weather";
-import type { DailyHist, Doubt, Plan, Rule, Settings, Tx, EventDay } from "./types";
+import type { DailyHist, Plan, Rule, Settings, Tx, EventDay } from "./types";
 
 export function todayParis(): string {
   const parts = new Intl.DateTimeFormat("fr-CA", {
@@ -24,6 +27,11 @@ const TX_WINDOW_MONTHS = 13;
 
 export type StoreContext = {
   storeId: string;
+  storeName: string;
+  storeAddress: string;
+  ledgerLines: LedgerLine[];
+  ledgerAccounts: LedgerAccount[];
+  ledgerError: string | null;
   today: string;
   month: string;
   daily: DailyHist[];
@@ -56,6 +64,18 @@ async function loadTransactions(storeId: string, token: string, minDate: string,
   return rows;
 }
 
+async function loadLedger(storeId: string, token: string, minDate: string, maxDate: string, force: boolean) {
+  const key = `ledger:${storeId}:${minDate}`;
+  if (!force) {
+    const hit = await cacheGet<{ lines: LedgerLine[]; accounts: LedgerAccount[] }>(key, 24 * 3600);
+    if (hit) return hit;
+  }
+  const [lines, accounts] = await Promise.all([fetchLedgerEntryLines(token, minDate, maxDate), fetchLedgerAccounts(token)]);
+  const data = { lines, accounts };
+  await cacheSet(key, data);
+  return data;
+}
+
 const isLoanAccount = (name: string) => /pr[êe]t|emprunt|cr[ée]dit bail|financement|ligne de/i.test(name);
 
 export async function loadStoreContext(
@@ -69,14 +89,17 @@ export async function loadStoreContext(
   const minDate = `${shiftMonth(month, -TX_WINDOW_MONTHS)}-01`;
   const maxDate = addDays(today, 1);
 
-  const [dailyRes, txRes, bankRes, rules, events, settings] = await Promise.allSettled([
+  const ledgerMin = `${shiftMonth(month, -LEDGER_WINDOW_MONTHS)}-01`;
+  const [dailyRes, txRes, bankRes, rules, events, settings, ledgerRes] = await Promise.allSettled([
     getStoreData(storeId),
     loadTransactions(storeId, config.token, minDate, maxDate, Boolean(opts.force)),
     fetchBankAccounts(config.token),
     getRules(storeId),
     getEvents(storeId),
     getSettings(storeId),
+    loadLedger(storeId, config.token, ledgerMin, maxDate, Boolean(opts.force)),
   ]);
+  const meta = STORE_META.find((m) => m.id === storeId);
 
   const daily: DailyHist[] =
     dailyRes.status === "fulfilled" && dailyRes.value
@@ -115,6 +138,11 @@ export async function loadStoreContext(
 
   return {
     storeId,
+    storeName: meta?.name ?? storeId,
+    storeAddress: meta?.address ?? "Marseille",
+    ledgerLines: ledgerRes.status === "fulfilled" ? ledgerRes.value.lines : [],
+    ledgerAccounts: ledgerRes.status === "fulfilled" ? ledgerRes.value.accounts : [],
+    ledgerError: ledgerRes.status === "rejected" ? (ledgerRes.reason as Error).message : null,
     today,
     month,
     daily,
@@ -132,50 +160,7 @@ export async function loadStoreContext(
   };
 }
 
-/** Contreparties sortantes non classées, au-dessus du seuil, triées par montant. */
-export function buildDoubts(ctx: StoreContext): Doubt[] {
-  const ruleKeys = new Set(ctx.rules.map((r) => r.key));
-  const map = new Map<string, Doubt & { monthsSet: Set<string> }>();
-  const monthsWindow = new Set<string>();
-  for (const tx of ctx.txs) {
-    monthsWindow.add(tx.date.slice(0, 7));
-    if (tx.amount >= 0 || ruleKeys.has(tx.key)) continue;
-    const d = map.get(tx.key) ?? {
-      key: tx.key,
-      label: prettyLabel(tx.key),
-      count: 0,
-      total: 0,
-      lastDate: tx.date,
-      lastAmount: -tx.amount,
-      monthsPresent: 0,
-      monthsWindow: 0,
-      suggested: suggestKind(tx.key, tx.label),
-      samples: [],
-      monthsSet: new Set<string>(),
-    };
-    d.count += 1;
-    d.total += -tx.amount;
-    d.monthsSet.add(tx.date.slice(0, 7));
-    if (tx.date >= d.lastDate) {
-      d.lastDate = tx.date;
-      d.lastAmount = -tx.amount;
-    }
-    if (d.samples.length < 3 && !d.samples.includes(tx.label)) d.samples.push(tx.label);
-    map.set(tx.key, d);
-  }
-  return [...map.values()]
-    .filter((d) => d.total >= ctx.settings.smallThreshold)
-    .map(({ monthsSet, ...d }) => ({
-      ...d,
-      total: Math.round(d.total * 100) / 100,
-      lastAmount: Math.round(d.lastAmount * 100) / 100,
-      monthsPresent: monthsSet.size,
-      monthsWindow: monthsWindow.size,
-    }))
-    .sort((a, b) => b.total - a.total);
-}
-
-export async function buildStorePlan(ctx: StoreContext): Promise<Plan & { weatherError: string | null; txError: string | null; dailyError: string | null; bankAccounts: StoreContext["bankAccounts"] }> {
+export async function buildStorePlan(ctx: StoreContext): Promise<Plan & { weatherError: string | null; txError: string | null; dailyError: string | null; bankAccounts: StoreContext["bankAccounts"]; narrative: string | null }> {
   let weather: Awaited<ReturnType<typeof getWeather>> = { days: [], error: null };
   if (ctx.settings.weatherEnabled) {
     try {
@@ -191,7 +176,7 @@ export async function buildStorePlan(ctx: StoreContext): Promise<Plan & { weathe
     daily: ctx.daily,
     txs: ctx.txs,
     rules: ctx.rules,
-    events: ctx.events,
+    events: ctx.events.filter((e) => e.status !== "rejete"),
     weather: weather.days,
     settings: ctx.settings,
     openingBalance: ctx.openingBalance,
@@ -200,5 +185,38 @@ export async function buildStorePlan(ctx: StoreContext): Promise<Plan & { weathe
   if (ctx.txError) plan.warnings.unshift(`Transactions Pennylane indisponibles : ${ctx.txError}`);
   if (ctx.dailyError) plan.warnings.unshift(`Historique caisse indisponible : ${ctx.dailyError}`);
   if (weather.error) plan.warnings.push(`Météo partielle : ${weather.error}`);
-  return { ...plan, weatherError: weather.error, txError: ctx.txError, dailyError: ctx.dailyError, bankAccounts: ctx.bankAccounts };
+
+  // Lecture du trésorier (Claude), mise en cache sur les chiffres clés.
+  let narrative: string | null = null;
+  if (llmEnabled()) {
+    const summary = {
+      magasin: ctx.storeName,
+      mois: plan.month,
+      aujourdhui: plan.today,
+      solde_actuel: plan.kpis.soldeActuel,
+      solde_fin_mois: plan.kpis.soldeFinMois,
+      fourchette: [plan.kpis.soldeFinMoisPessimiste, plan.kpis.soldeFinMoisOptimiste],
+      point_bas: plan.kpis.pointBas,
+      seuil_alerte: plan.kpis.alertThreshold,
+      jours_sous_seuil: plan.kpis.joursSousSeuil,
+      ca_prevu: plan.kpis.caMoisPrevu,
+      ca_realise: plan.kpis.caMoisRealise,
+      ca_n1: plan.kpis.caMoisN1,
+      croissance: plan.hypotheses.growth,
+      ratio_matiere: plan.hypotheses.matiereRatio,
+      waterfall: plan.waterfall,
+      echeances_a_venir: plan.fixedSchedule.filter((f) => f.projectedDates.length).slice(0, 12).map((f) => ({ libelle: f.label, nature: f.kind, montant: f.expectedAmount, dates: f.projectedDates })),
+      evenements: ctx.events.filter((e) => e.date.startsWith(plan.month) && e.status !== "rejete").map((e) => ({ date: e.date, libelle: e.label, impact: e.impact, source: e.source })),
+      meteo: plan.hypotheses.weather,
+      avertissements: plan.warnings,
+    };
+    const key = `narrative:${ctx.storeId}:${plan.month}:${Math.round(plan.kpis.soldeFinMois)}:${Math.round(plan.kpis.pointBas.solde)}:${plan.kpis.caMoisPrevu.toFixed(0)}`;
+    try {
+      narrative = (await cacheGet<string>(key, 6 * 3600)) ?? (await narratePlan(summary));
+      await cacheSet(key, narrative);
+    } catch (err) {
+      plan.warnings.push(`Lecture Claude indisponible : ${(err as Error).message}`);
+    }
+  }
+  return { ...plan, weatherError: weather.error, txError: ctx.txError, dailyError: ctx.dailyError, bankAccounts: ctx.bankAccounts, narrative };
 }

@@ -1,11 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { buildDoubts, buildStorePlan, loadStoreContext, todayParis } from "@/lib/previsionnel/data";
+import { runTresorier } from "@/lib/previsionnel/agent";
+import { buildStorePlan, loadStoreContext, todayParis } from "@/lib/previsionnel/data";
 import { noStore, parseMonth, parseStore } from "./_shared";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 180;
 
-/** GET /api/previsionnel?store=davso&month=2026-11 → plan complet. */
+/** GET /api/previsionnel?store=davso&month=2026-11 → plan complet, après passage de l'agent (sans veille presse). */
 export async function GET(req: NextRequest) {
   const storeId = parseStore(req);
   if (storeId instanceof NextResponse) return storeId;
@@ -14,9 +15,9 @@ export async function GET(req: NextRequest) {
   const force = req.nextUrl.searchParams.get("force") === "1";
   try {
     const ctx = await loadStoreContext(storeId, month, { force });
+    const briefing = await runTresorier(ctx, { scout: false });
     const plan = await buildStorePlan(ctx);
-    const doubts = buildDoubts(ctx);
-    return noStore({ plan, pendingDoubts: doubts.length, events: ctx.events, txCount: ctx.rawTxCount });
+    return noStore({ plan, briefing, pendingDoubts: briefing.questions.length, events: ctx.events, txCount: ctx.rawTxCount });
   } catch (err) {
     console.error(`[previsionnel] ${storeId}/${month}:`, (err as Error).message);
     return noStore({ error: (err as Error).message }, 500);

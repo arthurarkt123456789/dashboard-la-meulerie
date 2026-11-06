@@ -285,11 +285,26 @@ C'est tout. Les périodes basculent côté client (pas de re-fetch APITIC), le c
 
 Plan de trésorerie jour par jour du mois en cours (ou d'un mois voisin), par magasin. Démarre sur Davso.
 
-### Flux en 3 étapes
+### L'agent Trésorier
 
-1. **Doutes** : le moteur lit 13 mois de transactions bancaires Pennylane, regroupe les sorties par contrepartie (libellé normalisé) et pose une question par contrepartie non encore classée : *Matière première / Charge fixe / Hors exploitation / Variable / Ignorer*. Une suggestion est proposée par mots-clés (URSSAF → fixe, METRO → matière, management fees → hors exploitation…). Chaque réponse est mémorisée en base (`previsionnel_rules`) et n'est plus reposée. Les manifs du mois se saisissent ici (date, impact en %).
-2. **Analyse** : calcul.
-3. **Plan** : KPI (solde actuel, solde fin de mois avec fourchette, point bas daté, CA prévu vs N-1, jours sous le seuil), courbe de solde avec bande de scénarios et ligne « aujourd'hui », barres de flux journaliers par nature, waterfall solde initial → solde final, tableau jour par jour dépliable, panneaux Hypothèses / Échéancier / Manifs / Réglages.
+Il décide seul ce qu'il peut prouver et ne pose une question que s'il ne peut pas. Base de travail : la **transaction bancaire**, à sa date. Les écritures comptables ne servent qu'à prouver la nature d'une contrepartie ; une transaction sans écriture lettrée reste dans les flux et apparaît dans la liste « sans écriture lettrée » du briefing.
+
+Ordre de preuve pour classer une contrepartie (matière / charge fixe / hors exploitation / variable / ignorer) :
+
+1. **Écritures Pennylane** (`GET /ledger_entry_lines`) : compte PCG de la transaction catégorisée, ou de la facture fournisseur lettrée à cette transaction (401 → 6xx). 613 → fixe, 607 → matière, 108/16x/455 → hors exploitation, 627 → variable, 58 → ignorer. Accepté si ≥ 70 % du montant pointe sur la même nature.
+2. **Mots-clés** sans ambiguïté (URSSAF, DGFIP, METRO, loyer, EDF, management fees…).
+3. **Claude** (API, modèle `ANTHROPIC_MODEL`) sur libellés et régularité, accepté si confiance ≥ 0,8.
+4. Sinon **question**, uniquement si le montant est significatif (≥ `smallThreshold` ou 0,4 % des sorties de la fenêtre).
+
+Chaque décision est enregistrée avec sa source et sa raison (`previsionnel_rules.source / confidence / reason`), modifiable d'un clic ; une correction manuelle est définitive.
+
+**Veille presse** : une fois par jour et par mois cible, Claude avec recherche web cherche les manifestations, grèves, blocages, événements et alertes météo annoncés sur Marseille centre, et les enregistre comme événements « presse » avec impact estimé, confiance et source. Ils s'appliquent au plan tant qu'ils ne sont pas écartés.
+
+### Flux
+
+1. **Briefing** : ce que l'agent a classé (nouveautés en tête, tout corrigible), transactions sans écriture lettrée, veille presse, puis les quelques questions restantes. Si rien de nouveau, le plan s'affiche directement.
+2. **Calcul**.
+3. **Plan** : lecture du trésorier rédigée par Claude, KPI (solde actuel, solde fin de mois avec fourchette, point bas daté, CA prévu vs N-1, jours sous le seuil), courbe de solde avec bande de scénarios et ligne « aujourd'hui », barres de flux journaliers par nature, waterfall solde initial → solde final, tableau jour par jour dépliable, panneaux Hypothèses / Échéancier / Manifs / Classements / Réglages.
 
 ### Modèle
 
@@ -309,7 +324,8 @@ La trésorerie **d'exploitation** exclut les flux classés « hors exploitation 
 
 ### Prérequis
 
-- Token Pennylane du magasin avec les scopes `transactions:readonly` et `bank_accounts:readonly` en plus de `trial_balance:readonly` (`PENNYLANE_TOKEN_<MAGASIN>`).
+- Token Pennylane du magasin avec les scopes `transactions:readonly`, `bank_accounts:readonly`, `ledger_entries:readonly`, `ledger_accounts:readonly` en plus de `trial_balance:readonly` (`PENNYLANE_TOKEN_<MAGASIN>`).
+- `ANTHROPIC_API_KEY` (et `ANTHROPIC_MODEL`, défaut `claude-sonnet-5-5`) pour la classification par Claude, la veille presse et la lecture du plan. Sans clé, l'agent classe par écritures et mots-clés et pose le reste en question ; pas de veille presse.
 - `DATABASE_URL` (tables créées automatiquement : `previsionnel_rules`, `previsionnel_events`, `previsionnel_settings`, `previsionnel_cache`). Sans base : fichiers JSON dans `APITIC_CACHE_DIR/previsionnel`.
 - Accès sortant vers `api.open-meteo.com` et `archive-api.open-meteo.com` (sinon le plan se calcule sans météo, avec un avertissement).
 
@@ -318,7 +334,7 @@ La trésorerie **d'exploitation** exclut les flux classés « hors exploitation 
 | Route | Rôle |
 | --- | --- |
 | `GET /api/previsionnel?store=davso&month=2026-11[&force=1]` | Plan complet (`force` ignore le cache transactions de 30 min) |
-| `GET /api/previsionnel/doutes?store=davso` | Contreparties à classer + contexte |
+| `GET /api/previsionnel/doutes?store=davso[&force=1][&scout=0]` | Briefing de l'agent : décisions, non lettrées, veille presse, questions (`force` relit Pennylane et relance la veille) |
 | `POST /api/previsionnel/reponses?store=davso` | `{ answers: [{ key, kind, label?, expectedAmount?, expectedDay? }] }` |
 | `GET/DELETE /api/previsionnel/regles?store=davso[&key=]` | Lister / reposer une question |
 | `GET/POST/PATCH/DELETE /api/previsionnel/evenements?store=davso` | Manifs (`scope: "all"` pour tous les magasins) |

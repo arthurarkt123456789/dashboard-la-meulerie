@@ -50,7 +50,8 @@ export async function PATCH(req: NextRequest) {
   }
   const id = Number(body.id);
   if (!Number.isFinite(id)) return noStore({ error: "id invalide" }, 400);
-  const patch: { impact?: number; label?: string; date?: string } = {};
+  const patch: { impact?: number; label?: string; date?: string; status?: "propose" | "confirme" | "rejete" } = {};
+  if (body.status === "propose" || body.status === "confirme" || body.status === "rejete") patch.status = body.status;
   if (body.impact !== undefined) {
     const v = Number(body.impact);
     if (Number.isFinite(v)) patch.impact = Math.max(-1, Math.min(1, v));

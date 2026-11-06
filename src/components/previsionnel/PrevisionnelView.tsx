@@ -3,31 +3,23 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { Store } from "@/lib/apitic/types";
-import { RULE_KIND_LABELS, type Doubt, type EventDay, type Plan, type PlanDay, type RuleKind, type Settings } from "@/lib/previsionnel/types";
+import { RULE_KIND_LABELS, RULE_SOURCE_LABELS, type Briefing, type Decision, type EventDay, type Plan, type PlanDay, type RuleKind, type Settings } from "@/lib/previsionnel/types";
 import { FluxChart, KIND_COLORS, SoldeChart, Waterfall } from "./charts";
 
 // ── Types API ──────────────────────────────────────────────────────────────────
 
-type DoutesResponse = {
-  storeId: string;
-  month: string;
-  today: string;
-  doubts: Doubt[];
-  rulesCount: number;
-  events: EventDay[];
+type DoutesResponse = Briefing & {
   settings: Settings;
   bankSynced: boolean;
   openingBalance: number | null;
   balanceAsOf: string | null;
-  txCount: number;
-  txError: string | null;
-  dailyError: string | null;
   dailyDays: number;
   error?: string;
 };
 
 type PlanResponse = {
-  plan: Plan & { bankAccounts: { name: string; balance: number }[] };
+  plan: Plan & { bankAccounts: { name: string; balance: number }[]; narrative: string | null };
+  briefing: Briefing;
   pendingDoubts: number;
   events: EventDay[];
   txCount: number;
@@ -152,12 +144,24 @@ function EventsEditor({ storeId, month, events, defaultImpact, onChange }: {
       setDate(`${month}-`);
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };
-  const remove = async (id: number) => {
+  const remove = async (ev: EventDay) => {
+    if (ev.id === undefined) return;
     setBusy(true);
     try {
-      await api(`/api/previsionnel/evenements?store=${storeId}&id=${id}`, { method: "DELETE" });
-      onChange(events.filter((e) => e.id !== id));
+      if (ev.source === "presse") {
+        // On garde la trace pour ne pas la reproposer.
+        await api(`/api/previsionnel/evenements?store=${storeId}`, { method: "PATCH", body: JSON.stringify({ id: ev.id, status: "rejete" }) });
+        onChange(events.map((e) => (e.id === ev.id ? { ...e, status: "rejete" } : e)));
+      } else {
+        await api(`/api/previsionnel/evenements?store=${storeId}&id=${ev.id}`, { method: "DELETE" });
+        onChange(events.filter((e) => e.id !== ev.id));
+      }
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+  };
+  const restore = async (ev: EventDay) => {
+    if (ev.id === undefined) return;
+    await api(`/api/previsionnel/evenements?store=${storeId}`, { method: "PATCH", body: JSON.stringify({ id: ev.id, status: "confirme" }) });
+    onChange(events.map((e) => (e.id === ev.id ? { ...e, status: "confirme" } : e)));
   };
   const patchImpact = async (id: number, v: string) => {
     const n = Number(v) / 100;
@@ -170,24 +174,33 @@ function EventsEditor({ storeId, month, events, defaultImpact, onChange }: {
 
   return (
     <div className="prev-card">
-      <div className="lm-label">Manifestations et jours particuliers · {monthLabel(month)}</div>
+      <div className="lm-label">Manifestations, grèves et jours particuliers · {monthLabel(month)}</div>
       <p className="prev-muted" style={{ margin: "6px 0 10px" }}>
-        Impact appliqué au CA du jour. Les manifs passées servent à calibrer : l&apos;impact constaté s&apos;affiche dans les hypothèses du plan.
+        Les lignes « presse » viennent de la veille automatique (une fois par jour). Impact appliqué au CA du jour ; l&apos;impact constaté des dates passées s&apos;affiche dans les hypothèses.
       </p>
-      {inMonth.length === 0 && <div className="prev-muted">Aucune date saisie pour ce mois.</div>}
+      {inMonth.length === 0 && <div className="prev-muted">Rien de détecté ni de saisi pour ce mois.</div>}
       {inMonth.map((e) => (
-        <div key={e.id ?? e.date} className="prev-event-row">
+        <div key={e.id ?? e.date} className={`prev-event-row${e.status === "rejete" ? " rejected" : ""}`}>
           <span className="prev-event-date">{fmtDate(e.date)}</span>
-          <span className="prev-event-label">{e.label}</span>
-          <input
-            className="prev-input prev-input-sm"
-            type="number"
-            defaultValue={Math.round(e.impact * 100)}
-            onBlur={(ev) => e.id !== undefined && patchImpact(e.id, ev.target.value)}
-            step={5}
-          />
-          <span className="prev-muted">%</span>
-          {e.id !== undefined && <button className="prev-btn-link" onClick={() => remove(e.id!)} disabled={busy}>retirer</button>}
+          <span className="prev-event-label">
+            {e.url ? <a href={e.url} target="_blank" rel="noreferrer">{e.label}</a> : e.label}
+            <span className={`prev-src ${e.source === "presse" ? "prev-src-forecast" : ""}`}>{e.source === "presse" ? `presse${e.confidence !== undefined ? ` ${Math.round(e.confidence * 100)} %` : ""}` : "toi"}</span>
+            {e.status === "rejete" && <span className="prev-src">écarté</span>}
+          </span>
+          {e.status !== "rejete" && (
+            <>
+              <input
+                className="prev-input prev-input-sm"
+                type="number"
+                defaultValue={Math.round(e.impact * 100)}
+                onBlur={(ev) => e.id !== undefined && patchImpact(e.id, ev.target.value)}
+                step={5}
+              />
+              <span className="prev-muted">%</span>
+            </>
+          )}
+          {e.id !== undefined && e.status !== "rejete" && <button className="prev-btn-link" onClick={() => remove(e)} disabled={busy}>retirer</button>}
+          {e.id !== undefined && e.status === "rejete" && <button className="prev-btn-link" onClick={() => restore(e)} disabled={busy}>rétablir</button>}
         </div>
       ))}
       <div className="prev-event-add">
@@ -202,21 +215,65 @@ function EventsEditor({ storeId, month, events, defaultImpact, onChange }: {
   );
 }
 
-function DoubtsStep({ data, storeId, onAnalyse, onEventsChange, onSettingsChange }: {
+function KindBadge({ kind }: { kind: RuleKind }) {
+  const color = kind === "fixe" ? KIND_COLORS.fixe : kind === "matiere" ? KIND_COLORS.matiere : kind === "hors_exploitation" ? KIND_COLORS.horsExploitation : kind === "variable" ? KIND_COLORS.variable : KIND_COLORS.divers;
+  return <span className="prev-kind" style={{ borderColor: color, color }}>{RULE_KIND_LABELS[kind]}</span>;
+}
+
+function DecisionRow({ d, storeId, onChanged }: { d: Decision; storeId: string; onChanged: (kind: RuleKind) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const choose = async (kind: RuleKind) => {
+    setBusy(true);
+    try {
+      await api(`/api/previsionnel/reponses?store=${storeId}`, { method: "POST", body: JSON.stringify({ answers: [{ key: d.key, kind, label: d.label, reason: "Corrigé à la main" }] }) });
+      onChanged(kind);
+      setEditing(false);
+    } finally { setBusy(false); }
+  };
+  return (
+    <div className={`prev-decision${d.isNew ? " new" : ""}`}>
+      <div className="prev-decision-main">
+        <span className="prev-decision-label">{d.label}{d.isNew && <span className="prev-src prev-src-forecast">nouveau</span>}</span>
+        <KindBadge kind={d.kind} />
+        <span className="prev-muted prev-decision-meta">{fmtEur(d.total)} · {d.count} op. ({d.matched} lettrée{d.matched > 1 ? "s" : ""}) · {RULE_SOURCE_LABELS[d.source]}{d.source !== "utilisateur" ? ` ${Math.round(d.confidence * 100)} %` : ""}</span>
+        <button className="prev-btn-link" onClick={() => setEditing((v) => !v)}>{editing ? "fermer" : "corriger"}</button>
+      </div>
+      {d.reason && <div className="prev-muted prev-decision-reason">{d.reason}</div>}
+      {editing && (
+        <div className="prev-doubt-actions" style={{ paddingLeft: 0 }}>
+          {KINDS.map((k) => (
+            <button key={k} className={`prev-choice${d.kind === k ? " selected" : ""}`} disabled={busy} title={KIND_HELP[k]} onClick={() => choose(k)}>{RULE_KIND_LABELS[k]}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BriefingStep({ data, storeId, onAnalyse, onEventsChange, onSettingsChange, onRescout }: {
   data: DoutesResponse;
   storeId: string;
   onAnalyse: (answers: Record<string, RuleKind>) => void;
   onEventsChange: (events: EventDay[]) => void;
   onSettingsChange: (s: Settings) => void;
+  onRescout: () => void;
 }) {
   const [answers, setAnswers] = useState<Record<string, RuleKind>>({});
+  const [decisions, setDecisions] = useState<Decision[]>(data.decisions);
+  const [showAll, setShowAll] = useState(false);
+  const [showUnmatched, setShowUnmatched] = useState(false);
   const [opening, setOpening] = useState(data.settings.openingBalanceOverride?.toString() ?? "");
   const answered = Object.keys(answers).length;
-  const total = data.doubts.length;
+  const total = data.questions.length;
+  const newDecisions = decisions.filter((d) => d.isNew);
+  const bySource = (src: Decision["source"]) => newDecisions.filter((d) => d.source === src).length;
+  const visible = showAll ? decisions : newDecisions;
+  const pressEvents = data.events.filter((e) => e.source === "presse" && e.status !== "rejete");
 
   const acceptSuggestions = () => {
     const next = { ...answers };
-    for (const d of data.doubts) if (d.suggested && !next[d.key]) next[d.key] = d.suggested;
+    for (const d of data.questions) if (d.suggested && !next[d.key]) next[d.key] = d.suggested;
     setAnswers(next);
   };
 
@@ -232,13 +289,15 @@ function DoubtsStep({ data, storeId, onAnalyse, onEventsChange, onSettingsChange
   return (
     <div className="prev-step">
       <div className="prev-intro">
-        <h2 className="prev-h2">Bonjour. Voici les points sur lesquels j&apos;ai des doutes.</h2>
+        <h2 className="prev-h2">Briefing du trésorier · {monthLabel(data.month)}</h2>
         <p className="prev-muted">
-          {data.txCount} transactions bancaires lues sur 13 mois · {data.rulesCount} contreparties déjà classées · {total} à qualifier.
-          Chaque réponse est mémorisée : elle ne sera plus posée.
+          {data.txCount} transactions bancaires et {data.ledgerLines} lignes d&apos;écriture lues.
+          {newDecisions.length > 0
+            ? ` ${newDecisions.length} contrepartie${newDecisions.length > 1 ? "s" : ""} classée${newDecisions.length > 1 ? "s" : ""} seul : ${bySource("pennylane")} par les écritures Pennylane, ${bySource("mots-cles")} par mots-clés, ${bySource("ia")} par Claude.`
+            : ` ${decisions.length} contreparties déjà classées, rien de nouveau.`}
+          {total > 0 ? ` ${total} question${total > 1 ? "s" : ""} en bas.` : " Aucune question."}
         </p>
-        {data.txError && <div className="prev-error">Transactions Pennylane : {data.txError}</div>}
-        {data.dailyError && <div className="prev-error">Caisse : {data.dailyError}</div>}
+        {data.warnings.map((w, i) => <div key={i} className="prev-error">{w}</div>)}
       </div>
 
       {!data.bankSynced && (
@@ -252,51 +311,98 @@ function DoubtsStep({ data, storeId, onAnalyse, onEventsChange, onSettingsChange
         </div>
       )}
 
-      {total > 0 && (
+      <div className="prev-card">
         <div className="prev-doubts-head">
-          <span className="lm-label">Contreparties à classer · {answered}/{total}</span>
-          <button className="prev-btn-link" onClick={acceptSuggestions}>Accepter toutes les suggestions</button>
+          <span className="lm-label">Ce que j&apos;ai classé{showAll ? ` · ${decisions.length}` : newDecisions.length ? ` · ${newDecisions.length} nouvelles` : ""}</span>
+          <button className="prev-btn-link" onClick={() => setShowAll((v) => !v)}>{showAll ? "nouvelles seulement" : `tout voir (${decisions.length})`}</button>
+        </div>
+        {visible.length === 0 && <div className="prev-muted">Rien de nouveau.</div>}
+        {visible.map((d) => (
+          <DecisionRow key={d.key} d={d} storeId={storeId} onChanged={(kind) => setDecisions(decisions.map((x) => (x.key === d.key ? { ...x, kind, source: "utilisateur", confidence: 1, reason: "Corrigé à la main" } : x)))} />
+        ))}
+      </div>
+
+      <div className="prev-card">
+        <div className="prev-doubts-head">
+          <span className="lm-label">Transactions sans écriture lettrée · {data.unmatched.count}/{data.unmatched.txCount} sorties · {fmtEur(data.unmatched.total)}</span>
+          <button className="prev-btn-link" onClick={() => setShowUnmatched((v) => !v)}>{showUnmatched ? "masquer" : "voir"}</button>
+        </div>
+        <p className="prev-muted" style={{ margin: "6px 0 0" }}>Elles restent dans les flux à leur date bancaire. Leur nature vient des mots-clés, de Claude ou de toi.</p>
+        {showUnmatched && (
+          <table className="prev-sched" style={{ marginTop: 8 }}>
+            <thead><tr><th>Date</th><th>Libellé</th><th className="num">Montant</th><th>Nature</th></tr></thead>
+            <tbody>
+              {data.unmatched.items.map((t, i) => (
+                <tr key={i}>
+                  <td>{fmtDate(t.date)}</td>
+                  <td className="prev-samples" style={{ whiteSpace: "normal" }}>{t.label}</td>
+                  <td className="num">{fmtEur(t.amount)}</td>
+                  <td>{t.kind ? <KindBadge kind={t.kind} /> : <span className="prev-muted">à classer</span>}</td>
+                </tr>
+              ))}
+              {data.unmatched.count > data.unmatched.items.length && <tr><td colSpan={4} className="prev-muted">{data.unmatched.count - data.unmatched.items.length} de plus, non affichées.</td></tr>}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div className="prev-card">
+        <div className="prev-doubts-head">
+          <span className="lm-label">Veille presse · {pressEvents.length} date{pressEvents.length > 1 ? "s" : ""} retenue{pressEvents.length > 1 ? "s" : ""}</span>
+          <span className="prev-muted">
+            {data.scout.ran ? "recherche faite à l'instant" : data.scout.at ? `dernière recherche ${new Date(data.scout.at).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}` : data.llm.enabled ? "" : "ANTHROPIC_API_KEY absente"}
+            {data.llm.enabled && <> · <button className="prev-btn-link" onClick={onRescout}>relancer</button></>}
+          </span>
+        </div>
+        <EventsEditor storeId={storeId} month={data.month} events={data.events} defaultImpact={data.settings.defaultEventImpact} onChange={onEventsChange} />
+      </div>
+
+      {total > 0 && (
+        <div className="prev-card">
+          <div className="prev-doubts-head">
+            <span className="lm-label">J&apos;ai besoin de toi · {answered}/{total}</span>
+            {data.questions.some((q) => q.suggested) && <button className="prev-btn-link" onClick={acceptSuggestions}>Accepter les avis</button>}
+          </div>
+          {data.questions.map((d, i) => {
+            const chosen = answers[d.key];
+            return (
+              <div key={d.key} className={`prev-doubt${chosen ? " answered" : ""}`}>
+                <div className="prev-doubt-main">
+                  <div className="prev-doubt-num">{i + 1}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="prev-doubt-title">
+                      <strong>{d.label}</strong> : je n&apos;ai ni écriture lettrée ni libellé reconnu. De quoi s&apos;agit-il ?
+                    </div>
+                    <div className="prev-muted">
+                      {d.count} opération{d.count > 1 ? "s" : ""} · {fmtEur(d.total)} sur {d.monthsPresent}/{d.monthsWindow} mois · dernière le {fmtDate(d.lastDate)} ({fmtEur(d.lastAmount)})
+                    </div>
+                    <div className="prev-samples">{d.samples.join(" · ")}</div>
+                    {d.hints.map((h, k) => (
+                      <div key={k} className="prev-muted">Avis {RULE_SOURCE_LABELS[h.source]} ({Math.round(h.confidence * 100)} %) : {RULE_KIND_LABELS[h.kind]}{h.reason ? ` · ${h.reason}` : ""}</div>
+                    ))}
+                  </div>
+                </div>
+                <div className="prev-doubt-actions">
+                  {KINDS.map((k) => (
+                    <button
+                      key={k}
+                      className={`prev-choice${chosen === k ? " selected" : ""}${d.suggested === k && !chosen ? " suggested" : ""}`}
+                      title={KIND_HELP[k]}
+                      onClick={() => setAnswers({ ...answers, [d.key]: k })}
+                    >
+                      {RULE_KIND_LABELS[k]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {data.doubts.map((d, i) => {
-        const chosen = answers[d.key];
-        return (
-          <div key={d.key} className={`prev-doubt${chosen ? " answered" : ""}`}>
-            <div className="prev-doubt-main">
-              <div className="prev-doubt-num">{i + 1}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="prev-doubt-title">
-                  De quel type de sortie s&apos;agit-il : <strong>{d.label}</strong> ?
-                </div>
-                <div className="prev-muted">
-                  {d.count} opération{d.count > 1 ? "s" : ""} · {fmtEur(d.total)} sur {d.monthsPresent}/{d.monthsWindow} mois · dernière le {fmtDate(d.lastDate)} ({fmtEur(d.lastAmount)})
-                </div>
-                <div className="prev-samples">{d.samples.join(" · ")}</div>
-              </div>
-            </div>
-            <div className="prev-doubt-actions">
-              {KINDS.map((k) => (
-                <button
-                  key={k}
-                  className={`prev-choice${chosen === k ? " selected" : ""}${d.suggested === k && !chosen ? " suggested" : ""}`}
-                  title={KIND_HELP[k]}
-                  onClick={() => setAnswers({ ...answers, [d.key]: k })}
-                >
-                  {RULE_KIND_LABELS[k]}
-                  {d.suggested === k && <span className="prev-choice-tag">suggéré</span>}
-                </button>
-              ))}
-            </div>
-          </div>
-        );
-      })}
-
-      <EventsEditor storeId={storeId} month={data.month} events={data.events} defaultImpact={data.settings.defaultEventImpact} onChange={onEventsChange} />
-
       <div className="prev-actions">
         <button className="prev-btn prev-btn-primary" onClick={() => onAnalyse(answers)}>
-          {answered < total ? `Analyser (${total - answered} non classée${total - answered > 1 ? "s" : ""} traitée${total - answered > 1 ? "s" : ""} en charge fixe)` : "Analyser"}
+          {answered < total ? `Calculer le plan (${total - answered} sans réponse, traitée${total - answered > 1 ? "s" : ""} en charge fixe)` : "Calculer le plan"}
         </button>
       </div>
     </div>
@@ -312,13 +418,14 @@ function AnalyseStep({ saved }: { saved: number }) {
     return () => clearInterval(id);
   }, []);
   const lines = [
-    saved > 0 ? `${saved} réponse${saved > 1 ? "s" : ""} enregistrée${saved > 1 ? "s" : ""}` : "Règles chargées",
+    saved > 0 ? `${saved} réponse${saved > 1 ? "s" : ""} enregistrée${saved > 1 ? "s" : ""}` : "Classements appliqués",
     "Lecture de la caisse (N-1, 8 dernières semaines)",
     "Calcul de la croissance 4 semaines vs N-1",
     "Météo Marseille : prévision 16 jours et calibration pluie / froid",
     "Calendrier des charges fixes et hors exploitation",
     "Ratio matière sur 3 mois clos",
     "Projection jour par jour et scénarios",
+    "Lecture du trésorier",
   ];
   return (
     <div className="prev-step prev-analyse">
@@ -602,7 +709,8 @@ function PlanStep({ data, storeId, onReview, onReload }: {
   const plan = data.plan;
   const k = plan.kpis;
   const [openDay, setOpenDay] = useState<string | null>(null);
-  const [panel, setPanel] = useState<"hyp" | "sched" | "events" | "settings">("hyp");
+  const [panel, setPanel] = useState<"hyp" | "sched" | "events" | "decisions" | "settings">("hyp");
+  const [decisions, setDecisions] = useState<Decision[]>(data.briefing.decisions);
   const [events, setEvents] = useState<EventDay[]>(data.events);
   const finTone = k.soldeFinMois < 0 ? "bad" : k.soldeFinMois < k.alertThreshold ? "warn" : "ok";
   const pbTone = k.pointBas.solde < 0 ? "bad" : k.pointBas.solde < k.alertThreshold ? "warn" : "ok";
@@ -619,10 +727,17 @@ function PlanStep({ data, storeId, onReview, onReload }: {
           </div>
         </div>
         <div className="prev-actions">
-          {data.pendingDoubts > 0 && <button className="prev-btn" onClick={onReview}>{data.pendingDoubts} doute{data.pendingDoubts > 1 ? "s" : ""} à traiter</button>}
+          <button className="prev-btn" onClick={onReview}>{data.pendingDoubts > 0 ? `Briefing · ${data.pendingDoubts} question${data.pendingDoubts > 1 ? "s" : ""}` : "Briefing"}</button>
           <button className="prev-btn" onClick={() => onReload(true)}>Recharger Pennylane</button>
         </div>
       </div>
+
+      {plan.narrative && (
+        <div className="prev-card prev-narrative">
+          <div className="lm-label">Lecture du trésorier</div>
+          <p>{plan.narrative}</p>
+        </div>
+      )}
 
       {plan.warnings.length > 0 && (
         <ul className="prev-warnings">{plan.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
@@ -672,9 +787,9 @@ function PlanStep({ data, storeId, onReview, onReload }: {
       </div>
 
       <div className="prev-panel-tabs">
-        {(["hyp", "sched", "events", "settings"] as const).map((p) => (
+        {(["hyp", "sched", "events", "decisions", "settings"] as const).map((p) => (
           <button key={p} className={`prev-tab${panel === p ? " active" : ""}`} onClick={() => setPanel(p)}>
-            {p === "hyp" ? "Hypothèses" : p === "sched" ? "Échéancier" : p === "events" ? "Manifs" : "Réglages"}
+            {p === "hyp" ? "Hypothèses" : p === "sched" ? "Échéancier" : p === "events" ? "Manifs" : p === "decisions" ? `Classements (${decisions.length})` : "Réglages"}
           </button>
         ))}
       </div>
@@ -688,6 +803,15 @@ function PlanStep({ data, storeId, onReview, onReload }: {
           defaultImpact={plan.hypotheses.settings.defaultEventImpact}
           onChange={(ev) => { setEvents(ev); onReload(); }}
         />
+      )}
+      {panel === "decisions" && (
+        <div className="prev-card">
+          <div className="lm-label">Classement des contreparties</div>
+          <p className="prev-muted" style={{ margin: "6px 0 10px" }}>Corriger une ligne la fige (source : toi) et recalcule le plan.</p>
+          {decisions.map((d) => (
+            <DecisionRow key={d.key} d={d} storeId={storeId} onChanged={(kind) => { setDecisions(decisions.map((x) => (x.key === d.key ? { ...x, kind, source: "utilisateur", confidence: 1 } : x))); onReload(); }} />
+          ))}
+        </div>
       )}
       {panel === "settings" && <SettingsPanel storeId={storeId} settings={plan.hypotheses.settings} onSaved={() => onReload()} />}
     </div>
@@ -728,7 +852,8 @@ export function PrevisionnelView({ stores, initialStore }: { stores: Store[]; in
     try {
       const r = await api<DoutesResponse>(`/api/previsionnel/doutes?store=${storeId}&month=${month}${force ? "&force=1" : ""}`);
       setDoutes(r);
-      if (r.doubts.length === 0 && r.bankSynced) {
+      const nothingNew = r.questions.length === 0 && !r.decisions.some((d) => d.isNew) && r.scout.found === 0 && r.bankSynced;
+      if (nothingNew && !force) {
         setSaved(0);
         await loadPlan();
       } else {
@@ -746,7 +871,7 @@ export function PrevisionnelView({ stores, initialStore }: { stores: Store[]; in
     const list = Object.entries(answers).map(([key, kind]) => ({
       key,
       kind,
-      label: doutes?.doubts.find((d) => d.key === key)?.label ?? key,
+      label: doutes?.questions.find((d) => d.key === key)?.label ?? key,
     }));
     setStep("analyse");
     try {
@@ -768,17 +893,18 @@ export function PrevisionnelView({ stores, initialStore }: { stores: Store[]; in
         {error && <div className="prev-error" style={{ marginBottom: 12 }}>Erreur : {error}</div>}
         {step === "chargement" && (
           <div className="prev-step prev-analyse">
-            <h2 className="prev-h2">Lecture des données</h2>
-            <p className="prev-muted">Pennylane (transactions 13 mois, soldes) et caisse APITIC.</p>
+            <h2 className="prev-h2">Le trésorier prépare son briefing</h2>
+            <p className="prev-muted">Transactions et écritures Pennylane, caisse APITIC, classification, veille presse. Une à deux minutes au premier passage.</p>
           </div>
         )}
         {step === "doutes" && doutes && (
-          <DoubtsStep
+          <BriefingStep
             data={doutes}
             storeId={storeId}
             onAnalyse={onAnalyse}
             onEventsChange={(events) => setDoutes({ ...doutes, events })}
             onSettingsChange={(settings) => setDoutes({ ...doutes, settings, bankSynced: doutes.bankSynced || settings.openingBalanceOverride !== null })}
+            onRescout={() => loadDoutes(true)}
           />
         )}
         {step === "analyse" && <AnalyseStep saved={saved} />}
