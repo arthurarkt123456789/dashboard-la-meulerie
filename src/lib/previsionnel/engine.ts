@@ -625,17 +625,28 @@ export function buildPlan(input: EngineInput): Plan {
   const forecastDates = dates.filter((d) => d >= today);
   // CA prévu du mois (pour répartir matière + variable).
   const caForecast = new Map<string, PlanDay["ca"]>();
-  const forcedWeekdays = settings.forceOpenWeekdays ?? [];
+  const forcedOpenWeekdays = settings.forceOpenWeekdays ?? [];
+  const forcedClosedWeekdays = settings.forceClosedWeekdays ?? [];
   for (const d of dates) {
     const h = dailyMap.get(d);
     const base = baseline(dailyMap, d, model.growth, model.weekdayMeans, eventMap);
-    // Jours forcés ouverts : si l'engine estime "fermé" et le jour est dans la liste, on estime via la moyenne pondérée des autres jours (-30 %).
     const wd = weekdayOf(d);
     let effectiveBase = base;
-    if (base.source === "closed" && d >= today && forcedWeekdays.includes(wd)) {
-      const nonZero = model.weekdayMeans.filter((v) => v > 0);
-      const est = nonZero.length ? mean(nonZero) * 0.7 : 0;
+    // Jours forcés ouverts (normalement fermés) : on estime le CA.
+    if (base.source === "closed" && d >= today && forcedOpenWeekdays.includes(wd)) {
+      const specific = settings.forceOpenCa?.[String(wd)];
+      let est: number;
+      if (specific !== undefined && specific > 0) {
+        est = specific;
+      } else {
+        const nonZero = model.weekdayMeans.filter((v) => v > 0);
+        est = nonZero.length ? mean(nonZero) * 0.7 : 0;
+      }
       effectiveBase = { value: round2(est), source: "weekday-mean", n1: null };
+    }
+    // Jours forcés fermés (normalement ouverts) : CA = 0 sur les jours futurs uniquement.
+    if (d >= today && forcedClosedWeekdays.includes(wd)) {
+      effectiveBase = { value: 0, source: "closed", n1: null };
     }
     const ev = eventMap.get(d) ?? null;
     const w = weatherMap.get(d);

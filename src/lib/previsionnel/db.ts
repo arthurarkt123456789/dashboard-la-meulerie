@@ -269,6 +269,9 @@ export function sanitizeSettings(raw: unknown): Settings {
   const override = o.openingBalanceOverride;
   const ratioOverride = o.matiereRatioOverride;
   const rawWeekdays = o.forceOpenWeekdays;
+  const rawClosedWeekdays = o.forceClosedWeekdays;
+  const sanitizeWeekdays = (arr: unknown) =>
+    Array.isArray(arr) ? (arr as unknown[]).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6) : [];
   return {
     cbDelayDays: Math.round(num("cbDelayDays", 0, 10)),
     trDelayDays: Math.round(num("trDelayDays", 0, 60)),
@@ -279,7 +282,17 @@ export function sanitizeSettings(raw: unknown): Settings {
     openingBalanceOverride: override === null || override === undefined || override === "" ? null : Number(override),
     weatherEnabled: o.weatherEnabled === undefined ? DEFAULT_SETTINGS.weatherEnabled : Boolean(o.weatherEnabled),
     scenarioSpread: num("scenarioSpread", 0, 0.5),
-    forceOpenWeekdays: Array.isArray(rawWeekdays) ? rawWeekdays.map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6) : [],
+    forceOpenWeekdays: sanitizeWeekdays(rawWeekdays),
+    forceClosedWeekdays: sanitizeWeekdays(rawClosedWeekdays),
+    forceOpenCa: (() => {
+      const raw = o.forceOpenCa;
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+      return Object.fromEntries(
+        Object.entries(raw as Record<string, unknown>)
+          .filter(([k, v]) => /^[0-6]$/.test(k) && typeof v === "number" && (v as number) >= 0)
+          .map(([k, v]) => [k, v as number]),
+      );
+    })(),
     matiereRatioOverride: ratioOverride === null || ratioOverride === undefined || ratioOverride === "" ? null : Math.max(0, Math.min(1, Number(ratioOverride))),
   };
 }

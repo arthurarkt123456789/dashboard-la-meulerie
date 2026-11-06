@@ -89,8 +89,12 @@ export type Settings = {
   openingBalanceOverride: number | null;
   weatherEnabled: boolean;
   scenarioSpread: number;
-  /** Jours de semaine forcés ouverts (0 = dim … 6 = sam). */
+  /** Jours de semaine forcés ouverts (0 = dim … 6 = sam) — jours normalement fermés à inclure. */
   forceOpenWeekdays: number[];
+  /** CA estimé par jour de semaine forcé (clé = numéro du jour en string). 0 ou absent = auto. */
+  forceOpenCa: Partial<Record<string, number>>;
+  /** Jours de semaine forcés fermés (0 = dim … 6 = sam) — jours normalement ouverts à exclure. */
+  forceClosedWeekdays: number[];
   /** Taux de marge brute forcé (ex. 0.28 = 28 %). null = calculé depuis l'historique. */
   matiereRatioOverride: number | null;
 };
@@ -106,6 +110,8 @@ export const DEFAULT_SETTINGS: Settings = {
   weatherEnabled: true,
   scenarioSpread: 0.1,
   forceOpenWeekdays: [],
+  forceOpenCa: {},
+  forceClosedWeekdays: [],
   matiereRatioOverride: null,
 };
 

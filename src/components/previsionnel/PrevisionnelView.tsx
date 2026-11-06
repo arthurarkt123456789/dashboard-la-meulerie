@@ -806,11 +806,17 @@ function SettingsPanel({ storeId, settings, onSaved }: { storeId: string; settin
 // ── Scénarios ──────────────────────────────────────────────────────────────────
 
 const WD_LABELS = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+// Semaine affichée Lun→Sam→Dim pour la lisibilité
+const WD_ORDER = [1, 2, 3, 4, 5, 6, 0];
+
+type WdState = "auto" | "ouvert" | "ferme";
 
 function ScenariosPanel({ plan, storeId, onSaved }: { plan: Plan; storeId: string; onSaved: () => void }) {
   const settings = plan.hypotheses.settings;
-  const forcedWeekdays = settings.forceOpenWeekdays ?? [];
+  const forcedOpen = settings.forceOpenWeekdays ?? [];
+  const forcedClosed = settings.forceClosedWeekdays ?? [];
   const forcedCa = settings.forceOpenCa ?? {};
+  const wdMeans = plan.hypotheses.weekdayMeans; // [0..6], 0=dim
   const calcPct = plan.hypotheses.matiereRatioCalcule !== null ? (plan.hypotheses.matiereRatioCalcule * 100).toFixed(1) : null;
   const [ratioInput, setRatioInput] = useState(
     settings.matiereRatioOverride !== null
@@ -830,9 +836,18 @@ function ScenariosPanel({ plan, storeId, onSaved }: { plan: Plan; storeId: strin
     } finally { setBusy(false); }
   };
 
-  const toggleWeekday = (wd: number) => {
-    const next = forcedWeekdays.includes(wd) ? forcedWeekdays.filter((d) => d !== wd) : [...forcedWeekdays, wd];
-    void saveSettings({ forceOpenWeekdays: next });
+  const getWdState = (wd: number): WdState => {
+    if (forcedOpen.includes(wd)) return "ouvert";
+    if (forcedClosed.includes(wd)) return "ferme";
+    return "auto";
+  };
+
+  const setWdState = (wd: number, state: WdState) => {
+    const newOpen = forcedOpen.filter((d) => d !== wd);
+    const newClosed = forcedClosed.filter((d) => d !== wd);
+    if (state === "ouvert") newOpen.push(wd);
+    if (state === "ferme") newClosed.push(wd);
+    void saveSettings({ forceOpenWeekdays: newOpen, forceClosedWeekdays: newClosed });
   };
 
   const saveCa = (wd: number) => {
@@ -857,39 +872,74 @@ function ScenariosPanel({ plan, storeId, onSaved }: { plan: Plan; storeId: strin
       <div className="lm-label">Scénarios</div>
 
       <div style={{ marginTop: 12 }}>
-        <div className="prev-muted" style={{ marginBottom: 8 }}>Jours d&apos;ouverture forcés (jamais ouverts historiquement)</div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {WD_LABELS.map((lbl, wd) => (
-            <button key={wd} className={`prev-choice${forcedWeekdays.includes(wd) ? " selected" : ""}`} onClick={() => toggleWeekday(wd)} disabled={busy}>
-              {lbl}
-            </button>
-          ))}
+        <div className="prev-muted" style={{ marginBottom: 10 }}>
+          Jours d&apos;ouverture — ajuste si l&apos;historique ne reflète pas la réalité actuelle
         </div>
-        {forcedWeekdays.length > 0 && (
-          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
-            <div className="prev-muted" style={{ fontSize: 12 }}>CA estimé par jour (laisser vide = 70 % de la moyenne des autres jours)</div>
-            {forcedWeekdays.map((wd) => (
-              <div key={wd} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ width: 32, fontWeight: 600 }}>{WD_LABELS[wd]}</span>
-                <input
-                  className="prev-input prev-input-sm"
-                  type="number"
-                  placeholder="auto"
-                  value={caInputs[String(wd)] ?? ""}
-                  step={100}
-                  style={{ width: 90 }}
-                  onChange={(e) => setCaInputs((p) => ({ ...p, [String(wd)]: e.target.value }))}
-                  onBlur={() => saveCa(wd)}
-                  onKeyDown={(e) => { if (e.key === "Enter") saveCa(wd); }}
-                />
-                <span className="prev-muted">€ / jour</span>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {WD_ORDER.map((wd) => {
+            const histMean = wdMeans[wd] ?? 0;
+            const histOpen = histMean > 0;
+            const state = getWdState(wd);
+            return (
+              <div key={wd} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                {/* Jour + statut historique */}
+                <span style={{ width: 34, fontWeight: 600, flexShrink: 0 }}>{WD_LABELS[wd]}</span>
+                <span className="prev-muted" style={{ width: 90, flexShrink: 0, fontSize: 12 }}>
+                  {histOpen ? `~${fmtEur(histMean)} hist.` : "fermé hist."}
+                </span>
+                {/* Boutons 3 états */}
+                <div style={{ display: "flex", gap: 4 }}>
+                  <button
+                    className={`prev-choice${state === "auto" ? " selected" : ""}`}
+                    onClick={() => setWdState(wd, "auto")}
+                    disabled={busy}
+                    title="Utiliser l'historique"
+                  >
+                    Auto
+                  </button>
+                  <button
+                    className={`prev-choice${state === "ouvert" ? " selected" : ""}`}
+                    onClick={() => setWdState(wd, "ouvert")}
+                    disabled={busy || (histOpen && state !== "ouvert")}
+                    title={histOpen ? "Déjà ouvert selon l'historique" : "Forcer l'ouverture"}
+                    style={histOpen && state !== "ouvert" ? { opacity: 0.4 } : {}}
+                  >
+                    Ouvert
+                  </button>
+                  <button
+                    className={`prev-choice${state === "ferme" ? " selected" : ""}`}
+                    onClick={() => setWdState(wd, "ferme")}
+                    disabled={busy || (!histOpen && state !== "ferme")}
+                    title={!histOpen ? "Déjà fermé selon l'historique" : "Forcer la fermeture"}
+                    style={!histOpen && state !== "ferme" ? { opacity: 0.4 } : {}}
+                  >
+                    Fermé
+                  </button>
+                </div>
+                {/* CA input pour jours forcés ouverts et normalement fermés */}
+                {state === "ouvert" && !histOpen && (
+                  <>
+                    <input
+                      className="prev-input prev-input-sm"
+                      type="number"
+                      placeholder="CA auto"
+                      value={caInputs[String(wd)] ?? ""}
+                      step={100}
+                      style={{ width: 90 }}
+                      onChange={(e) => setCaInputs((p) => ({ ...p, [String(wd)]: e.target.value }))}
+                      onBlur={() => saveCa(wd)}
+                      onKeyDown={(e) => { if (e.key === "Enter") saveCa(wd); }}
+                    />
+                    <span className="prev-muted" style={{ fontSize: 12 }}>€ / j (vide = 70 % moy.)</span>
+                  </>
+                )}
               </div>
-            ))}
-          </div>
-        )}
+            );
+          })}
+        </div>
       </div>
 
-      <div style={{ marginTop: 16 }}>
+      <div style={{ marginTop: 20 }}>
         <div className="prev-muted" style={{ marginBottom: 8 }}>
           Taux de marge brute (achats matières ÷ CA)
           {calcPct && <> · calculé sur 3 mois clos : <strong>{calcPct} %</strong></>}
