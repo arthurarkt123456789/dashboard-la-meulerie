@@ -87,7 +87,9 @@ export async function middleware(request: NextRequest) {
   const isTresoPath =
     pathname.startsWith("/tresorerie") ||
     pathname === "/api/treso" ||
-    pathname.startsWith("/api/treso/");
+    pathname.startsWith("/api/treso/") ||
+    pathname === "/api/previsionnel" ||
+    pathname.startsWith("/api/previsionnel/");
   if (isTresoPath) {
     const tresoPwd = process.env.TRESO_PASSWORD;
     if (tresoPwd && tresoPwd.trim().length > 0) {

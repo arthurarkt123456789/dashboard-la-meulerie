@@ -946,6 +946,7 @@ function TresoHeader({
     { id: "all", label: "Vue consolidée" },
     ...stores.map((s) => ({ id: s.id, label: s.name })),
     { id: "tresorerie", label: "Trésorerie" },
+    { id: "previsionnel", label: "Prévisionnel" },
   ];
 
   return (
@@ -983,7 +984,7 @@ function TresoHeader({
           {items.map((it) => (
             <Link
               key={it.id}
-              href={it.id === "tresorerie" ? "/tresorerie" : `/${it.id}`}
+              href={it.id === "tresorerie" ? "/tresorerie" : it.id === "previsionnel" ? "/tresorerie/previsionnel" : `/${it.id}`}
               className={`lm-tab${it.id === "tresorerie" ? " active" : ""}`}
               style={{ textDecoration: "none" }}
             >
