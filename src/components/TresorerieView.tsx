@@ -261,7 +261,12 @@ function BreakEvenChart({ data }: { data: BreakEvenPoint[] }) {
   const cW = W - PL - PR;
   const cH = H - PT - PB;
 
-  const allVals = [...data.map((d) => d.ca), ...data.map((d) => d.seuil ?? 0)].filter((v) => v > 0);
+  const depenses = data.map((d) => d.chargesFixed + d.chargesVariable);
+  const allVals = [
+    ...data.map((d) => d.ca),
+    ...data.map((d) => d.seuil ?? 0),
+    ...depenses,
+  ].filter((v) => v > 0);
   const maxVal = Math.max(...allVals, 1);
 
   const xPos = (i: number) => PL + (i / (data.length - 1)) * cW;
@@ -271,6 +276,7 @@ function BreakEvenChart({ data }: { data: BreakEvenPoint[] }) {
   const ptW = cW / (data.length - 1);
 
   const caPoints = data.map((d, i) => `${xPos(i)},${yPos(d.ca)}`).join(" ");
+  const depPoints = depenses.map((v, i) => `${xPos(i)},${yPos(v)}`).join(" ");
   let seuilPath = ""; let started = false;
   data.forEach((d, i) => {
     if (!d.seuil) { started = false; return; }
@@ -294,11 +300,13 @@ function BreakEvenChart({ data }: { data: BreakEvenPoint[] }) {
           <text x={PL - 3} y={yPos(maxVal * f) + 3.5} textAnchor="end" fontSize={7} fill="var(--fg-tertiary)">{yLabel(maxVal * f)}</text>
         </g>
       ))}
+      <polyline points={depPoints} fill="none" stroke="#f97316" strokeWidth={1.5} strokeDasharray="3 2" strokeLinejoin="round" opacity={0.85} />
       <polyline points={caPoints} fill="none" stroke="#002FA7" strokeWidth={2} strokeLinejoin="round" />
       {seuilPath && <path d={seuilPath} fill="none" stroke="#dc2626" strokeWidth={1.5} strokeDasharray="4 3" />}
       {/* Dots on lines */}
       {data.map((d, i) => (
         <g key={i}>
+          <circle cx={xPos(i)} cy={yPos(depenses[i])} r={hov === i ? 4.5 : 2.5} fill="#f97316" opacity={hov === i ? 1 : 0.6} />
           <circle cx={xPos(i)} cy={yPos(d.ca)} r={hov === i ? 5 : 3} fill="#002FA7" opacity={hov === i ? 1 : 0.65} />
           {d.seuil && <circle cx={xPos(i)} cy={yPos(d.seuil)} r={hov === i ? 4.5 : 2.5} fill="#dc2626" opacity={hov === i ? 1 : 0.65} />}
           {(data.length <= 6 || i % 2 === 0) && (
@@ -309,18 +317,21 @@ function BreakEvenChart({ data }: { data: BreakEvenPoint[] }) {
       {/* Hover tooltip */}
       {hov !== null && (() => {
         const d = data[hov];
-        const tx = Math.max(2, Math.min(W - 128, xPos(hov) - 64));
+        const dep = depenses[hov];
+        const tx = Math.max(2, Math.min(W - 136, xPos(hov) - 68));
         const ty = PT + 2;
         const above = d.seuil !== null && d.ca >= d.seuil;
-        const h = d.seuil ? 68 : 46;
+        const profitable = d.ca >= dep;
+        const h = d.seuil ? 83 : 61;
         return (
           <g style={{ pointerEvents: "none" }}>
-            <rect x={tx} y={ty} width={126} height={h} fill="#0d1117" rx={4} stroke="#30363d" strokeWidth={0.5} opacity={0.97} />
+            <rect x={tx} y={ty} width={134} height={h} fill="#0d1117" rx={4} stroke="#30363d" strokeWidth={0.5} opacity={0.97} />
             <text x={tx + 6} y={ty + 14} fontSize={11} fill="#e2e8f0" fontWeight="600">{fmtMonthShort(d.month)}</text>
             <text x={tx + 6} y={ty + 29} fontSize={10} fill="#93c5fd">CA : {fmtEur(d.ca, true)}</text>
+            <text x={tx + 6} y={ty + 44} fontSize={10} fill={profitable ? "#86efac" : "#fdba74"}>Dép. : {fmtEur(dep, true)}</text>
             {d.seuil && <>
-              <text x={tx + 6} y={ty + 44} fontSize={10} fill="#fca5a5">SR : {fmtEur(d.seuil, true)}</text>
-              <text x={tx + 6} y={ty + 59} fontSize={9} fill={above ? "#86efac" : "#fca5a5"}>{above ? "✓ au-dessus" : "⚠ sous SR"}</text>
+              <text x={tx + 6} y={ty + 59} fontSize={10} fill="#fca5a5">SR : {fmtEur(d.seuil, true)}</text>
+              <text x={tx + 6} y={ty + 74} fontSize={9} fill={above ? "#86efac" : "#fca5a5"}>{above ? "✓ au-dessus SR" : "⚠ sous SR"}</text>
             </>}
           </g>
         );
@@ -439,74 +450,14 @@ const DECOUVERT_AUTORISE: Record<string, number> = {
 };
 
 function CurrentMonthBlock({ data }: { data: CurrentMonthForecast }) {
-  if (data.tauxMargeTheorique === null || data.caRequis === null || data.caRequis === 0) {
-    return (
-      <div className="treso-block">
-        <div className="lm-label" style={{ marginBottom: 6 }}>
-          Mois en cours — {fmtMonthShort(data.month)}
-        </div>
-        <p style={{ fontSize: 11, color: "var(--fg-muted)" }}>
-          Données insuffisantes (12 mois complets requis)
-        </p>
-      </div>
-    );
-  }
-
-  const pct = Math.min(100, Math.round((data.caToDate / data.caRequis) * 100));
-  const dayPct = Math.round((data.jours.elapsed / data.jours.total) * 100);
-  const isAhead = pct >= dayPct;
-  const barColor = pct >= 100 ? "#10b981" : isAhead ? "#3b82f6" : "#f59e0b";
-
   return (
     <div className="treso-block">
-      <div className="lm-label" style={{ marginBottom: 10 }}>
-        Mois en cours — {fmtMonthShort(data.month)}
-        <span style={{ fontSize: 10, color: "var(--fg-muted)", marginLeft: 6, fontWeight: 400 }}>
-          j{data.jours.elapsed}/{data.jours.total}
-        </span>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+        <span className="lm-label" style={{ margin: 0 }}>C.A. {fmtMonthShort(data.month)}</span>
+        <span style={{ fontSize: 11, color: "var(--fg-muted)" }}>j{data.jours.elapsed}/{data.jours.total}</span>
       </div>
-
-      {[
-        { label: "Taux de marge théorique", value: `${Math.round((data.tauxMargeTheorique ?? 0) * 100)}%`, color: "#f59e0b" },
-        { label: "CA réalisé à ce jour", value: fmtEur(data.caToDate), color: "var(--fg-primary)" },
-        { label: "Marge dégagée", value: fmtEur(data.margeToDate ?? 0), color: "#10b981" },
-        { label: "Charges fixes estimées", value: fmtEur(data.chargesFixesMoyennes), color: "#ef4444" },
-      ].map(({ label, value, color }) => (
-        <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 3 }}>
-          <span style={{ fontSize: 11, color: "var(--fg-muted)" }}>{label}</span>
-          <span style={{ fontSize: 11, fontWeight: 600, color, fontVariantNumeric: "tabular-nums" }}>{value}</span>
-        </div>
-      ))}
-
-      <div style={{ borderTop: "1px solid var(--border)", paddingTop: 8, marginTop: 6 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-          <span style={{ fontSize: 11, color: "var(--fg-muted)" }}>CA requis ce mois</span>
-          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--fg-primary)", fontVariantNumeric: "tabular-nums" }}>
-            {fmtEur(data.caRequis)}
-          </span>
-        </div>
-
-        <div style={{ position: "relative", height: 10, background: "var(--bg-row-alt)", borderRadius: 5, overflow: "hidden" }}>
-          <div style={{
-            position: "absolute", left: 0, top: 0, bottom: 0,
-            width: `${pct}%`,
-            background: barColor,
-            borderRadius: 5,
-          }} />
-          <div style={{
-            position: "absolute", top: 0, bottom: 0, width: 2,
-            background: "rgba(255,255,255,0.35)",
-            left: `${dayPct}%`,
-          }} />
-        </div>
-
-        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-          <span style={{ fontSize: 10, color: "var(--fg-muted)" }}>{pct}% réalisé</span>
-          {(data.caManquant ?? 0) > 0
-            ? <span style={{ fontSize: 10, color: "#f59e0b" }}>encore {fmtEur(data.caManquant ?? 0)}</span>
-            : <span style={{ fontSize: 10, color: "#10b981" }}>Objectif atteint ✓</span>
-          }
-        </div>
+      <div style={{ fontSize: 26, fontWeight: 700, color: "var(--fg-primary)", fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>
+        {fmtEur(data.caToDate)}
       </div>
     </div>
   );
@@ -584,6 +535,9 @@ function CashflowBlock({ months }: { months: MonthCashflow[] }) {
       </div>
       <CashflowChart months={months} />
 
+      <div style={{ fontSize: 10, color: "var(--fg-muted)", marginBottom: 4, marginTop: 2 }}>
+        Mois précédent — {lastMonth ? fmtMonthShort(lastMonth.month) : "—"}
+      </div>
       <div className="treso-month-summary">
         <div>
           <span className="treso-summary-label">Entrées</span>
@@ -682,6 +636,10 @@ function BreakEvenBlock({ data }: { data: BreakEvenPoint[] }) {
         <span className="lm-label">Seuil de Rentabilité</span>
         <span className="treso-legend">
           <span className="treso-legend-dot" style={{ background: "#002FA7" }} />CA
+          <svg width="14" height="8" viewBox="0 0 14 8" style={{ display: "inline-block", verticalAlign: "middle", marginLeft: 4 }}>
+            <line x1="0" y1="4" x2="14" y2="4" stroke="#f97316" strokeWidth="1.5" strokeDasharray="3 2" opacity={0.85} />
+          </svg>
+          Dép.
           <svg width="14" height="8" viewBox="0 0 14 8" style={{ display: "inline-block", verticalAlign: "middle", marginLeft: 4 }}>
             <line x1="0" y1="4" x2="14" y2="4" stroke="#dc2626" strokeWidth="1.5" strokeDasharray="4 3" />
           </svg>
