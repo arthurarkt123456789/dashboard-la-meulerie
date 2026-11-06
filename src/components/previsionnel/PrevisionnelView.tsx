@@ -409,6 +409,17 @@ function BriefingStep({ data, storeId, onAnalyse, onEventsChange, onSettingsChan
   );
 }
 
+// ── Dots ───────────────────────────────────────────────────────────────────────
+
+function Dots() {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => (t + 1) % 4), 500);
+    return () => clearInterval(id);
+  }, []);
+  return <span style={{ display: "inline-block", width: "1.5ch", textAlign: "left" }}>{".".repeat(tick)}</span>;
+}
+
 // ── Étape 2 ────────────────────────────────────────────────────────────────────
 
 function AnalyseStep({ saved }: { saved: number }) {
@@ -700,11 +711,13 @@ function SettingsPanel({ storeId, settings, onSaved }: { storeId: string; settin
   );
 }
 
-function PlanStep({ data, storeId, onReview, onReload }: {
+function PlanStep({ data, storeId, onReview, onReload, cachedAt, onRefresh }: {
   data: PlanResponse;
   storeId: string;
   onReview: () => void;
   onReload: (force?: boolean) => void;
+  cachedAt: number | null;
+  onRefresh: () => void;
 }) {
   const plan = data.plan;
   const k = plan.kpis;
@@ -723,10 +736,13 @@ function PlanStep({ data, storeId, onReview, onReload }: {
           <div className="prev-muted">
             Solde {plan.opening.source === "bank-sync" ? "Pennylane" : plan.opening.source === "override" ? "saisi" : "inconnu"} au {fmtDate(plan.opening.asOf)} : {fmtEur(plan.opening.balance)}
             {plan.bankAccounts.length > 1 && <> ({plan.bankAccounts.map((a) => `${a.name} ${fmtEur(a.balance)}`).join(" + ")})</>}
-            {" · "}généré à {new Date(plan.generatedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+            {" · "}{cachedAt
+              ? <>mis en cache le {new Date(cachedAt).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</>
+              : <>généré à {new Date(plan.generatedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</>}
           </div>
         </div>
         <div className="prev-actions">
+          {cachedAt && <button className="prev-btn prev-btn-primary" onClick={onRefresh}>Actualiser</button>}
           <button className="prev-btn" onClick={onReview}>{data.pendingDoubts > 0 ? `Briefing · ${data.pendingDoubts} question${data.pendingDoubts > 1 ? "s" : ""}` : "Briefing"}</button>
           <button className="prev-btn" onClick={() => onReload(true)}>Recharger Pennylane</button>
         </div>
@@ -818,6 +834,23 @@ function PlanStep({ data, storeId, onReview, onReload }: {
   );
 }
 
+// ── Cache localStorage ─────────────────────────────────────────────────────────
+
+const CACHE_V = 1;
+function readCache(storeId: string, month: string): { data: PlanResponse; at: number } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(`prev:${storeId}:${month}`);
+    if (!raw) return null;
+    const e = JSON.parse(raw) as { v: number; data: PlanResponse; at: number };
+    return e.v === CACHE_V ? { data: e.data, at: e.at } : null;
+  } catch { return null; }
+}
+function writeCache(storeId: string, month: string, data: PlanResponse) {
+  if (typeof window === "undefined") return;
+  try { localStorage.setItem(`prev:${storeId}:${month}`, JSON.stringify({ v: CACHE_V, data, at: Date.now() })); } catch {}
+}
+
 // ── Composant principal ────────────────────────────────────────────────────────
 
 export function PrevisionnelView({ stores, initialStore }: { stores: Store[]; initialStore: string }) {
@@ -832,12 +865,15 @@ export function PrevisionnelView({ stores, initialStore }: { stores: Store[]; in
   const [plan, setPlan] = useState<PlanResponse | null>(null);
   const [saved, setSaved] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [cachedAt, setCachedAt] = useState<number | null>(null);
 
   const loadPlan = useCallback(async (force = false) => {
     setStep("analyse");
     setError(null);
     try {
       const r = await api<PlanResponse>(`/api/previsionnel?store=${storeId}&month=${month}${force ? "&force=1" : ""}`);
+      writeCache(storeId, month, r);
+      setCachedAt(null);
       setPlan(r);
       setStep("plan");
     } catch (e) {
@@ -847,6 +883,15 @@ export function PrevisionnelView({ stores, initialStore }: { stores: Store[]; in
   }, [storeId, month]);
 
   const loadDoutes = useCallback(async (force = false) => {
+    if (!force) {
+      const cached = readCache(storeId, month);
+      if (cached) {
+        setPlan(cached.data);
+        setCachedAt(cached.at);
+        setStep("plan");
+        return;
+      }
+    }
     setStep("chargement");
     setError(null);
     try {
@@ -893,7 +938,7 @@ export function PrevisionnelView({ stores, initialStore }: { stores: Store[]; in
         {error && <div className="prev-error" style={{ marginBottom: 12 }}>Erreur : {error}</div>}
         {step === "chargement" && (
           <div className="prev-step prev-analyse">
-            <h2 className="prev-h2">Le trésorier prépare son briefing</h2>
+            <h2 className="prev-h2">Le trésorier prépare son briefing<Dots /></h2>
             <p className="prev-muted">Transactions et écritures Pennylane, caisse APITIC, classification, veille presse. Une à deux minutes au premier passage.</p>
           </div>
         )}
@@ -909,7 +954,7 @@ export function PrevisionnelView({ stores, initialStore }: { stores: Store[]; in
         )}
         {step === "analyse" && <AnalyseStep saved={saved} />}
         {step === "plan" && plan && (
-          <PlanStep data={plan} storeId={storeId} onReview={() => loadDoutes()} onReload={(force) => loadPlan(Boolean(force))} />
+          <PlanStep data={plan} storeId={storeId} onReview={() => loadDoutes()} onReload={(force) => loadPlan(Boolean(force))} cachedAt={cachedAt} onRefresh={() => loadDoutes(true)} />
         )}
       </main>
     </div>
