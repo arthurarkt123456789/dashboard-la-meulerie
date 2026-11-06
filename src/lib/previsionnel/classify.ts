@@ -18,7 +18,7 @@ const NOISE = new Set([
   "SALAIRE", "SALAIRES", "SAL", "PAIE", "PAYE", "REMUNERATION", "PRIME", "PRIMES", "AVANCE", "INDEMNITE", "INDEMNITES", "NDF", "NOTE", "FRAIS",
 ]);
 
-const KEEP_SHORT = new Set(["EDF", "SFR", "AXA", "UP", "BPI", "AG2R", "URSSAF", "DGFIP", "SEM", "FREE", "SCI"]);
+const KEEP_SHORT = new Set(["EDF", "SFR", "AXA", "UP", "BPI", "AG2R", "URSSAF", "DGFIP", "SEM", "FREE", "SCI", "IS", "TVA", "CFE", "CVAE", "TS"]);
 
 export function stripAccents(s: string): string {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "");
