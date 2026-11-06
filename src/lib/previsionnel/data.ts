@@ -25,6 +25,14 @@ export function todayParis(): string {
 
 const TX_WINDOW_MONTHS = 13;
 
+async function settle<T>(p: Promise<T>): Promise<PromiseSettledResult<T>> {
+  try {
+    return { status: "fulfilled", value: await p };
+  } catch (reason) {
+    return { status: "rejected", reason };
+  }
+}
+
 export type StoreContext = {
   storeId: string;
   storeName: string;
@@ -90,15 +98,23 @@ export async function loadStoreContext(
   const maxDate = addDays(today, 1);
 
   const ledgerMin = `${shiftMonth(month, -LEDGER_WINDOW_MONTHS)}-01`;
-  const [dailyRes, txRes, bankRes, rules, events, settings, ledgerRes] = await Promise.allSettled([
+  // Pennylane en séquence (transactions, soldes, écritures) pour rester sous la limite de débit ;
+  // caisse et base en parallèle.
+  const pennylaneSeq = (async () => {
+    const txRes = await settle(loadTransactions(storeId, config.token, minDate, maxDate, Boolean(opts.force)));
+    const bankRes = await settle(fetchBankAccounts(config.token));
+    const ledgerRes = await settle(loadLedger(storeId, config.token, ledgerMin, maxDate, Boolean(opts.force)));
+    return { txRes, bankRes, ledgerRes };
+  })();
+  const [dailyRes, rules, events, settings, seq] = await Promise.allSettled([
     getStoreData(storeId),
-    loadTransactions(storeId, config.token, minDate, maxDate, Boolean(opts.force)),
-    fetchBankAccounts(config.token),
     getRules(storeId),
     getEvents(storeId),
     getSettings(storeId),
-    loadLedger(storeId, config.token, ledgerMin, maxDate, Boolean(opts.force)),
+    pennylaneSeq,
   ]);
+  if (seq.status === "rejected") throw seq.reason;
+  const { txRes, bankRes, ledgerRes } = seq.value;
   const meta = STORE_META.find((m) => m.id === storeId);
 
   const daily: DailyHist[] =

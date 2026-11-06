@@ -1,5 +1,6 @@
 import "server-only";
 import type { TrialBalanceLine } from "./client";
+import { pennylaneFetch } from "./throttle";
 
 const PENNYLANE_BASE = "https://app.pennylane.com/api/external/v2";
 
@@ -143,14 +144,9 @@ export function extractMonthCashflow(lines: TrialBalanceLine[], month: string): 
  * Throws if the store has no bank sync configured.
  */
 export async function fetchBankAccounts(token: string): Promise<BankAccountSync[]> {
-  const res = await fetch(`${PENNYLANE_BASE}/bank_accounts`, {
+  const res = await pennylaneFetch(`${PENNYLANE_BASE}/bank_accounts`, {
     headers: { Authorization: `Bearer ${token}` },
-    next: { revalidate: 0 },
   });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Pennylane bank_accounts ${res.status}: ${body.slice(0, 120)}`);
-  }
   const json = await res.json() as Record<string, unknown>;
   const rawRows: unknown[] =
     (Array.isArray(json.bank_accounts) ? json.bank_accounts : null) ??

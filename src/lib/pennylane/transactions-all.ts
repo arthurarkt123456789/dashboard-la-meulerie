@@ -1,4 +1,5 @@
 import "server-only";
+import { PennylaneHttpError, pennylaneFetch } from "./throttle";
 
 // Lecture paginée de toutes les transactions bancaires Pennylane (API v2, GET /transactions).
 // Le token doit avoir le scope transactions:readonly.
@@ -47,16 +48,9 @@ async function fetchPage(
   path: string,
   params: URLSearchParams,
 ): Promise<{ rows: unknown[]; next: string | null; status: number }> {
-  const res = await fetch(`${PENNYLANE_BASE}/${path}?${params}`, {
+  const res = await pennylaneFetch(`${PENNYLANE_BASE}/${path}?${params}`, {
     headers: { Authorization: `Bearer ${token}` },
-    next: { revalidate: 0 },
   });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    const err = new Error(`Pennylane ${path} ${res.status}: ${body.slice(0, 200)}`) as Error & { status?: number };
-    err.status = res.status;
-    throw err;
-  }
   const json = (await res.json()) as Record<string, unknown>;
   const rows: unknown[] =
     (Array.isArray(json.items) ? json.items : null) ??
@@ -118,7 +112,7 @@ export async function fetchAllTransactions(
     },
   ];
 
-  let lastErr: Error | null = null;
+  const errors: string[] = [];
   for (const attempt of attempts) {
     try {
       const out: RawBankTx[] = [];
@@ -148,12 +142,12 @@ export async function fetchAllTransactions(
       console.log(`[pennylane/tx] ${attempt.path}: ${out.length} tx, ${pages} page(s) (${minDate} → ${maxDate})`);
       return out.sort((a, b) => a.date.localeCompare(b.date));
     } catch (err) {
-      lastErr = err as Error;
-      const status = (err as { status?: number }).status;
+      const status = err instanceof PennylaneHttpError ? err.status : undefined;
       // 401/403 : problème de scope, inutile d'essayer les variantes.
       if (status === 401 || status === 403) throw err;
-      console.warn(`[pennylane/tx] ${attempt.path} échec, variante suivante:`, lastErr.message);
+      errors.push(`${attempt.path}${attempt.localStop ? " (sans filtre)" : ""}: ${(err as Error).message}`);
+      console.warn(`[pennylane/tx] ${attempt.path} échec, variante suivante:`, (err as Error).message);
     }
   }
-  throw lastErr ?? new Error("Pennylane transactions: aucune variante n'a répondu");
+  throw new Error(`Transactions Pennylane illisibles. ${errors.join(" | ")}`);
 }

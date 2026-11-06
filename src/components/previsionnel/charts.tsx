@@ -16,12 +16,21 @@ const dayLabel = (iso: string) => {
 };
 
 export const KIND_COLORS = {
-  encaissements: "#002FA7",
-  matiere: "#f59e0b",
-  fixe: "#7c3aed",
-  variable: "#0891b2",
-  divers: "#9ca3af",
-  horsExploitation: "#be185d",
+  encaissements: "#4D7CFF",
+  matiere: "#F5A524",
+  fixe: "#A78BFA",
+  variable: "#22D3EE",
+  divers: "#8B93A7",
+  horsExploitation: "#F472B6",
+};
+const C = {
+  past: "var(--prev-past)",
+  accent: "var(--prev-accent)",
+  band: "var(--prev-band)",
+  danger: "var(--prev-danger)",
+  grid: "var(--prev-grid)",
+  muted: "var(--prev-muted)",
+  card: "var(--prev-card)",
 };
 
 // ── Courbe de solde ────────────────────────────────────────────────────────────
@@ -77,36 +86,44 @@ export function SoldeChart({ plan }: { plan: Plan }) {
       <svg viewBox={`0 0 ${W} ${H}`} className="prev-chart" onMouseLeave={() => setHover(null)}>
         {tickVals.map((v, i) => (
           <g key={i}>
-            <line x1={padL} x2={W - padR} y1={y(v)} y2={y(v)} stroke="var(--border-light)" strokeDasharray="2 3" />
+            <line x1={padL} x2={W - padR} y1={y(v)} y2={y(v)} stroke={C.grid} strokeDasharray="2 3" />
             <text x={padL - 8} y={y(v) + 4} textAnchor="end" className="prev-axis">{fmtK(v)}</text>
           </g>
         ))}
         {/* Zone réalisée */}
-        <rect x={padL} y={padT} width={Math.max(0, x(splitIdx) - padL)} height={H - padT - padB} fill="rgba(0,0,0,0.03)" />
+        <defs>
+          <linearGradient id="prev-area" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#4D7CFF" stopOpacity={0.35} />
+            <stop offset="100%" stopColor="#4D7CFF" stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <rect x={padL} y={padT} width={Math.max(0, x(splitIdx) - padL)} height={H - padT - padB} fill="rgba(255,255,255,0.025)" />
+        {/* Aire sous la courbe */}
+        <path d={`${path((d) => d.solde)} L${x(n - 1).toFixed(1)},${(H - padB).toFixed(1)} L${x(0).toFixed(1)},${(H - padB).toFixed(1)} Z`} fill="url(#prev-area)" />
         {/* Bande de scénarios */}
-        <path d={band} fill="rgba(0,47,167,0.10)" />
+        <path d={band} fill={C.band} />
         {/* Seuil d'alerte */}
-        <line x1={padL} x2={W - padR} y1={y(thr)} y2={y(thr)} stroke="#dc2626" strokeDasharray="5 4" strokeWidth={1.2} />
-        <text x={W - padR} y={y(thr) - 5} textAnchor="end" className="prev-axis" fill="#dc2626">seuil {fmtK(thr)}</text>
+        <line x1={padL} x2={W - padR} y1={y(thr)} y2={y(thr)} stroke={C.danger} strokeDasharray="5 4" strokeWidth={1.2} />
+        <text x={W - padR} y={y(thr) - 5} textAnchor="end" className="prev-axis" fill={C.danger}>seuil {fmtK(thr)}</text>
         {/* Zéro */}
-        {minV < 0 && <line x1={padL} x2={W - padR} y1={y(0)} y2={y(0)} stroke="var(--fg-tertiary)" strokeWidth={1} />}
+        {minV < 0 && <line x1={padL} x2={W - padR} y1={y(0)} y2={y(0)} stroke={C.muted} strokeWidth={1} />}
         {/* Courbes */}
-        <path d={path((d) => d.solde, 0, splitIdx)} fill="none" stroke="#1A1A1A" strokeWidth={2} />
-        <path d={path((d) => d.solde, splitIdx, n - 1)} fill="none" stroke="#002FA7" strokeWidth={2.2} />
-        <path d={path((d) => d.soldeOptimiste, splitIdx, n - 1)} fill="none" stroke="#002FA7" strokeWidth={1} strokeDasharray="3 3" opacity={0.6} />
-        <path d={path((d) => d.soldePessimiste, splitIdx, n - 1)} fill="none" stroke="#002FA7" strokeWidth={1} strokeDasharray="3 3" opacity={0.6} />
+        <path d={path((d) => d.solde, 0, splitIdx)} fill="none" stroke={C.past} strokeWidth={2} />
+        <path d={path((d) => d.solde, splitIdx, n - 1)} fill="none" stroke={C.accent} strokeWidth={2.4} strokeLinejoin="round" />
+        <path d={path((d) => d.soldeOptimiste, splitIdx, n - 1)} fill="none" stroke={C.accent} strokeWidth={1} strokeDasharray="3 3" opacity={0.5} />
+        <path d={path((d) => d.soldePessimiste, splitIdx, n - 1)} fill="none" stroke={C.accent} strokeWidth={1} strokeDasharray="3 3" opacity={0.5} />
         {/* Aujourd'hui */}
         {todayIdx >= 0 && (
           <g>
-            <line x1={x(todayIdx)} x2={x(todayIdx)} y1={padT} y2={H - padB} stroke="var(--fg-secondary)" strokeWidth={1} />
+            <line x1={x(todayIdx)} x2={x(todayIdx)} y1={padT} y2={H - padB} stroke={C.muted} strokeWidth={1} strokeDasharray="2 2" />
             <text x={x(todayIdx) + 4} y={padT + 10} className="prev-axis">aujourd&apos;hui</text>
           </g>
         )}
         {/* Point bas */}
         {pbIdx >= 0 && (
           <g>
-            <circle cx={x(pbIdx)} cy={y(pb.solde)} r={5} fill={pb.solde < thr ? "#dc2626" : "#002FA7"} stroke="#fff" strokeWidth={2} />
-            <text x={x(pbIdx)} y={y(pb.solde) + 18} textAnchor="middle" className="prev-axis" fill={pb.solde < thr ? "#dc2626" : "var(--fg-primary)"}>
+            <circle cx={x(pbIdx)} cy={y(pb.solde)} r={5} fill={pb.solde < thr ? C.danger : C.accent} stroke={C.card} strokeWidth={2} />
+            <text x={x(pbIdx)} y={y(pb.solde) + 18} textAnchor="middle" className="prev-axis" fill={pb.solde < thr ? C.danger : "var(--prev-fg)"}>
               point bas {fmtK(pb.solde)}
             </text>
           </g>
@@ -131,8 +148,8 @@ export function SoldeChart({ plan }: { plan: Plan }) {
         ))}
         {hv && hover !== null && (
           <g>
-            <line x1={x(hover)} x2={x(hover)} y1={padT} y2={H - padB} stroke="#002FA7" strokeWidth={1} opacity={0.5} />
-            <circle cx={x(hover)} cy={y(hv.solde)} r={4} fill="#002FA7" />
+            <line x1={x(hover)} x2={x(hover)} y1={padT} y2={H - padB} stroke={C.accent} strokeWidth={1} opacity={0.5} />
+            <circle cx={x(hover)} cy={y(hv.solde)} r={4} fill={C.accent} />
           </g>
         )}
       </svg>
@@ -146,10 +163,10 @@ export function SoldeChart({ plan }: { plan: Plan }) {
         </div>
       )}
       <div className="prev-legend">
-        <span><i style={{ background: "#1A1A1A" }} />réalisé</span>
-        <span><i style={{ background: "#002FA7" }} />prévu</span>
-        <span><i style={{ background: "rgba(0,47,167,0.18)" }} />scénarios ±{Math.round(plan.hypotheses.settings.scenarioSpread * 100)} %</span>
-        <span><i style={{ background: "#dc2626" }} />seuil d&apos;alerte</span>
+        <span><i style={{ background: "var(--prev-past)" }} />réalisé</span>
+        <span><i style={{ background: "var(--prev-accent)" }} />prévu</span>
+        <span><i style={{ background: "var(--prev-band)" }} />scénarios ±{Math.round(plan.hypotheses.settings.scenarioSpread * 100)} %</span>
+        <span><i style={{ background: "var(--prev-danger)" }} />seuil d&apos;alerte</span>
       </div>
     </div>
   );
@@ -179,7 +196,7 @@ export function FluxChart({ plan }: { plan: Plan }) {
   return (
     <div className="prev-chart-wrap">
       <svg viewBox={`0 0 ${W} ${H}`} className="prev-chart" onMouseLeave={() => setHover(null)}>
-        <line x1={padL} x2={W - padR} y1={zeroY} y2={zeroY} stroke="var(--fg-tertiary)" />
+        <line x1={padL} x2={W - padR} y1={zeroY} y2={zeroY} stroke={C.muted} />
         <text x={padL - 8} y={padT + 10} textAnchor="end" className="prev-axis">+{fmtK(top)}</text>
         <text x={padL - 8} y={H - padB} textAnchor="end" className="prev-axis">-{fmtK(top)}</text>
         {days.map((d, i) => {
@@ -195,14 +212,14 @@ export function FluxChart({ plan }: { plan: Plan }) {
           const forecast = d.encaissements.source === "forecast";
           return (
             <g key={d.date} opacity={hover === null || hover === i ? 1 : 0.55} onMouseEnter={() => setHover(i)}>
-              <rect x={x(i) + bw * 0.15} y={zeroY - inH} width={bw * 0.7} height={inH} fill={KIND_COLORS.encaissements} opacity={forecast ? 0.55 : 1} />
+              <rect x={x(i) + bw * 0.15} y={zeroY - inH} width={bw * 0.7} height={inH} rx={2} fill={KIND_COLORS.encaissements} opacity={forecast ? 0.55 : 1} />
               {segs.map(([v, c], k) => {
                 const h = v * scale;
                 const r = <rect key={k} x={x(i) + bw * 0.15} y={cursor} width={bw * 0.7} height={h} fill={c} opacity={forecast ? 0.6 : 1} />;
                 cursor += h;
                 return r;
               })}
-              {d.isToday && <line x1={x(i)} x2={x(i)} y1={padT} y2={H - padB} stroke="var(--fg-secondary)" />}
+              {d.isToday && <line x1={x(i)} x2={x(i)} y1={padT} y2={H - padB} stroke={C.muted} strokeDasharray="2 2" />}
               {(i % 3 === 0 || i === n - 1) && (
                 <text x={x(i) + bw / 2} y={H - padB + 14} textAnchor="middle" className="prev-axis">{d.date.slice(8)}</text>
               )}
@@ -235,14 +252,14 @@ export function FluxChart({ plan }: { plan: Plan }) {
 export function Waterfall({ plan }: { plan: Plan }) {
   const w = plan.waterfall;
   const steps: { label: string; value: number; color: string; total?: boolean }[] = [
-    { label: "Solde début", value: w.soldeInitial, color: "#1A1A1A", total: true },
+    { label: "Solde début", value: w.soldeInitial, color: "var(--prev-past)", total: true },
     { label: "Encaissements", value: w.encaissements, color: KIND_COLORS.encaissements },
     { label: "Matière", value: -w.matiere, color: KIND_COLORS.matiere },
     { label: "Charges fixes", value: -w.fixe, color: KIND_COLORS.fixe },
     { label: "Variables", value: -w.variable, color: KIND_COLORS.variable },
     { label: "Divers", value: -w.divers, color: KIND_COLORS.divers },
     { label: "Hors exploit.", value: -w.horsExploitation, color: KIND_COLORS.horsExploitation },
-    { label: "Solde fin", value: w.soldeFinal, color: w.soldeFinal < plan.kpis.alertThreshold ? "#dc2626" : "#002FA7", total: true },
+    { label: "Solde fin", value: w.soldeFinal, color: w.soldeFinal < plan.kpis.alertThreshold ? "var(--prev-danger)" : "var(--prev-accent)", total: true },
   ];
   const W = 900;
   const H = 230;
@@ -270,7 +287,7 @@ export function Waterfall({ plan }: { plan: Plan }) {
   return (
     <div className="prev-chart-wrap">
       <svg viewBox={`0 0 ${W} ${H}`} className="prev-chart">
-        <line x1={padL} x2={W - padR} y1={y(0)} y2={y(0)} stroke="var(--fg-tertiary)" />
+        <line x1={padL} x2={W - padR} y1={y(0)} y2={y(0)} stroke={C.muted} />
         {steps.map((s, i) => {
           const l = levels[i];
           const top = Math.max(l.from, l.to);
@@ -278,11 +295,11 @@ export function Waterfall({ plan }: { plan: Plan }) {
           const h = Math.max(1, y(bottom) - y(top));
           return (
             <g key={s.label}>
-              <rect x={padL + i * bw + bw * 0.2} y={y(top)} width={bw * 0.6} height={h} fill={s.color} opacity={s.total ? 1 : 0.85} />
+              <rect x={padL + i * bw + bw * 0.2} y={y(top)} width={bw * 0.6} height={h} rx={3} fill={s.color} opacity={s.total ? 1 : 0.85} />
               {i < steps.length - 1 && (
-                <line x1={padL + i * bw + bw * 0.8} x2={padL + (i + 1) * bw + bw * 0.2} y1={y(l.to)} y2={y(l.to)} stroke="var(--fg-tertiary)" strokeDasharray="2 2" />
+                <line x1={padL + i * bw + bw * 0.8} x2={padL + (i + 1) * bw + bw * 0.2} y1={y(l.to)} y2={y(l.to)} stroke={C.muted} strokeDasharray="2 2" />
               )}
-              <text x={padL + i * bw + bw / 2} y={y(top) - 5} textAnchor="middle" className="prev-axis" fill="var(--fg-primary)">
+              <text x={padL + i * bw + bw / 2} y={y(top) - 5} textAnchor="middle" className="prev-axis" fill="var(--prev-fg)">
                 {s.total ? fmtK(s.value) : `${s.value >= 0 ? "+" : ""}${fmtK(s.value)}`}
               </text>
               <text x={padL + i * bw + bw / 2} y={H - padB + 16} textAnchor="middle" className="prev-axis">{s.label}</text>

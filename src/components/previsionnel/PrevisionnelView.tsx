@@ -887,7 +887,7 @@ export function PrevisionnelView({ stores, initialStore }: { stores: Store[]; in
   const stable = stores.length ? stores : [{ id: "davso", name: "Davso", fullName: "", address: "", opened: "", openedDate: "" }];
 
   return (
-    <div className="lm-app">
+    <div className="lm-app prev-theme">
       <PrevHeader stores={stable} storeId={storeId} month={month} onStore={setStoreId} onMonth={setMonth} />
       <main className="lm-main prev-main">
         {error && <div className="prev-error" style={{ marginBottom: 12 }}>Erreur : {error}</div>}

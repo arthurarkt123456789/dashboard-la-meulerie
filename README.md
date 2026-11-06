@@ -329,6 +329,10 @@ La trésorerie **d'exploitation** exclut les flux classés « hors exploitation 
 - `DATABASE_URL` (tables créées automatiquement : `previsionnel_rules`, `previsionnel_events`, `previsionnel_settings`, `previsionnel_cache`). Sans base : fichiers JSON dans `APITIC_CACHE_DIR/previsionnel`.
 - Accès sortant vers `api.open-meteo.com` et `archive-api.open-meteo.com` (sinon le plan se calcule sans météo, avec un avertissement).
 
+### Débit API Pennylane
+
+Tous les appels Pennylane du module passent par `src/lib/pennylane/throttle.ts` : 2 requêtes en vol, 350 ms entre deux départs, reprise automatique sur 429 / 5xx. Transactions, soldes et écritures sont lus en séquence. Premier chargement d'un magasin : une à deux minutes (écritures sur 8 mois, ensuite en cache 24 h ; transactions en cache 30 min).
+
 ### Routes
 
 | Route | Rôle |

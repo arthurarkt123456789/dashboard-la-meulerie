@@ -1,4 +1,5 @@
 import "server-only";
+import { pennylaneFetch } from "./throttle";
 
 // Écritures comptables Pennylane v2 : lignes d'écriture (compte PCG) et plan de comptes.
 // Scopes : ledger_entries:readonly, ledger_accounts:readonly.
@@ -22,16 +23,9 @@ const toNum = (v: unknown): number => (typeof v === "number" ? v : parseFloat(St
 const toStr = (v: unknown): string => (typeof v === "string" ? v : v == null ? "" : String(v));
 
 async function getPage(token: string, path: string, params: URLSearchParams) {
-  const res = await fetch(`${BASE}/${path}?${params}`, {
+  const res = await pennylaneFetch(`${BASE}/${path}?${params}`, {
     headers: { Authorization: `Bearer ${token}` },
-    next: { revalidate: 0 },
   });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    const err = new Error(`Pennylane ${path} ${res.status}: ${body.slice(0, 200)}`) as Error & { status?: number };
-    err.status = res.status;
-    throw err;
-  }
   const json = (await res.json()) as Record<string, unknown>;
   const rows: unknown[] =
     (Array.isArray(json.items) ? json.items : null) ??
