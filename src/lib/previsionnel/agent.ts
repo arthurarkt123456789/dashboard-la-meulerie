@@ -84,6 +84,20 @@ export async function runTresorier(
   const hintsByKey = new Map<string, Doubt["hints"]>();
   const forLlm: LlmClassifyInput[] = [];
 
+  // Règles automatiques contredites par une preuve comptable forte : réévaluées. Les tiennes ne bougent pas.
+  const revised: string[] = [];
+  for (const s of stats.values()) {
+    const rule = ruleMap.get(s.key);
+    if (!rule || rule.source === "utilisateur") continue;
+    const ev = evidence.get(s.key);
+    if (!ev?.kind || ev.share < PENNYLANE_MIN_SHARE || ev.matched < 1 || ev.kind === rule.kind) continue;
+    if (rule.source === "pennylane" && (rule.confidence ?? 0) >= 0.95) continue;
+    const confidence = ev.matched / Math.max(1, ev.total) >= 0.5 ? 0.95 : 0.8;
+    newRules.push({ ...rule, kind: ev.kind, source: "pennylane", confidence, reason: `${ev.reason} (remplace : ${rule.kind} par ${rule.source})`, accounts: ev.accounts.slice(0, 3).map((a) => a.number) });
+    revised.push(s.label);
+  }
+  if (revised.length) warnings.push(`${revised.length} classement(s) automatique(s) corrigé(s) par les écritures Pennylane : ${revised.slice(0, 5).join(", ")}.`);
+
   for (const s of stats.values()) {
     if (ruleMap.has(s.key)) continue;
     const hints: Doubt["hints"] = [];

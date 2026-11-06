@@ -162,6 +162,21 @@ export async function deleteRule(storeId: string, key: string): Promise<void> {
   await getSql()`delete from previsionnel_rules where store_id = ${storeId} and key = ${key}`;
 }
 
+/** Efface les règles décidées par l'agent (pennylane, mots-clés, ia). Retourne le nombre effacé. */
+export async function deleteAutoRules(storeId: string): Promise<number> {
+  if (!isConfigured()) {
+    const current = await fsRead<Rule[]>(`rules-${storeId}`, []);
+    const kept = current.filter((r) => (r.source ?? "utilisateur") === "utilisateur");
+    await fsWrite(`rules-${storeId}`, kept);
+    return current.length - kept.length;
+  }
+  await ready();
+  const rows = await getSql()<{ key: string }[]>`
+    delete from previsionnel_rules where store_id = ${storeId} and source <> 'utilisateur' returning key
+  `;
+  return rows.length;
+}
+
 // ── Événements (manifs, fermetures…) ───────────────────────────────────────────
 
 export async function getEvents(storeId: string): Promise<EventDay[]> {

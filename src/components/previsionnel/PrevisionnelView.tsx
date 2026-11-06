@@ -251,13 +251,14 @@ function DecisionRow({ d, storeId, onChanged }: { d: Decision; storeId: string; 
   );
 }
 
-function BriefingStep({ data, storeId, onAnalyse, onEventsChange, onSettingsChange, onRescout }: {
+function BriefingStep({ data, storeId, onAnalyse, onEventsChange, onSettingsChange, onRescout, onResetAuto }: {
   data: DoutesResponse;
   storeId: string;
   onAnalyse: (answers: Record<string, RuleKind>) => void;
   onEventsChange: (events: EventDay[]) => void;
   onSettingsChange: (s: Settings) => void;
   onRescout: () => void;
+  onResetAuto: () => void;
 }) {
   const [answers, setAnswers] = useState<Record<string, RuleKind>>({});
   const [decisions, setDecisions] = useState<Decision[]>(data.decisions);
@@ -314,7 +315,10 @@ function BriefingStep({ data, storeId, onAnalyse, onEventsChange, onSettingsChan
       <div className="prev-card">
         <div className="prev-doubts-head">
           <span className="lm-label">Ce que j&apos;ai classé{showAll ? ` · ${decisions.length}` : newDecisions.length ? ` · ${newDecisions.length} nouvelles` : ""}</span>
-          <button className="prev-btn-link" onClick={() => setShowAll((v) => !v)}>{showAll ? "nouvelles seulement" : `tout voir (${decisions.length})`}</button>
+          <span>
+            <button className="prev-btn-link" onClick={() => setShowAll((v) => !v)}>{showAll ? "nouvelles seulement" : `tout voir (${decisions.length})`}</button>
+            <button className="prev-btn-link" onClick={onResetAuto} title="Efface les classements automatiques et refait l'analyse. Tes corrections restent.">tout reclasser</button>
+          </span>
         </div>
         {visible.length === 0 && <div className="prev-muted">Rien de nouveau.</div>}
         {visible.map((d) => (
@@ -938,6 +942,16 @@ export function PrevisionnelView({ stores, initialStore }: { stores: Store[]; in
 
   useEffect(() => { void loadDoutes(); }, [loadDoutes]);
 
+  const resetAuto = async () => {
+    setStep("chargement");
+    try {
+      await api(`/api/previsionnel/regles?store=${storeId}&scope=auto`, { method: "DELETE" });
+    } catch (e) {
+      setError((e as Error).message);
+    }
+    await loadDoutes(true);
+  };
+
   const onAnalyse = async (answers: Record<string, RuleKind>) => {
     const list = Object.entries(answers).map(([key, kind]) => ({
       key,
@@ -976,6 +990,7 @@ export function PrevisionnelView({ stores, initialStore }: { stores: Store[]; in
             onEventsChange={(events) => setDoutes({ ...doutes, events })}
             onSettingsChange={(settings) => setDoutes({ ...doutes, settings, bankSynced: doutes.bankSynced || settings.openingBalanceOverride !== null })}
             onRescout={() => loadDoutes(true)}
+            onResetAuto={resetAuto}
           />
         )}
         {step === "analyse" && <AnalyseStep saved={saved} />}
