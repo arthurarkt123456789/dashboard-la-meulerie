@@ -40,7 +40,10 @@ export function counterpartyKey(label: string): string {
     .filter((t) => !NOISE.has(t))
     .filter((t) => t.length >= 3 || KEEP_SHORT.has(t));
   // Deux mots suffisent à identifier un tiers ; le troisième varie souvent (objet, mois, référence).
-  const key = tokens.slice(0, 2).join(" ");
+  // Exception : les organismes qui prélèvent plusieurs impôts sous la même tête (DGFIP TVA, DGFIP IS, URSSAF…),
+  // où le troisième mot distingue l'impôt.
+  const MULTI = new Set(["DGFIP", "URSSAF", "IMPOT", "IMPOTS", "TRESOR", "DGI", "SIE"]);
+  const key = tokens.slice(0, MULTI.has(tokens[0]) ? 3 : 2).join(" ");
   return key || up.slice(0, 24).trim() || "SANS LIBELLE";
 }
 
