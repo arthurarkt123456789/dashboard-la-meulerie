@@ -585,7 +585,28 @@ export function buildPlan(input: EngineInput): Plan {
     if (kind !== "fixe" && kind !== "hors_exploitation") continue;
     const actualDates = txThisMonth.filter((t) => t.key === g.key && t.amount < 0).map((t) => t.date);
     const item = scheduleItem({ ...g, kind }, rule, month, today, windowMonths, actualDates);
+    if (item.observedMonths === 0 && !item.projectedDates.length) continue; // vu seulement ce mois-ci : rien à projeter
     if (item.projectedDates.length || item.paidThisMonth || item.status !== "projete") fixedSchedule.push(item);
+  }
+  // Échéance mensuelle déjà réglée sous un autre libellé : même montant (±15 %) et un mot en commun.
+  const GENERIC = new Set(["SEPA", "VIR", "PRLV", "CARTE", "SAS", "SARL", "LA", "LE", "DE", "DU", "ET"]);
+  const tokens = (k: string) =>
+    k.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().split(/[^A-Z0-9]+/).filter((t) => t.length >= 3 && !GENERIC.has(t));
+  const claimed = new Set<string>();
+  for (const it of fixedSchedule) {
+    if (it.frequency !== "mensuel" || it.paidThisMonth > 0 || it.projectedDates.length === 0 || it.expectedAmount <= 0) continue;
+    const itTokens = tokens(it.key);
+    const hit = txThisMonth.find((t) => {
+      if (t.amount >= 0 || t.key === it.key || claimed.has(t.id)) return false;
+      if (Math.abs(-t.amount - it.expectedAmount) > it.expectedAmount * 0.15) return false;
+      const tt = tokens(`${t.key} ${t.label}`);
+      return itTokens.some((x) => tt.includes(x));
+    });
+    if (!hit) continue;
+    claimed.add(hit.id);
+    it.paidThisMonth = 1;
+    it.projectedDates = [];
+    it.statusReason = `Réglé le ${hit.date.slice(8)} sous le libellé « ${hit.label.slice(0, 40)} »`;
   }
   const rank = (i: FixedScheduleItem) => (i.projectedDates.length || i.paidThisMonth ? 0 : i.status === "propose" ? 1 : 2);
   fixedSchedule.sort((a, b) => rank(a) - rank(b) || b.expectedAmount - a.expectedAmount);

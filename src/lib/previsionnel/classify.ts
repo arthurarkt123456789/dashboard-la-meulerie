@@ -14,6 +14,8 @@ const NOISE = new Set([
   "JANVIER", "FEVRIER", "MARS", "AVRIL", "MAI", "JUIN", "JUILLET", "AOUT", "SEPTEMBRE", "OCTOBRE", "NOVEMBRE", "DECEMBRE",
   "JAN", "FEV", "AVR", "JUIL", "SEPT", "SEP", "OCT", "NOV", "DEC", "MOIS", "TRIMESTRE", "ANNEE", "PERIODE",
   "ACOMPTE", "SOLDE", "REGUL", "REGULARISATION", "REMBOURSEMENT", "RBT",
+  // paie : le nom de la personne identifie le tiers, pas l'objet du virement
+  "SALAIRE", "SALAIRES", "SAL", "PAIE", "PAYE", "REMUNERATION", "PRIME", "PRIMES", "AVANCE", "INDEMNITE", "INDEMNITES", "NDF", "NOTE", "FRAIS",
 ]);
 
 const KEEP_SHORT = new Set(["EDF", "SFR", "AXA", "UP", "BPI", "AG2R", "URSSAF", "DGFIP", "SEM", "FREE", "SCI"]);

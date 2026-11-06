@@ -29,6 +29,8 @@ for (let m = 0; m < 13; m++) {
   push(5, -3200, "VIR SEPA URSSAF PACA", "URSSAF PACA");
   push(1, -2100, "PRLV SEPA SCI LOYER", "SCI LOYER");
   push(28, -9800, "VIR SALAIRES", "SALAIRES");
+  if (ym < "2026-11") push(2, -1900, `VIR SEPA SALAIRE ELODIE MARTIN ${ym}`, "ELODIE MARTIN");
+  if (ym === "2026-11") push(2, -1950, "VIR INST PAIE NOVEMBRE ELODIE MARTIN", "PAIE NOVEMBRE");
   push(12, -450, "PRLV EDF", "EDF");
   push(15, -1500, "VIR CHEESE INC MANAGEMENT FEES", "CHEESE INC MANAGEMENT FEES");
   for (const day of [3, 10, 17, 24]) push(day, -2800, "PRLV METRO", "METRO");
@@ -57,6 +59,7 @@ const plan = buildPlan({
     { key: "DIVIDENDES ASSOCIES", kind: "hors_exploitation", label: "Dividendes" },
     { key: "DGFIP CFE", kind: "fixe", label: "CFE", accounts: ["635110"] },
     { key: "DGFIP TVA", kind: "fixe", label: "TVA trimestrielle" },
+    { key: "ELODIE MARTIN", kind: "fixe", label: "Elodie Martin" },
   ],
   events: [{ date: "2026-11-18", label: "Manif", impact: -0.3 }],
   weather: [],
@@ -92,5 +95,6 @@ assert(plan.days[4].solde === 12000, "solde au 5 = solde synchro");
 const byLabel = (l: string) => plan.fixedSchedule.find((f) => f.label === l)!;
 assert(byLabel("Dividendes").status === "exclu" && byLabel("Dividendes").projectedDates.length === 0, "dividendes N-1 non reprojetés");
 assert(byLabel("CFE").status === "propose" && byLabel("CFE").projectedDates.length === 1, "CFE annuelle proposée");
+assert(byLabel("Elodie Martin").paidThisMonth === 1 && byLabel("Elodie Martin").projectedDates.length === 0, "salaire réglé sous un autre libellé non reprojeté");
 assert(byLabel("TVA trimestrielle").status === "projete" && byLabel("TVA trimestrielle").projectedDates.length === 1, "TVA trimestrielle projetée par périodicité");
 console.log("OK");
