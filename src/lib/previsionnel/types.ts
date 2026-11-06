@@ -80,24 +80,19 @@ export type WeatherDay = {
 };
 
 export type Settings = {
-  /** Délai bancaire des encaissements CB (jours). */
   cbDelayDays: number;
-  /** Délai des titres-restaurant (jours). */
   trDelayDays: number;
-  /** Décalage mois entre CA et paiement matière (0 ou 1). */
   matiereLagMonths: number;
-  /** Impact par défaut d'une manifestation. */
   defaultEventImpact: number;
-  /** Seuil sous lequel une contrepartie n'est pas questionnée (€ sur la fenêtre). */
   smallThreshold: number;
-  /** Seuil d'alerte de trésorerie (€). */
   alertThreshold: number;
-  /** Solde d'ouverture forcé si la synchro bancaire est indisponible. */
   openingBalanceOverride: number | null;
-  /** Activer l'effet météo. */
   weatherEnabled: boolean;
-  /** Amplitude des scénarios (±) appliquée au CA. */
   scenarioSpread: number;
+  /** Jours de semaine forcés ouverts (0 = dim … 6 = sam). */
+  forceOpenWeekdays: number[];
+  /** Taux de marge brute forcé (ex. 0.28 = 28 %). null = calculé depuis l'historique. */
+  matiereRatioOverride: number | null;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -110,6 +105,16 @@ export const DEFAULT_SETTINGS: Settings = {
   openingBalanceOverride: null,
   weatherEnabled: true,
   scenarioSpread: 0.1,
+  forceOpenWeekdays: [],
+  matiereRatioOverride: null,
+};
+
+export type Adjustment = {
+  id?: number;
+  date: string;
+  label: string;
+  amount: number; // positif = sortie
+  kind: RuleKind;
 };
 
 export type Decision = {
@@ -261,6 +266,7 @@ export type Plan = {
     weekdayMeans: number[];
     paymentShares: { cb: number; especes: number; tr: number; virement: number };
     matiereRatio: number | null;
+    matiereRatioCalcule: number | null;
     matiereRatioMonths: { month: string; matiere: number; ca: number; ratio: number | null }[];
     variableRatio: number | null;
     diversPerDay: number;

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { Store } from "@/lib/apitic/types";
-import { RULE_KIND_LABELS, RULE_SOURCE_LABELS, type Briefing, type Decision, type EventDay, type Plan, type PlanDay, type RuleKind, type Settings } from "@/lib/previsionnel/types";
+import { RULE_KIND_LABELS, RULE_SOURCE_LABELS, type Adjustment, type Briefing, type Decision, type EventDay, type Plan, type PlanDay, type RuleKind, type Settings } from "@/lib/previsionnel/types";
 import { FluxChart, KIND_COLORS, SoldeChart, Waterfall } from "./charts";
 import { DayMatrix } from "./DayMatrix";
 
@@ -803,6 +803,190 @@ function SettingsPanel({ storeId, settings, onSaved }: { storeId: string; settin
   );
 }
 
+// ── Scénarios ──────────────────────────────────────────────────────────────────
+
+const WD_LABELS = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+
+function ScenariosPanel({ plan, storeId, onSaved }: { plan: Plan; storeId: string; onSaved: () => void }) {
+  const settings = plan.hypotheses.settings;
+  const forcedWeekdays = settings.forceOpenWeekdays ?? [];
+  const calcPct = plan.hypotheses.matiereRatioCalcule !== null ? (plan.hypotheses.matiereRatioCalcule * 100).toFixed(1) : null;
+  const [ratioInput, setRatioInput] = useState(
+    settings.matiereRatioOverride !== null
+      ? String((settings.matiereRatioOverride * 100).toFixed(1))
+      : (calcPct ?? ""),
+  );
+  const [busy, setBusy] = useState(false);
+
+  const saveSettings = async (patch: Partial<Settings>) => {
+    setBusy(true);
+    try {
+      await api(`/api/previsionnel/reglages?store=${storeId}`, { method: "PUT", body: JSON.stringify(patch) });
+      onSaved();
+    } finally { setBusy(false); }
+  };
+
+  const toggleWeekday = (wd: number) => {
+    const next = forcedWeekdays.includes(wd) ? forcedWeekdays.filter((d) => d !== wd) : [...forcedWeekdays, wd];
+    void saveSettings({ forceOpenWeekdays: next });
+  };
+
+  const applyRatio = async () => {
+    const v = parseFloat(ratioInput.replace(",", ".")) / 100;
+    if (!Number.isFinite(v) || v <= 0 || v >= 1) return;
+    await saveSettings({ matiereRatioOverride: v });
+  };
+
+  const resetRatio = async () => {
+    if (calcPct) setRatioInput(calcPct);
+    await saveSettings({ matiereRatioOverride: null });
+  };
+
+  return (
+    <div className="prev-card">
+      <div className="lm-label">Scénarios</div>
+
+      <div style={{ marginTop: 12 }}>
+        <div className="prev-muted" style={{ marginBottom: 8 }}>Jours d&apos;ouverture forcés (jamais ouverts historiquement)</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {WD_LABELS.map((lbl, wd) => (
+            <button key={wd} className={`prev-choice${forcedWeekdays.includes(wd) ? " selected" : ""}`} onClick={() => toggleWeekday(wd)} disabled={busy}>
+              {lbl}
+            </button>
+          ))}
+        </div>
+        {forcedWeekdays.length > 0 && (
+          <p className="prev-muted" style={{ margin: "6px 0 0" }}>Estimation : 70 % de la moyenne des autres jours (aucun historique sur ces jours).</p>
+        )}
+      </div>
+
+      <div style={{ marginTop: 16 }}>
+        <div className="prev-muted" style={{ marginBottom: 8 }}>
+          Taux de marge brute (achats matières ÷ CA)
+          {calcPct && <> · calculé sur 3 mois clos : <strong>{calcPct} %</strong></>}
+          {settings.matiereRatioOverride !== null && <span className="prev-src prev-src-forecast"> surcharge active</span>}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <input
+            className="prev-input prev-input-sm"
+            type="number"
+            value={ratioInput}
+            step={0.5}
+            style={{ width: 72 }}
+            onChange={(e) => setRatioInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") void applyRatio(); }}
+          />
+          <span className="prev-muted">%</span>
+          <button className="prev-btn-link" onClick={() => void applyRatio()} disabled={busy}>appliquer</button>
+          {settings.matiereRatioOverride !== null && (
+            <button className="prev-btn-link" onClick={() => void resetRatio()} disabled={busy}>réinitialiser</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AjustementsPanel({ storeId, month, onReload }: { storeId: string; month: string; onReload: () => void }) {
+  const [adjustments, setAdjustments] = useState<Adjustment[]>([]);
+  const [date, setDate] = useState(`${month}-`);
+  const [label, setLabel] = useState("");
+  const [amount, setAmount] = useState("");
+  const [kind, setKind] = useState<RuleKind>("fixe");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    void api<{ adjustments: Adjustment[] }>(`/api/previsionnel/ajustements?store=${storeId}`)
+      .then((r) => setAdjustments(r.adjustments))
+      .catch(() => {});
+  }, [storeId]);
+
+  const add = async () => {
+    setErr(null);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { setErr("Date AAAA-MM-JJ"); return; }
+    if (!label.trim()) { setErr("Libellé manquant"); return; }
+    const amt = Number(amount);
+    if (!Number.isFinite(amt) || amt <= 0) { setErr("Montant positif requis"); return; }
+    setBusy(true);
+    try {
+      const r = await api<{ adjustment: Adjustment }>(`/api/previsionnel/ajustements?store=${storeId}`, {
+        method: "POST",
+        body: JSON.stringify({ date, label: label.trim(), amount: amt, kind }),
+      });
+      setAdjustments((prev) => [...prev, r.adjustment].sort((a, b) => a.date.localeCompare(b.date)));
+      setLabel("");
+      setAmount("");
+      setDate(`${month}-`);
+      onReload();
+    } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+  };
+
+  const remove = async (id: number) => {
+    setBusy(true);
+    try {
+      await api(`/api/previsionnel/ajustements?store=${storeId}&id=${id}`, { method: "DELETE" });
+      setAdjustments((prev) => prev.filter((a) => a.id !== id));
+      onReload();
+    } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+  };
+
+  const inMonth = adjustments.filter((a) => a.date.startsWith(month));
+  const other = adjustments.filter((a) => !a.date.startsWith(month));
+
+  return (
+    <div className="prev-card">
+      <div className="lm-label">Dépenses manuelles ponctuelles</div>
+      <p className="prev-muted" style={{ margin: "6px 0 10px" }}>
+        Dépenses one-shot à venir non encore visibles dans Pennylane. Persistent entre les consultations.
+      </p>
+      {inMonth.length === 0 && other.length === 0 && <div className="prev-muted">Aucun ajustement saisi.</div>}
+      {inMonth.length > 0 && (
+        <table className="prev-sched" style={{ marginBottom: 8 }}>
+          <thead><tr><th>Date</th><th>Libellé</th><th>Nature</th><th className="num">Montant</th><th /></tr></thead>
+          <tbody>
+            {inMonth.map((a) => (
+              <tr key={a.id}>
+                <td>{fmtDate(a.date)}</td>
+                <td>{a.label}</td>
+                <td><KindBadge kind={a.kind} /></td>
+                <td className="num neg">-{fmtEur(a.amount)}</td>
+                <td><button className="prev-btn-link" onClick={() => a.id !== undefined && void remove(a.id)} disabled={busy}>supprimer</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {other.length > 0 && (
+        <details style={{ marginBottom: 10 }}>
+          <summary className="prev-muted" style={{ cursor: "pointer" }}>{other.length} sur d&apos;autres mois</summary>
+          <table className="prev-sched" style={{ marginTop: 6 }}>
+            <tbody>
+              {other.map((a) => (
+                <tr key={a.id}>
+                  <td>{fmtDate(a.date)}</td><td>{a.label}</td><td><KindBadge kind={a.kind} /></td>
+                  <td className="num neg">-{fmtEur(a.amount)}</td>
+                  <td><button className="prev-btn-link" onClick={() => a.id !== undefined && void remove(a.id)} disabled={busy}>supprimer</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
+      )}
+      <div className="prev-event-add" style={{ marginTop: 10, flexWrap: "wrap", gap: 6 }}>
+        <input className="prev-input" placeholder="AAAA-MM-JJ" value={date} onChange={(e) => setDate(e.target.value)} style={{ width: 120 }} />
+        <input className="prev-input" placeholder="Libellé" value={label} onChange={(e) => setLabel(e.target.value)} style={{ flex: 1, minWidth: 120 }} />
+        <input className="prev-input prev-input-sm" type="number" placeholder="Montant €" value={amount} onChange={(e) => setAmount(e.target.value)} step={100} style={{ width: 100 }} />
+        <select className="prev-select" value={kind} onChange={(e) => setKind(e.target.value as RuleKind)}>
+          {(["fixe", "matiere", "variable", "hors_exploitation"] as RuleKind[]).map((k) => <option key={k} value={k}>{RULE_KIND_LABELS[k]}</option>)}
+        </select>
+        <button className="prev-btn" onClick={() => void add()} disabled={busy}>Ajouter</button>
+      </div>
+      {err && <div className="prev-error">{err}</div>}
+    </div>
+  );
+}
+
 function PlanStep({ data, storeId, onReview, onReload, cachedAt, onRefresh }: {
   data: PlanResponse;
   storeId: string;
@@ -814,11 +998,16 @@ function PlanStep({ data, storeId, onReview, onReload, cachedAt, onRefresh }: {
   const plan = data.plan;
   const k = plan.kpis;
   const [openDay, setOpenDay] = useState<string | null>(null);
-  const [panel, setPanel] = useState<"hyp" | "sched" | "events" | "decisions" | "settings">("hyp");
+  const [panel, setPanel] = useState<"hyp" | "sched" | "events" | "decisions" | "settings" | "scenarios">("hyp");
   const [decisions, setDecisions] = useState<Decision[]>(data.briefing.decisions);
   const [events, setEvents] = useState<EventDay[]>(data.events);
   const finTone = k.soldeFinMois < 0 ? "bad" : k.soldeFinMois < k.alertThreshold ? "warn" : "ok";
   const pbTone = k.pointBas.solde < 0 ? "bad" : k.pointBas.solde < k.alertThreshold ? "warn" : "ok";
+  const SALARY_RE = /salaire|urssaf|dsn|prevoyance|mutuelle|interim|conge|retraite|prévoyance/i;
+  const masseSalariale = plan.fixedSchedule
+    .filter((f) => f.status !== "exclu" && SALARY_RE.test(f.label))
+    .reduce((s, f) => s + f.expectedAmount, 0);
+  const caMois = k.caMoisPrevu > 0 ? k.caMoisPrevu : 1;
 
   return (
     <div className="prev-step">
@@ -863,6 +1052,8 @@ function PlanStep({ data, storeId, onReview, onReload, cachedAt, onRefresh }: {
         <Kpi label="CA du mois" value={fmtEur(k.caMoisPrevu)} sub={`réalisé ${fmtEur(k.caMoisRealise)}${k.caMoisN1 ? ` · N-1 ${fmtEur(k.caMoisN1)} (${fmtPct(k.caMoisPrevu / k.caMoisN1 - 1)})` : ""}`} />
         <Kpi label="Reste à encaisser" value={fmtEur(k.encaissementsRestants)} sub={`à décaisser ${fmtEur(k.sortiesRestantes)} + hors expl. ${fmtEur(k.sortiesHorsExploitationRestantes)}`} />
         <Kpi label="Jours sous le seuil" value={String(k.joursSousSeuil)} sub={`seuil ${fmtEur(k.alertThreshold)}`} tone={k.joursSousSeuil > 0 ? "warn" : "ok"} />
+        <Kpi label="Coût matière (mois)" value={fmtEur(plan.waterfall.matiere)} sub={`${fmtPct(plan.waterfall.matiere / caMois)} du CA${plan.hypotheses.settings.matiereRatioOverride !== null ? " · taux surchargé" : ""}`} />
+        <Kpi label="Masse salariale (mois)" value={masseSalariale > 0 ? fmtEur(masseSalariale) : "—"} sub={masseSalariale > 0 ? `${fmtPct(masseSalariale / caMois)} du CA · estimation échéancier` : "aucune ligne détectée"} />
       </div>
 
       <div className="prev-card prev-card-matrix">
@@ -908,9 +1099,9 @@ function PlanStep({ data, storeId, onReview, onReload, cachedAt, onRefresh }: {
       </div>
 
       <div className="prev-panel-tabs">
-        {(["hyp", "sched", "events", "decisions", "settings"] as const).map((p) => (
+        {(["hyp", "sched", "events", "decisions", "scenarios", "settings"] as const).map((p) => (
           <button key={p} className={`prev-tab${panel === p ? " active" : ""}`} onClick={() => setPanel(p)}>
-            {p === "hyp" ? "Hypothèses" : p === "sched" ? "Échéancier" : p === "events" ? "Manifs" : p === "decisions" ? `Classements (${decisions.length})` : "Réglages"}
+            {p === "hyp" ? "Hypothèses" : p === "sched" ? "Échéancier" : p === "events" ? "Manifs" : p === "decisions" ? `Classements (${decisions.length})` : p === "scenarios" ? "Scénarios" : "Réglages"}
           </button>
         ))}
       </div>
@@ -933,6 +1124,12 @@ function PlanStep({ data, storeId, onReview, onReload, cachedAt, onRefresh }: {
             <DecisionRow key={d.key} d={d} storeId={storeId} onChanged={(kind) => { setDecisions(decisions.map((x) => (x.key === d.key ? { ...x, kind, source: "utilisateur", confidence: 1 } : x))); onReload(); }} />
           ))}
         </div>
+      )}
+      {panel === "scenarios" && (
+        <>
+          <ScenariosPanel plan={plan} storeId={storeId} onSaved={() => onReload()} />
+          <AjustementsPanel storeId={storeId} month={plan.month} onReload={() => onReload()} />
+        </>
       )}
       {panel === "settings" && <SettingsPanel storeId={storeId} settings={plan.hypotheses.settings} onSaved={() => onReload()} />}
     </div>

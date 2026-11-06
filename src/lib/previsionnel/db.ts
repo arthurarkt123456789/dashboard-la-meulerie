@@ -2,7 +2,7 @@ import "server-only";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { getSql, isConfigured, ready as apiticReady } from "@/lib/apitic/db";
-import { DEFAULT_SETTINGS, type EventDay, type EventStatus, type Rule, type RuleKind, type RuleSource, type Settings } from "./types";
+import { DEFAULT_SETTINGS, type Adjustment, type EventDay, type EventStatus, type Rule, type RuleKind, type RuleSource, type Settings } from "./types";
 
 // Persistance du module prévisionnel : règles de classification, événements,
 // réglages, cache JSON. Postgres (DATABASE_URL) si dispo, sinon fichiers JSON
@@ -56,6 +56,17 @@ async function ensureSchema(): Promise<void> {
       key text primary key,
       fetched_at timestamptz not null default now(),
       data jsonb not null
+    )
+  `;
+  await s`
+    create table if not exists previsionnel_adjustments (
+      id serial primary key,
+      store_id text not null,
+      date date not null,
+      label text not null,
+      amount numeric not null,
+      kind text not null,
+      created_at timestamptz not null default now()
     )
   `;
 }
@@ -256,6 +267,8 @@ export function sanitizeSettings(raw: unknown): Settings {
     return Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : (DEFAULT_SETTINGS[k] as number);
   };
   const override = o.openingBalanceOverride;
+  const ratioOverride = o.matiereRatioOverride;
+  const rawWeekdays = o.forceOpenWeekdays;
   return {
     cbDelayDays: Math.round(num("cbDelayDays", 0, 10)),
     trDelayDays: Math.round(num("trDelayDays", 0, 60)),
@@ -266,6 +279,8 @@ export function sanitizeSettings(raw: unknown): Settings {
     openingBalanceOverride: override === null || override === undefined || override === "" ? null : Number(override),
     weatherEnabled: o.weatherEnabled === undefined ? DEFAULT_SETTINGS.weatherEnabled : Boolean(o.weatherEnabled),
     scenarioSpread: num("scenarioSpread", 0, 0.5),
+    forceOpenWeekdays: Array.isArray(rawWeekdays) ? rawWeekdays.map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6) : [],
+    matiereRatioOverride: ratioOverride === null || ratioOverride === undefined || ratioOverride === "" ? null : Math.max(0, Math.min(1, Number(ratioOverride))),
   };
 }
 
@@ -288,6 +303,48 @@ export async function saveSettings(storeId: string, settings: Settings): Promise
     values (${storeId}, ${sql.json(settings as unknown as Parameters<typeof sql.json>[0])}, now())
     on conflict (store_id) do update set data = excluded.data, updated_at = now()
   `;
+}
+
+// ── Ajustements manuels (dépenses one-shot) ────────────────────────────────────
+
+const ADJ_KINDS: RuleKind[] = ["matiere", "fixe", "hors_exploitation", "variable", "ignorer"];
+
+export async function getAdjustments(storeId: string): Promise<Adjustment[]> {
+  if (!isConfigured()) return fsRead<Adjustment[]>(`adjustments-${storeId}`, []);
+  await ready();
+  const rows = await getSql()<{ id: number; date: string; label: string; amount: string; kind: string }[]>`
+    select id, to_char(date, 'YYYY-MM-DD') as date, label, amount, kind
+    from previsionnel_adjustments where store_id = ${storeId} order by date
+  `;
+  return rows
+    .filter((r) => (ADJ_KINDS as string[]).includes(r.kind))
+    .map((r) => ({ id: r.id, date: r.date, label: r.label, amount: Number(r.amount), kind: r.kind as RuleKind }));
+}
+
+export async function addAdjustment(storeId: string, adj: Omit<Adjustment, "id">): Promise<Adjustment> {
+  if (!isConfigured()) {
+    const current = await fsRead<Adjustment[]>(`adjustments-${storeId}`, []);
+    const id = Date.now() % 1_000_000_000 + Math.floor(Math.random() * 1000);
+    const created = { ...adj, id };
+    await fsWrite(`adjustments-${storeId}`, [...current, created]);
+    return created;
+  }
+  await ready();
+  const rows = await getSql()<{ id: number }[]>`
+    insert into previsionnel_adjustments (store_id, date, label, amount, kind)
+    values (${storeId}, ${adj.date}, ${adj.label}, ${adj.amount}, ${adj.kind}) returning id
+  `;
+  return { ...adj, id: rows[0].id };
+}
+
+export async function deleteAdjustment(storeId: string, id: number): Promise<void> {
+  if (!isConfigured()) {
+    const current = await fsRead<Adjustment[]>(`adjustments-${storeId}`, []);
+    await fsWrite(`adjustments-${storeId}`, current.filter((a) => a.id !== id));
+    return;
+  }
+  await ready();
+  await getSql()`delete from previsionnel_adjustments where id = ${id} and store_id = ${storeId}`;
 }
 
 // ── Cache JSON (météo, transactions) ───────────────────────────────────────────

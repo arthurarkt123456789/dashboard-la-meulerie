@@ -7,10 +7,10 @@ import { LEDGER_WINDOW_MONTHS, fetchLedgerAccounts, fetchLedgerEntryLines, type 
 import { STORE_META } from "@/lib/apitic/mapping";
 import { llmEnabled, narratePlan } from "./llm";
 import { counterpartyKey } from "./classify";
-import { cacheGet, cacheSet, getEvents, getRules, getSettings } from "./db";
+import { cacheGet, cacheSet, getAdjustments, getEvents, getRules, getSettings } from "./db";
 import { addDays, buildPlan, shiftMonth } from "./engine";
 import { getWeather } from "./weather";
-import type { DailyHist, Plan, Rule, Settings, Tx, EventDay } from "./types";
+import type { Adjustment, DailyHist, Plan, Rule, Settings, Tx, EventDay } from "./types";
 
 export function todayParis(): string {
   const parts = new Intl.DateTimeFormat("fr-CA", {
@@ -47,6 +47,7 @@ export type StoreContext = {
   rawTxCount: number;
   rules: Rule[];
   events: EventDay[];
+  adjustments: Adjustment[];
   settings: Settings;
   openingBalance: number | null;
   balanceAsOf: string | null;
@@ -106,10 +107,11 @@ export async function loadStoreContext(
     const ledgerRes = await settle(loadLedger(storeId, config.token, ledgerMin, maxDate, Boolean(opts.force)));
     return { txRes, bankRes, ledgerRes };
   })();
-  const [dailyRes, rules, events, settings, seq] = await Promise.allSettled([
+  const [dailyRes, rules, events, adjustmentsRes, settings, seq] = await Promise.allSettled([
     getStoreData(storeId),
     getRules(storeId),
     getEvents(storeId),
+    getAdjustments(storeId),
     getSettings(storeId),
     pennylaneSeq,
   ]);
@@ -166,6 +168,7 @@ export async function loadStoreContext(
     rawTxCount: rawTxs.length,
     rules: rules.value,
     events: events.value,
+    adjustments: adjustmentsRes.status === "fulfilled" ? adjustmentsRes.value : [],
     settings: settings.value,
     openingBalance,
     balanceAsOf,
@@ -197,6 +200,7 @@ export async function buildStorePlan(ctx: StoreContext): Promise<Plan & { weathe
     settings: ctx.settings,
     openingBalance: ctx.openingBalance,
     balanceAsOf: ctx.balanceAsOf,
+    adjustments: ctx.adjustments,
   });
   if (ctx.txError) plan.warnings.unshift(`Transactions Pennylane indisponibles : ${ctx.txError}`);
   if (ctx.dailyError) plan.warnings.unshift(`Historique caisse indisponible : ${ctx.dailyError}`);

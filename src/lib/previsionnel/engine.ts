@@ -6,6 +6,7 @@
 
 import { holidayName } from "./holidays";
 import type {
+  Adjustment,
   DailyHist,
   EventDay,
   FixedScheduleItem,
@@ -92,6 +93,7 @@ export type EngineInput = {
   settings: Settings;
   openingBalance: number | null;
   balanceAsOf: string | null;
+  adjustments?: Adjustment[];
 };
 
 // ── Modèle de CA ───────────────────────────────────────────────────────────────
@@ -544,9 +546,12 @@ export function buildPlan(input: EngineInput): Plan {
     return { month: ym, matiere: round2(mat), ca: round2(caRef), ratio: caRef > 0 ? round2(mat / caRef * 10000) / 10000 : null };
   });
   const validRatios = matiereRatioMonths.filter((m) => m.ratio !== null && m.ca > 0 && m.matiere > 0);
-  const matiereRatio = validRatios.length
+  const matiereRatioCalcule = validRatios.length
     ? validRatios.reduce((s, m) => s + m.matiere, 0) / validRatios.reduce((s, m) => s + m.ca, 0)
     : null;
+  const matiereRatio = settings.matiereRatioOverride !== null && settings.matiereRatioOverride !== undefined
+    ? settings.matiereRatioOverride
+    : matiereRatioCalcule;
   if (matiereRatio === null) warnings.push("Aucune contrepartie classée « matière » sur les 3 derniers mois : sorties matière non projetées.");
 
   const varTot = closedMonths.reduce((s, ym) => s + sumKind(ym, "variable"), 0);
@@ -620,9 +625,18 @@ export function buildPlan(input: EngineInput): Plan {
   const forecastDates = dates.filter((d) => d >= today);
   // CA prévu du mois (pour répartir matière + variable).
   const caForecast = new Map<string, PlanDay["ca"]>();
+  const forcedWeekdays = settings.forceOpenWeekdays ?? [];
   for (const d of dates) {
     const h = dailyMap.get(d);
     const base = baseline(dailyMap, d, model.growth, model.weekdayMeans, eventMap);
+    // Jours forcés ouverts : si l'engine estime "fermé" et le jour est dans la liste, on estime via la moyenne pondérée des autres jours (-30 %).
+    const wd = weekdayOf(d);
+    let effectiveBase = base;
+    if (base.source === "closed" && d >= today && forcedWeekdays.includes(wd)) {
+      const nonZero = model.weekdayMeans.filter((v) => v > 0);
+      const est = nonZero.length ? mean(nonZero) * 0.7 : 0;
+      effectiveBase = { value: round2(est), source: "weekday-mean", n1: null };
+    }
     const ev = eventMap.get(d) ?? null;
     const w = weatherMap.get(d);
     let weatherFactor = 1;
@@ -631,7 +645,7 @@ export function buildPlan(input: EngineInput): Plan {
       if (model.coldEffect !== null && w.tmax !== null && w.tmax < COLD_TMAX) weatherFactor *= 1 + model.coldEffect;
     }
     const eventFactor = ev ? 1 + ev.impact : 1;
-    const forecast = base.value * weatherFactor * eventFactor;
+    const forecast = effectiveBase.value * weatherFactor * eventFactor;
     const isPast = d < today;
     const actual = h && !h.closed ? h.ca : null;
     let source: PlanDay["ca"]["source"] = "forecast";
@@ -646,9 +660,9 @@ export function buildPlan(input: EngineInput): Plan {
     caForecast.set(d, {
       value: round2(value),
       source,
-      base: round2(base.value),
-      baseSource: base.source,
-      n1: base.n1 !== null ? round2(base.n1) : null,
+      base: round2(effectiveBase.value),
+      baseSource: effectiveBase.source,
+      n1: effectiveBase.n1 !== null ? round2(effectiveBase.n1) : null,
       growth: round2(model.growth),
       weatherFactor: round2(weatherFactor),
       eventFactor: round2(eventFactor),
@@ -774,11 +788,22 @@ export function buildPlan(input: EngineInput): Plan {
         if (it.kind === "fixe") fixe += it.expectedAmount;
         else hors += it.expectedAmount;
       }
+      // Ajustements manuels one-shot
+      let adjMatiere = 0;
+      let adjVariable = 0;
+      for (const adj of input.adjustments ?? []) {
+        if (adj.date !== d) continue;
+        items.push({ label: adj.label, amount: adj.amount, kind: adj.kind, status: "forecast" });
+        if (adj.kind === "fixe") fixe += adj.amount;
+        else if (adj.kind === "hors_exploitation") hors += adj.amount;
+        else if (adj.kind === "matiere") adjMatiere += adj.amount;
+        else if (adj.kind === "variable") adjVariable += adj.amount;
+      }
       sorties = {
-        matiere: round2(matiere),
+        matiere: round2(matiere + adjMatiere),
         fixe: round2(fixe),
         horsExploitation: round2(hors),
-        variable: round2(variable),
+        variable: round2(variable + adjVariable),
         divers: round2(diversPerDay),
         total: 0,
         items,
@@ -912,6 +937,7 @@ export function buildPlan(input: EngineInput): Plan {
         virement: round2(shares.virement * 100) / 100,
       },
       matiereRatio: matiereRatio !== null ? Math.round(matiereRatio * 10000) / 10000 : null,
+      matiereRatioCalcule: matiereRatioCalcule !== null ? Math.round(matiereRatioCalcule * 10000) / 10000 : null,
       matiereRatioMonths,
       variableRatio: variableRatio !== null ? Math.round(variableRatio * 10000) / 10000 : null,
       diversPerDay: round2(diversPerDay),
