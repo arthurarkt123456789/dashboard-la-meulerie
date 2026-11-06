@@ -35,16 +35,17 @@ const C = {
 
 // ── Courbe de solde ────────────────────────────────────────────────────────────
 
-export function SoldeChart({ plan }: { plan: Plan }) {
+export function SoldeChart({ plan, aligned = false }: { plan: Plan; aligned?: boolean }) {
   const [hover, setHover] = useState<number | null>(null);
   const W = 900;
-  const H = 280;
-  const padL = 56;
-  const padR = 16;
-  const padT = 18;
-  const padB = 34;
+  const H = aligned ? 260 : 280;
   const days = plan.days;
   const n = days.length;
+  // Aligné sur la matrice : chaque jour au centre de sa colonne, pas d'axe à gauche.
+  const padL = aligned ? W / n / 2 : 56;
+  const padR = aligned ? W / n / 2 : 16;
+  const padT = 18;
+  const padB = aligned ? 10 : 34;
   const values = days.flatMap((d) => [d.solde, d.soldeOptimiste, d.soldePessimiste]);
   const thr = plan.kpis.alertThreshold;
   const minV = Math.min(0, thr, ...values);
@@ -86,8 +87,10 @@ export function SoldeChart({ plan }: { plan: Plan }) {
       <svg viewBox={`0 0 ${W} ${H}`} className="prev-chart" onMouseLeave={() => setHover(null)}>
         {tickVals.map((v, i) => (
           <g key={i}>
-            <line x1={padL} x2={W - padR} y1={y(v)} y2={y(v)} stroke={C.grid} strokeDasharray="2 3" />
-            <text x={padL - 8} y={y(v) + 4} textAnchor="end" className="prev-axis">{fmtK(v)}</text>
+            <line x1={aligned ? 0 : padL} x2={aligned ? W : W - padR} y1={y(v)} y2={y(v)} stroke={C.grid} strokeDasharray="2 3" />
+            {aligned
+              ? <text x={4} y={y(v) - 3} textAnchor="start" className="prev-axis">{fmtK(v)}</text>
+              : <text x={padL - 8} y={y(v) + 4} textAnchor="end" className="prev-axis">{fmtK(v)}</text>}
           </g>
         ))}
         {/* Zone réalisée */}
@@ -97,7 +100,7 @@ export function SoldeChart({ plan }: { plan: Plan }) {
             <stop offset="100%" stopColor="#4D7CFF" stopOpacity={0} />
           </linearGradient>
         </defs>
-        <rect x={padL} y={padT} width={Math.max(0, x(splitIdx) - padL)} height={H - padT - padB} fill="rgba(255,255,255,0.025)" />
+        <rect x={aligned ? 0 : padL} y={padT} width={Math.max(0, x(splitIdx) - (aligned ? 0 : padL) + (aligned ? W / n / 2 : 0))} height={H - padT - padB} fill="rgba(255,255,255,0.025)" />
         {/* Aire sous la courbe */}
         <path d={`${path((d) => d.solde)} L${x(n - 1).toFixed(1)},${(H - padB).toFixed(1)} L${x(0).toFixed(1)},${(H - padB).toFixed(1)} Z`} fill="url(#prev-area)" />
         {/* Bande de scénarios */}
@@ -129,7 +132,7 @@ export function SoldeChart({ plan }: { plan: Plan }) {
           </g>
         )}
         {/* Axe X */}
-        {days.map((d, i) =>
+        {!aligned && days.map((d, i) =>
           i % 3 === 0 || i === n - 1 ? (
             <text key={d.date} x={x(i)} y={H - padB + 16} textAnchor="middle" className="prev-axis">{d.date.slice(8)}</text>
           ) : null,

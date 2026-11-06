@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Store } from "@/lib/apitic/types";
 import { RULE_KIND_LABELS, RULE_SOURCE_LABELS, type Briefing, type Decision, type EventDay, type Plan, type PlanDay, type RuleKind, type Settings } from "@/lib/previsionnel/types";
 import { FluxChart, KIND_COLORS, SoldeChart, Waterfall } from "./charts";
+import { DayMatrix } from "./DayMatrix";
 
 // ── Types API ──────────────────────────────────────────────────────────────────
 
@@ -798,9 +799,17 @@ function PlanStep({ data, storeId, onReview, onReload, cachedAt, onRefresh }: {
         <Kpi label="Jours sous le seuil" value={String(k.joursSousSeuil)} sub={`seuil ${fmtEur(k.alertThreshold)}`} tone={k.joursSousSeuil > 0 ? "warn" : "ok"} />
       </div>
 
-      <div className="prev-card">
-        <div className="lm-label">Solde bancaire jour par jour</div>
-        <SoldeChart plan={plan} />
+      <div className="prev-card prev-card-matrix">
+        <div className="lm-label">Solde bancaire et flux jour par jour</div>
+        <div className="prev-mx-scroll">
+          <div className="prev-mx-inner">
+            <div className="prev-mx-row prev-mx-chartrow">
+              <div className="prev-mx-label" />
+              <SoldeChart plan={plan} aligned />
+            </div>
+            <DayMatrix plan={plan} />
+          </div>
+        </div>
       </div>
 
       <div className="prev-two">
