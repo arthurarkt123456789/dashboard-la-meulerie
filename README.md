@@ -281,6 +281,53 @@ C'est tout. Les périodes basculent côté client (pas de re-fetch APITIC), le c
 
 ---
 
+## Prévisionnel de trésorerie (`/tresorerie/previsionnel`)
+
+Plan de trésorerie jour par jour du mois en cours (ou d'un mois voisin), par magasin. Démarre sur Davso.
+
+### Flux en 3 étapes
+
+1. **Doutes** : le moteur lit 13 mois de transactions bancaires Pennylane, regroupe les sorties par contrepartie (libellé normalisé) et pose une question par contrepartie non encore classée : *Matière première / Charge fixe / Hors exploitation / Variable / Ignorer*. Une suggestion est proposée par mots-clés (URSSAF → fixe, METRO → matière, management fees → hors exploitation…). Chaque réponse est mémorisée en base (`previsionnel_rules`) et n'est plus reposée. Les manifs du mois se saisissent ici (date, impact en %).
+2. **Analyse** : calcul.
+3. **Plan** : KPI (solde actuel, solde fin de mois avec fourchette, point bas daté, CA prévu vs N-1, jours sous le seuil), courbe de solde avec bande de scénarios et ligne « aujourd'hui », barres de flux journaliers par nature, waterfall solde initial → solde final, tableau jour par jour dépliable, panneaux Hypothèses / Échéancier / Manifs / Réglages.
+
+### Modèle
+
+| Poste | Méthode |
+| --- | --- |
+| CA journalier | N-1 aligné sur le jour de semaine (J-364) × croissance (4 dernières semaines closes vs mêmes semaines N-1, hors jours perturbés). Sans N-1 : moyenne du jour de semaine sur 8 semaines. Fériés : même date calendaire N-1. |
+| Météo | Open-Meteo (Marseille). Effet pluie (≥ 2 mm) et froid (tmax < 12 °C) calibrés sur l'historique du magasin (ratio CA réel / moyenne locale du jour de semaine), appliqués sur les 16 jours de prévision. Non appliqué si moins de 10 jours comparables. |
+| Manifs | Impact saisi (défaut -30 %). Les manifs passées affichent l'impact constaté pour recaler. |
+| Encaissements banque | CA × part CB à J+1, TR à J+10, virements à J ; espèces restent en caisse (affichées à part). Parts mesurées sur 28 jours de caisse. |
+| Charges fixes / hors exploitation | Par contrepartie classée : médiane des montants mensuels, jour habituel (médiane), fréquence détectée (mensuel / hebdo / irrégulier). Une échéance déjà passée en banque ce mois n'est pas reprojetée ; une échéance en retard est décalée à demain. Montant et jour forçables dans l'échéancier. |
+| Matière | Ratio paiements matière / CA caisse sur 3 mois clos (décalage 0 ou 1 mois réglable), réparti sur les jours de semaine où les fournisseurs prélèvent habituellement. |
+| Variables / divers | Variables au ratio du CA ; petites contreparties non classées en moyenne par jour. |
+| Scénarios | ±10 % (réglable) sur encaissements et sorties variables futures. |
+| Solde | Solde Pennylane des comptes opérationnels (prêts exclus) daté de la dernière transaction connue ; soldes passés reconstitués à rebours. Solde forçable si la synchro bancaire manque. |
+
+La trésorerie **d'exploitation** exclut les flux classés « hors exploitation » (management fees, licence de marque, emprunts, comptes courants) : ils apparaissent en colonne séparée et dans le waterfall.
+
+### Prérequis
+
+- Token Pennylane du magasin avec les scopes `transactions:readonly` et `bank_accounts:readonly` en plus de `trial_balance:readonly` (`PENNYLANE_TOKEN_<MAGASIN>`).
+- `DATABASE_URL` (tables créées automatiquement : `previsionnel_rules`, `previsionnel_events`, `previsionnel_settings`, `previsionnel_cache`). Sans base : fichiers JSON dans `APITIC_CACHE_DIR/previsionnel`.
+- Accès sortant vers `api.open-meteo.com` et `archive-api.open-meteo.com` (sinon le plan se calcule sans météo, avec un avertissement).
+
+### Routes
+
+| Route | Rôle |
+| --- | --- |
+| `GET /api/previsionnel?store=davso&month=2026-11[&force=1]` | Plan complet (`force` ignore le cache transactions de 30 min) |
+| `GET /api/previsionnel/doutes?store=davso` | Contreparties à classer + contexte |
+| `POST /api/previsionnel/reponses?store=davso` | `{ answers: [{ key, kind, label?, expectedAmount?, expectedDay? }] }` |
+| `GET/DELETE /api/previsionnel/regles?store=davso[&key=]` | Lister / reposer une question |
+| `GET/POST/PATCH/DELETE /api/previsionnel/evenements?store=davso` | Manifs (`scope: "all"` pour tous les magasins) |
+| `GET/PUT /api/previsionnel/reglages?store=davso` | Réglages |
+
+Auto-test du moteur sur données synthétiques : `bun scripts/previsionnel-selftest.ts` (ou `npx tsx`).
+
+---
+
 ## Auth — pas encore wirée
 
 Le dashboard est accessible directement. Pour ajouter NextAuth/Clerk plus tard :
