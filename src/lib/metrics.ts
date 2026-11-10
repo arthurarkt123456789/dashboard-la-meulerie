@@ -312,6 +312,29 @@ function computeDeltas(cur: Summable, prev: Summable, yoy: Summable, yoyAvailabl
   };
 }
 
+/**
+ * N-1 revenue of a category on the same base (HT or TTC) as the current value
+ * it is compared to. Old rows without HT are converted with the period's own
+ * HT/TTC ratio so the comparison never mixes HT with TTC.
+ */
+function yoyCategoryCA(
+  yoy: PeriodSum,
+  cur: PeriodSum,
+  mode: MetricMode,
+): { fromagerie: number; snacking: number; epicerie: number; merch: number } {
+  if (mode === "TTC") {
+    return { fromagerie: yoy.fromagerieCA, snacking: yoy.snackingCA, epicerie: yoy.epicerieCA, merch: yoy.merchCA };
+  }
+  const ratio = yoy.ca > 0 && yoy.caHT > 0 ? yoy.caHT / yoy.ca : cur.ca > 0 && cur.caHT > 0 ? cur.caHT / cur.ca : 1;
+  const ht = (h: number, ttc: number) => (h > 0 ? h : ttc * ratio);
+  return {
+    fromagerie: ht(yoy.fromagerieCAHT, yoy.fromagerieCA),
+    snacking: ht(yoy.snackingCAHT, yoy.snackingCA),
+    epicerie: ht(yoy.epicerieCAHT, yoy.epicerieCA),
+    merch: ht(yoy.merchCAHT, yoy.merchCA),
+  };
+}
+
 export function sumPeriod(daily: StoreDaily[], days: number): PeriodSum {
   return sumRange(daily.slice(-days));
 }
@@ -403,6 +426,7 @@ export type StoreMetrics = PeriodSum & {
   yoyTicketSnackingDelta: number;
   yoyTicketEpicerieDelta: number;
   yoyTicketMerchDelta: number;
+  /** N-1 category revenue, on the same base (HT/TTC) as the requested mode. */
   yoyFromagerieCA: number;
   yoySnackingCA: number;
   yoyEpicerieCA: number;
@@ -511,10 +535,10 @@ export function periodMetricsForSelection(
     yoyTicketHT: yoy.avgTicketHT,
     yoySlice,
     days: effectiveDays,
-    yoyFromagerieCA: yoy.fromagerieCA,
-    yoySnackingCA: yoy.snackingCA,
-    yoyEpicerieCA: yoy.epicerieCA,
-    yoyMerchCA: yoy.merchCA,
+    yoyFromagerieCA: yoyCategoryCA(yoy, cur, mode).fromagerie,
+    yoySnackingCA: yoyCategoryCA(yoy, cur, mode).snacking,
+    yoyEpicerieCA: yoyCategoryCA(yoy, cur, mode).epicerie,
+    yoyMerchCA: yoyCategoryCA(yoy, cur, mode).merch,
     yoyFromagerieTx: yoy.fromagerieTx,
     yoySnackingTx: yoy.snackingTx,
     yoyEpicerieTx: yoy.epicerieTx,
@@ -634,10 +658,10 @@ function consolidatedFromWindows(
     totalStores: perStore.length,
     excludedStores,
     curScope: mode === "HT" && curScope.caHT > 0 ? curScope.caHT : curScope.ca,
-    yoyFromagerieCA: yoyScope.fromagerieCA,
-    yoySnackingCA: yoyScope.snackingCA,
-    yoyEpicerieCA: yoyScope.epicerieCA,
-    yoyMerchCA: yoyScope.merchCA,
+    yoyFromagerieCA: yoyCategoryCA(yoyScope, curScope, mode).fromagerie,
+    yoySnackingCA: yoyCategoryCA(yoyScope, curScope, mode).snacking,
+    yoyEpicerieCA: yoyCategoryCA(yoyScope, curScope, mode).epicerie,
+    yoyMerchCA: yoyCategoryCA(yoyScope, curScope, mode).merch,
     yoyFromagerieTx: yoyScope.fromagerieTx,
     yoySnackingTx: yoyScope.snackingTx,
     yoyEpicerieTx: yoyScope.epicerieTx,
@@ -667,10 +691,10 @@ function periodMetricsFromRange(daily: StoreDaily[], days: number, mode: MetricM
     yoyTicketHT: yoyFull.avgTicketHT,
     yoySlice,
     days,
-    yoyFromagerieCA: yoyFull.fromagerieCA,
-    yoySnackingCA: yoyFull.snackingCA,
-    yoyEpicerieCA: yoyFull.epicerieCA,
-    yoyMerchCA: yoyFull.merchCA,
+    yoyFromagerieCA: yoyCategoryCA(yoyFull, cur, mode).fromagerie,
+    yoySnackingCA: yoyCategoryCA(yoyFull, cur, mode).snacking,
+    yoyEpicerieCA: yoyCategoryCA(yoyFull, cur, mode).epicerie,
+    yoyMerchCA: yoyCategoryCA(yoyFull, cur, mode).merch,
     yoyFromagerieTx: yoyFull.fromagerieTx,
     yoySnackingTx: yoyFull.snackingTx,
     yoyEpicerieTx: yoyFull.epicerieTx,

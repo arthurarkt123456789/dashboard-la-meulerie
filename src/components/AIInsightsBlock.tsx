@@ -23,7 +23,7 @@ type Props = {
 };
 
 function pct(v: number): string {
-  return (v >= 0 ? "+" : "") + (v * 100).toFixed(1).replace(".", ",") + " %";
+  return (v > 0 ? "+" : v < 0 ? "−" : "") + (Math.abs(v) * 100).toFixed(1).replace(".", ",") + " %";
 }
 
 /** Magnitude only, for sentences that already say "recule de" / "en hausse de". */
