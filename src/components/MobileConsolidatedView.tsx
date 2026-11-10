@@ -39,7 +39,7 @@ export function MobileConsolidatedView({ allData, stores, period, isHT, periodLa
       const data = allData.find(s => s.id === store.id);
       if (!data || !data.daily.length) return [];
       const todayISO = data.daily[data.daily.length - 1].date;
-      const m = periodMetricsForSelection(data.daily, period);
+      const m = periodMetricsForSelection(data.daily, period, isHT ? "HT" : "TTC");
       const { from, to } = rangeForSelection(period, todayISO);
       const slice = data.daily.filter(d => d.date >= from && d.date <= to && !d.closed);
       const ca = isHT ? m.caHT : m.ca;

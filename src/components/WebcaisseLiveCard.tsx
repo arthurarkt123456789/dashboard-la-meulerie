@@ -138,7 +138,6 @@ export function WebcaisseLiveCard({ activeTab, stores, allData }: Props) {
             if (!sd) return null;
             const color = STORE_COLORS[store.id] ?? "#94a3b8";
             const n1caHT = storeN1Map.get(store.id) ?? null;
-            const delta = n1caHT && n1caHT > 0 ? sd.caHT / n1caHT - 1 : null;
             return (
               <div key={store.id} style={{
                 display: "flex", alignItems: "center", gap: 12,
@@ -155,14 +154,9 @@ export function WebcaisseLiveCard({ activeTab, stores, allData }: Props) {
                       {fmtEURshort(sd.caHT)}
                     </span>
                     <span style={{ fontSize: 11, color: "#64748b" }}>HT</span>
-                    {delta !== null && (
-                      <span style={{ fontSize: 11, fontWeight: 700, color: delta >= 0 ? "#4ade80" : "#f87171" }}>
-                        {delta >= 0 ? "+" : "−"}{Math.abs(Math.round(delta * 100))} %
-                      </span>
-                    )}
                   </div>
                   {n1caHT !== null && (
-                    <div style={{ fontSize: 10, color: "#475569", marginTop: 1 }}>N-1 : {fmtEURshort(n1caHT)}</div>
+                    <div style={{ fontSize: 10, color: "#475569", marginTop: 1 }}>N-1 journée complète : {fmtEURshort(n1caHT)}</div>
                   )}
                 </div>
                 <span style={{ fontSize: 13, color: "#94a3b8", fontVariantNumeric: "tabular-nums", marginLeft: "auto" }}>
@@ -194,7 +188,6 @@ export function WebcaisseLiveCard({ activeTab, stores, allData }: Props) {
         /* Single store: 3 stat boxes */
         (() => {
           const n1caHT = storeN1Map.get(activeTab) ?? null;
-          const delta = n1caHT && n1caHT > 0 ? storeEntry.caHT / n1caHT - 1 : null;
           return (
             <div style={{ padding: "10px 16px 14px", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
               {/* C.A. HT with N-1 */}
@@ -204,14 +197,9 @@ export function WebcaisseLiveCard({ activeTab, stores, allData }: Props) {
                   <div style={{ fontSize: 22, fontWeight: 700, color: "#f1f5f9", fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-display)" }}>
                     {fmtEURshort(storeEntry.caHT)}
                   </div>
-                  {delta !== null && (
-                    <span style={{ fontSize: 12, fontWeight: 700, color: delta >= 0 ? "#4ade80" : "#f87171" }}>
-                      {delta >= 0 ? "+" : "−"}{Math.abs(Math.round(delta * 100))} %
-                    </span>
-                  )}
                 </div>
                 {n1caHT !== null && (
-                  <div style={{ fontSize: 11, color: "#475569", marginTop: 3 }}>N-1 : {fmtEURshort(n1caHT)}</div>
+                  <div style={{ fontSize: 11, color: "#475569", marginTop: 3 }}>N-1 journée complète : {fmtEURshort(n1caHT)}</div>
                 )}
               </div>
               {/* C.A. TTC */}

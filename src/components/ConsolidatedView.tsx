@@ -15,7 +15,10 @@ import {
   consolidatedPeriodMetricsForSelection,
   periodLabelFor,
   periodMetricsForSelection,
+  formulesFromSlice,
+  paymentsFromSlice,
   rangeForSelection,
+  yoyOffsetForSelection,
 } from "@/lib/metrics";
 import {
   fmtEUR,
@@ -121,6 +124,7 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
       consolidatedDaily,
       stores.map((s) => ({ store: s, daily: s.daily })),
       period,
+      amountMode,
     );
     return {
       consolidatedDaily,
@@ -129,7 +133,7 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
       consolidatedFormules,
       m,
     };
-  }, [stores, period]);
+  }, [stores, period, amountMode]);
 
   const {
     consolidatedDaily,
@@ -171,7 +175,7 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
   const storeMetrics = useMemo(() => {
     return stores
       .map((s, i) => {
-        const ms = periodMetricsForSelection(s.daily, period);
+        const ms = periodMetricsForSelection(s.daily, period, amountMode);
         const value = isHT ? ms.caHT : ms.ca;
         const yoyValue = isHT ? ms.yoyCaHT : ms.yoyCa;
         return {
@@ -190,8 +194,7 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
 
   // 364 = 52 × 7: same day-of-week alignment. Fiscal year uses 365 since it
   // displays at monthly granularity (weekday alignment irrelevant there).
-  const yoyOffsetDays =
-    period.kind === "fiscal-year-todate" ? 365 : 364;
+  const yoyOffsetDays = yoyOffsetForSelection(period);
 
   const lineSeries: LineSeries[] = useMemo(() => {
     const base: LineSeries[] = stores.map((s, i) => ({
@@ -272,6 +275,10 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
     const { from, to } = rangeForSelection(period, todayISO);
     return consolidatedDaily.filter((d) => d.date >= from && d.date <= to && !d.closed);
   }, [consolidatedDaily, period]);
+
+  // Same period as the card subtitle and as the per-store tabs.
+  const periodFormules = useMemo(() => formulesFromSlice(consolidatedPeriodSlice), [consolidatedPeriodSlice]);
+  const periodPayments = useMemo(() => paymentsFromSlice(consolidatedPeriodSlice), [consolidatedPeriodSlice]);
 
   const hasUberEats = useMemo(
     () => consolidatedPeriodSlice.some((d) => (d.uberEatsCa ?? 0) > 0),
@@ -357,7 +364,8 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
           margeCoveredEpicerieCAHT={m.margeCoveredEpicerieCAHT}
           margeCoveredMerchCAHT={m.margeCoveredMerchCAHT}
           margeDelta={m.margeDelta}
-          yoyMargeDelta={m.yoyAvailable ? m.yoyMargeDelta : null}
+          yoyMargeDelta={m.yoyMargeAvailable ? m.yoyMargeDelta : null}
+          margeDeltaAvailable={m.margeDeltaAvailable}
           yoyAvailable={m.yoyAvailable}
         />
         <KPICard
@@ -702,7 +710,7 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
         span={3}
       >
         <FormulesCard
-          formules={consolidatedFormules}
+          formules={periodFormules}
           amountMode={amountMode}
           daily={consolidatedPeriodSlice}
           period={period}
@@ -715,7 +723,7 @@ export function ConsolidatedView({ stores, period, amountMode }: Props) {
         span={3}
       >
         <PaymentsCard
-          payments={consolidatedPayments}
+          payments={periodPayments}
           amountMode={amountMode}
           daily={consolidatedPeriodSlice}
           period={period}

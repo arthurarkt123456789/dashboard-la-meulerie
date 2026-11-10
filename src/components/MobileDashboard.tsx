@@ -31,12 +31,14 @@ const PERIOD_OPTIONS = [
   { value: "7d",      label: "7 jours" },
   { value: "30d",     label: "30 jours" },
   { value: "90d",     label: "3 mois" },
-  { value: "month",   label: "Mois en cours" },
+  { value: "month",   label: "Ce mois" },
   { value: "fy",      label: "Exercice" },
   { value: "fy-prev", label: "Ex. préc." },
 ] as const;
 
 type PeriodOpt = typeof PERIOD_OPTIONS[number]["value"];
+
+const ALIGN_ON_CLOSED_DAYS = true;
 
 function toPeriodSelection(key: PeriodOpt, year: number, month: number): PeriodSelection {
   if (key === "fy") return { kind: "fiscal-year-todate" };
@@ -302,6 +304,8 @@ export function MobileDashboard() {
   // If live is in error, fall back to APITIC data only (cutoff = yesterday).
   const dailyWithLive = useMemo(() => {
     if (!store) return [];
+    // Same cutoff as desktop and the consolidated view: last closed day.
+    if (ALIGN_ON_CLOSED_DAYS) return store.daily;
     if (liveQ.isError) return store.daily;
     const liveStore = liveQ.data?.stores[store.id];
     const todayLive = liveQ.data?.date;
@@ -338,8 +342,8 @@ export function MobileDashboard() {
   );
 
   const m = useMemo(
-    () => dailyWithLive.length ? periodMetricsForSelection(dailyWithLive, period) : null,
-    [dailyWithLive, period],
+    () => dailyWithLive.length ? periodMetricsForSelection(dailyWithLive, period, isHT ? "HT" : "TTC") : null,
+    [dailyWithLive, period, isHT],
   );
 
   const periodSlice = useMemo(() => {
@@ -712,7 +716,6 @@ export function MobileDashboard() {
                 if (s) {
                   const n1day = dailyByDate.get(n1Date);
                   const n1caHT = n1day && !n1day.closed ? n1day.caHT : null;
-                  const delta = n1caHT && n1caHT > 0 ? s.caHT / n1caHT - 1 : null;
                   return (
                     <div style={{ padding: "4px 16px 16px" }}>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
@@ -720,14 +723,9 @@ export function MobileDashboard() {
                           <div style={{ fontSize: 10, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>C.A. HT</div>
                           <div style={{ display: "flex", alignItems: "baseline", gap: 5, flexWrap: "wrap" }}>
                             <div style={{ fontSize: 20, fontWeight: 700, color: "#f1f5f9", fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-display)" }}>{fmtEURshort(s.caHT)}</div>
-                            {delta !== null && (
-                              <span style={{ fontSize: 11, fontWeight: 700, color: delta >= 0 ? "#4ade80" : "#f87171" }}>
-                                {delta >= 0 ? "+" : "−"}{Math.abs(Math.round(delta * 100))} %
-                              </span>
-                            )}
                           </div>
                           {n1caHT !== null && (
-                            <div style={{ fontSize: 10, color: "#475569", marginTop: 3 }}>N-1 : {fmtEURshort(n1caHT)}</div>
+                            <div style={{ fontSize: 10, color: "#475569", marginTop: 3 }}>N-1 journée : {fmtEURshort(n1caHT)}</div>
                           )}
                         </div>
                         <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 10, padding: "10px 12px" }}>
@@ -752,21 +750,15 @@ export function MobileDashboard() {
                       const storeData = allData.find(d => d.id === st.id);
                       const n1day = storeData?.daily.find(d => d.date === n1Date);
                       const n1caHT = n1day && !n1day.closed ? n1day.caHT : null;
-                      const delta = n1caHT && n1caHT > 0 ? sd.caHT / n1caHT - 1 : null;
                       return (
                         <div key={st.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "rgba(255,255,255,0.05)", borderRadius: 8, borderLeft: `3px solid ${color}` }}>
                           <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#cbd5e1" }}>{st.name}</span>
                           <div style={{ textAlign: "right" }}>
                             <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
                               <span style={{ fontSize: 14, fontWeight: 700, color: "#f1f5f9", fontVariantNumeric: "tabular-nums" }}>{fmtEURshort(sd.caHT)}</span>
-                              {delta !== null && (
-                                <span style={{ fontSize: 11, fontWeight: 700, color: delta >= 0 ? "#4ade80" : "#f87171" }}>
-                                  {delta >= 0 ? "+" : "−"}{Math.abs(Math.round(delta * 100))} %
-                                </span>
-                              )}
                             </div>
                             {n1caHT !== null && (
-                              <div style={{ fontSize: 10, color: "#475569" }}>N-1 : {fmtEURshort(n1caHT)}</div>
+                              <div style={{ fontSize: 10, color: "#475569" }}>N-1 journée : {fmtEURshort(n1caHT)}</div>
                             )}
                           </div>
                           <span style={{ fontSize: 12, color: "#64748b", fontVariantNumeric: "tabular-nums" }}>{sd.tx} tx</span>
@@ -828,7 +820,7 @@ export function MobileDashboard() {
             <div style={{ fontSize: 11, color: "var(--fg-tertiary)", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ fontWeight: 600, color: "var(--fg-secondary)" }}>
                 {lockedDayData
-                  ? `${lockedDayData.day} ${FR_MONTHS[month - 1].slice(0, 4)}.`
+                  ? `${lockedDayData.day} ${FR_MONTHS[month - 1]}`
                   : "—"}
               </span>
               {lockedMonthDay !== null && (() => {
@@ -929,7 +921,7 @@ export function MobileDashboard() {
             <KPIAccordion
               label="Marge Brute"
               value={`${(m.margeCoveredCAHT > 0 ? m.margeHT / m.margeCoveredCAHT * 100 : 0).toFixed(1).replace(".", ",")} %`}
-              yoyDelta={m.yoyAvailable ? m.yoyMargeDelta : null}
+              yoyDelta={m.yoyMargeAvailable ? m.yoyMargeDelta : null}
               yoyAvailable={m.yoyAvailable}
             >
               <DRow label="Marge HT" value={fmtEURshort(m.margeHT)} />
@@ -946,7 +938,7 @@ export function MobileDashboard() {
           >
             {m && <>
               <DRow label="Jours dans la période" value={String(m.days)} />
-              <DRow label="N-1 CA/j" value={m.yoyCa > 0 && m.days > 0 ? fmtEURshort(m.yoyCa / m.days) : "N/A"} />
+              <DRow label="N-1 CA/j" value={m.yoyAvailable && m.yoyCa > 0 && m.days > 0 ? fmtEURshort((isHT ? m.yoyCaHT : m.yoyCa) / m.days) : "N/A"} />
             </>}
           </KPIAccordion>
         </div>

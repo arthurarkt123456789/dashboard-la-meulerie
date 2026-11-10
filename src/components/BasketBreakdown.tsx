@@ -75,7 +75,7 @@ export function BasketBreakdown({
           <div className="lm-kpi-delta-row">
             <span className={"lm-delta " + deltaClass(global.delta)}>
               {(global.delta ?? 0) > 0 ? "↑ " : (global.delta ?? 0) < 0 ? "↓ " : ""}
-              {fmtPct(global.delta!).replace(/^\+/, "")}
+              {fmtPctNoSign(Math.abs(global.delta!))}
             </span>
             <span className="lm-delta-label">vs. période préc.</span>
           </div>
@@ -83,15 +83,15 @@ export function BasketBreakdown({
         {yoyAvailable === false ? (
           <div className="lm-kpi-delta-row">
             <span className="lm-delta neu">—</span>
-            <span className="lm-delta-label">last year N/A</span>
+            <span className="lm-delta-label">N-1 indisponible</span>
           </div>
         ) : hasYoy ? (
           <div className="lm-kpi-delta-row">
             <span className={"lm-delta " + deltaClass(global.yoyDelta)}>
               {(global.yoyDelta ?? 0) > 0 ? "↑ " : (global.yoyDelta ?? 0) < 0 ? "↓ " : ""}
-              {fmtPct(global.yoyDelta!).replace(/^\+/, "")}
+              {fmtPctNoSign(Math.abs(global.yoyDelta!))}
             </span>
-            <span className="lm-delta-label">vs. last year</span>
+            <span className="lm-delta-label">vs N-1</span>
           </div>
         ) : null}
         {networkBasketAbsolute != null && (

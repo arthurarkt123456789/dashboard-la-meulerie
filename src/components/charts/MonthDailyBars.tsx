@@ -205,7 +205,7 @@ export function MonthDailyBars({ daily, todayISO, isHT, storeColor, initialLocke
             <div style={{ borderLeft: "1px solid var(--border-light)", alignSelf: "stretch" }} />
             <div>
               <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--fg-tertiary)", marginBottom: 3 }}>
-                Croissance YOY
+                Croissance vs N-1
               </div>
               <div style={{
                 fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 700,

@@ -26,6 +26,11 @@ function pct(v: number): string {
   return (v >= 0 ? "+" : "") + (v * 100).toFixed(1).replace(".", ",") + " %";
 }
 
+/** Magnitude only, for sentences that already say "recule de" / "en hausse de". */
+function pctAbs(v: number): string {
+  return (Math.abs(v) * 100).toFixed(1).replace(".", ",") + " %";
+}
+
 function generateInsights(props: Props): Insight[] {
   const {
     caDelta,
@@ -44,12 +49,12 @@ function generateInsights(props: Props): Insight[] {
     if (caDelta > 0.05) {
       insights.push({
         icon: "↑",
-        text: `Le CA est en hausse de ${pct(caDelta)} sur la période. La dynamique est positive — à maintenir par une gestion maîtrisée des charges variables.`,
+        text: `Le CA est en hausse de ${pctAbs(caDelta)} sur la période. La dynamique est positive — à maintenir par une gestion maîtrisée des charges variables.`,
       });
     } else if (caDelta < -0.05) {
       insights.push({
         icon: "↓",
-        text: `Le CA est en repli de ${pct(Math.abs(caDelta))} sur la période. Un point de vigilance s'impose sur le mix produit ou la fréquentation.`,
+        text: `Le CA est en repli de ${pctAbs(caDelta)} sur la période. Un point de vigilance s'impose sur le mix produit ou la fréquentation.`,
       });
     } else {
       insights.push({
@@ -64,12 +69,12 @@ function generateInsights(props: Props): Insight[] {
     if (yoyCaDelta > 0.1) {
       insights.push({
         icon: "📈",
-        text: `Sur un an, le CA progresse de ${pct(yoyCaDelta)} — une croissance significative qui signale un ancrage solide de l'enseigne dans son bassin de clientèle.`,
+        text: `Sur un an, le CA progresse de ${pctAbs(yoyCaDelta)} — une croissance significative qui signale un ancrage solide de l'enseigne dans son bassin de clientèle.`,
       });
     } else if (yoyCaDelta < -0.05) {
       insights.push({
         icon: "📉",
-        text: `Le CA recule de ${pct(Math.abs(yoyCaDelta))} vs N-1. Il convient d'analyser si ce repli est saisonnier, structurel ou lié à un changement de mix.`,
+        text: `Le CA recule de ${pctAbs(yoyCaDelta)} vs N-1. Il convient d'analyser si ce repli est saisonnier, structurel ou lié à un changement de mix.`,
       });
     }
   }
@@ -174,7 +179,7 @@ export function AIInsightsBlock(props: Props) {
               marginTop: 4,
             }}
           >
-            Lecture I.A. sur {props.periodLabel} · générée automatiquement à partir des KPIs
+            Lecture I.A. {props.periodLabel} · générée automatiquement à partir des KPIs
           </div>
         </div>
         <div

@@ -112,7 +112,7 @@ export function CABreakdown({
           <div className="lm-kpi-delta-row">
             <span className={"lm-delta " + deltaClass(delta)}>
               {(delta ?? 0) > 0 ? "↑ " : (delta ?? 0) < 0 ? "↓ " : ""}
-              {fmtPct(delta!).replace(/^\+/, "")}
+              {fmtPctNoSign(Math.abs(delta!))}
             </span>
             <span className="lm-delta-label">vs. période préc.</span>
           </div>
@@ -120,15 +120,15 @@ export function CABreakdown({
         {yoyAvailable === false ? (
           <div className="lm-kpi-delta-row">
             <span className="lm-delta neu">—</span>
-            <span className="lm-delta-label">last year N/A</span>
+            <span className="lm-delta-label">N-1 indisponible</span>
           </div>
         ) : hasYoy ? (
           <div className="lm-kpi-delta-row">
             <span className={"lm-delta " + deltaClass(yoyDelta)}>
               {(yoyDelta ?? 0) > 0 ? "↑ " : (yoyDelta ?? 0) < 0 ? "↓ " : ""}
-              {fmtPct(yoyDelta!).replace(/^\+/, "")}
+              {fmtPctNoSign(Math.abs(yoyDelta!))}
             </span>
-            <span className="lm-delta-label">vs. last year</span>
+            <span className="lm-delta-label">vs N-1</span>
           </div>
         ) : null}
         {trendDelta != null && trendLabel && (
@@ -248,7 +248,7 @@ function CARow({
                   marginLeft: 2,
                 }}
               >
-                YOY
+                N-1
               </span>
             </span>
           </div>

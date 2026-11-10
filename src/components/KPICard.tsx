@@ -1,4 +1,4 @@
-import { fmtPct } from "@/lib/format";
+import { fmtPctNoSign } from "@/lib/format";
 import { Sparkline } from "./charts/Sparkline";
 
 type SegmentShare = { label: string; color: string; share: number };
@@ -46,7 +46,7 @@ function DeltaRow({ value, label }: { value: number; label: string }) {
     <div className="lm-kpi-delta-row">
       <span className={"lm-delta " + cls}>
         {value > 0 ? "↑ " : value < 0 ? "↓ " : ""}
-        {fmtPct(value).replace(/^\+/, "")}
+        {fmtPctNoSign(Math.abs(value))}
       </span>
       <span className="lm-delta-label">{label}</span>
     </div>
@@ -130,10 +130,10 @@ export function KPICard({
         {yoyAvailable === false ? (
           <div className="lm-kpi-delta-row">
             <span className="lm-delta neu">—</span>
-            <span className="lm-delta-label">{yoyNote || "last year N/A"}</span>
+            <span className="lm-delta-label">{yoyNote || "N-1 indisponible"}</span>
           </div>
         ) : typeof yoyDelta === "number" ? (
-          <DeltaRow value={yoyDelta} label={yoyNote || "vs. last year"} />
+          <DeltaRow value={yoyDelta} label={yoyNote || "vs N-1"} />
         ) : null}
         {networkRef && typeof networkRefDelta === "number" && (
           <DeltaRow value={networkRefDelta} label={`vs. réseau (${networkRef})`} />
@@ -170,7 +170,7 @@ export function KPICard({
                 <span style={{ width: 6, height: 6, background: s.color, borderRadius: 1, flexShrink: 0 }} />
                 <span style={{ color: "var(--fg-tertiary)" }}>{s.label}</span>
                 <span style={{ color: "var(--fg-secondary)", fontVariantNumeric: "tabular-nums" }}>
-                  {(s.share * 100).toFixed(1)}%
+                  {(s.share * 100).toFixed(1).replace(".", ",")} %
                 </span>
               </div>
             ))}

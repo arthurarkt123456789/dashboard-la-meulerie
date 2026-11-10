@@ -11,7 +11,10 @@ import type { AmountMode } from "./AmountModeToggle";
 import {
   periodLabelFor,
   periodMetricsForSelection,
+  formulesFromSlice,
+  paymentsFromSlice,
   rangeForSelection,
+  yoyOffsetForSelection,
 } from "@/lib/metrics";
 import { fmtEUR, fmtNum } from "@/lib/format";
 import { Card } from "./Card";
@@ -70,6 +73,8 @@ function defaultGranularity(period: PeriodSelection): Granularity {
   return "day";
 }
 
+const ALIGN_ON_CLOSED_DAYS = true;
+
 export function StoreView({ store, period, today, amountMode }: Props) {
   const [segmentFilter] = useSegmentFilter();
   const allowWeekly = granularityAllowed(period);
@@ -102,6 +107,10 @@ export function StoreView({ store, period, today, amountMode }: Props) {
   const dailyWithLive = useMemo<StoreDaily[]>(() => {
     const liveStore = liveQ.data?.stores[store.id];
     const todayLive = liveQ.data?.date;
+    // KPIs and charts stop at the last closed day, like the consolidated view,
+    // so a store shows the same figures on every tab. Today's sales are in the
+    // live banner only.
+    if (ALIGN_ON_CLOSED_DAYS) return store.daily;
     if (!liveStore || !todayLive || liveStore.tx === 0) return store.daily;
     const lastDay = store.daily[store.daily.length - 1]?.date ?? "";
     if (lastDay >= todayLive) return store.daily;
@@ -122,14 +131,14 @@ export function StoreView({ store, period, today, amountMode }: Props) {
   }, [store.daily, store.id, liveQ.data]);
 
   const m = useMemo(
-    () => periodMetricsForSelection(dailyWithLive, period),
-    [dailyWithLive, period],
+    () => periodMetricsForSelection(dailyWithLive, period, amountMode),
+    [dailyWithLive, period, amountMode],
   );
   // Category metrics use closed days only — today's live entry has fromagerieCA=0
   // which distorts yoy% (comparing 6 full days vs 7 N-1 days).
   const mClosed = useMemo(
-    () => periodMetricsForSelection(store.daily, period),
-    [store.daily, period],
+    () => periodMetricsForSelection(store.daily, period, amountMode),
+    [store.daily, period, amountMode],
   );
   const todayISO = dailyWithLive[dailyWithLive.length - 1]?.date ?? "";
   const sparkValues = useMemo(() => {
@@ -247,7 +256,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
     const days = m.days;
     // 364 = 52 × 7 (same day-of-week, ~1 year ago). Fiscal year uses 365
     // since it's displayed at monthly granularity (weekday alignment irrelevant).
-    const offset = period.kind === "fiscal-year-todate" ? 365 : 364;
+    const offset = yoyOffsetForSelection(period);
     const start = dailyWithLive.length - days - offset;
     const raw = dailyWithLive.slice(start, start + days).map((d, i) => ({
       date: lineData[i]?.date ?? d.date,
@@ -264,52 +273,8 @@ export function StoreView({ store, period, today, amountMode }: Props) {
     return dailyWithLive.filter((d) => d.date >= from && d.date <= to && !d.closed);
   }, [dailyWithLive, period]);
 
-  const periodFormules = useMemo<FormuleStats>(() => {
-    const slice = periodSlice;
-    return {
-      endDate: slice[slice.length - 1]?.date ?? "",
-      days: slice.length,
-      byKind: {
-        grilled: {
-          units: slice.reduce((s, d) => s + (d.grilledUnits ?? 0), 0),
-          ca: slice.reduce((s, d) => s + (d.grilledCA ?? 0), 0),
-          caHT: slice.reduce((s, d) => s + (d.grilledCAHT ?? 0), 0),
-        },
-        baguette: {
-          units: slice.reduce((s, d) => s + (d.baguetteUnits ?? 0), 0),
-          ca: slice.reduce((s, d) => s + (d.baguetteCA ?? 0), 0),
-          caHT: slice.reduce((s, d) => s + (d.baguetteCAHT ?? 0), 0),
-        },
-      },
-      snackingCA: slice.reduce((s, d) => s + d.snackingCA, 0),
-      snackingCAHT: slice.reduce((s, d) => s + (d.snackingCAHT ?? 0), 0),
-      snackingTx: slice.reduce((s, d) => s + (d.snackingTx ?? 0), 0),
-    };
-  }, [periodSlice]);
-
-  const periodPayments = useMemo<PaymentSplit[]>(() => {
-    const slice = periodSlice;
-    const totalTTC = slice.reduce((s, d) => s + d.ca, 0);
-    const totalHT = slice.reduce((s, d) => s + (d.caHT ?? 0), 0);
-    const htRatio = totalTTC > 0 ? totalHT / totalTTC : 1;
-    const amounts: Record<PaymentMethod, number> = {
-      "Carte bancaire": slice.reduce((s, d) => s + (d.cbAmount ?? 0), 0),
-      "Virement": slice.reduce((s, d) => s + (d.virementAmount ?? 0), 0),
-      "Espèces": slice.reduce((s, d) => s + (d.especesAmount ?? 0), 0),
-      "Tickets resto": slice.reduce((s, d) => s + (d.ticketsRestoAmount ?? 0), 0),
-    };
-    const total = Object.values(amounts).reduce((s, v) => s + v, 0);
-    return (["Carte bancaire", "Virement", "Espèces", "Tickets resto"] as PaymentMethod[]).map(
-      (method) => ({
-        method,
-        share: total > 0 ? amounts[method] / total : 0,
-        amount: amounts[method],
-        amountHT: amounts[method] * htRatio,
-      }),
-    );
-  }, [periodSlice]);
-
-
+  const periodFormules = useMemo<FormuleStats>(() => formulesFromSlice(periodSlice), [periodSlice]);
+  const periodPayments = useMemo<PaymentSplit[]>(() => paymentsFromSlice(periodSlice), [periodSlice]);
 
   const hourlyForPeriod = (() => {
     if (period.kind === "preset") {
@@ -552,7 +517,7 @@ export function StoreView({ store, period, today, amountMode }: Props) {
         </div>
         <div className="lm-store-status">
           <span className="lm-status-dot" />
-          <span>Données arrêtées au dernier fiscal jour</span>
+          <span>Données arrêtées au dernier jour clôturé</span>
         </div>
       </div>
 
@@ -653,7 +618,8 @@ export function StoreView({ store, period, today, amountMode }: Props) {
           margeCoveredEpicerieCAHT={m.margeCoveredEpicerieCAHT}
           margeCoveredMerchCAHT={m.margeCoveredMerchCAHT}
           margeDelta={m.margeDelta}
-          yoyMargeDelta={m.yoyAvailable ? m.yoyMargeDelta : null}
+          yoyMargeDelta={m.yoyMargeAvailable ? m.yoyMargeDelta : null}
+          margeDeltaAvailable={m.margeDeltaAvailable}
           yoyAvailable={m.yoyAvailable}
         />
         <KPICard

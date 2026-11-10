@@ -691,6 +691,43 @@ button { font-family: inherit; cursor: pointer; }
   .lm-card[data-span] { grid-column: 1 / -1 !important; }
 }
 
+/* ── 1100px : header controls no longer fit beside the tabs (iPad portrait) ── */
+@media (max-width: 1100px) {
+  .lm-header-bottom { flex-direction: column; align-items: stretch; gap: 0; }
+  .lm-tabs { overflow-x: auto; scrollbar-width: none; }
+  .lm-tabs::-webkit-scrollbar { display: none; }
+  .lm-tab { flex-shrink: 0; white-space: nowrap; }
+  .lm-header-controls {
+    flex-wrap: wrap;
+    flex-shrink: 1;
+    min-width: 0;
+    padding: 6px 0 10px;
+  }
+  .lm-header-controls > * { max-width: 100%; }
+  .lm-segmented { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .lm-segmented::-webkit-scrollbar { display: none; }
+  .lm-seg-btn { flex-shrink: 0; }
+}
+
+/* Snacking row: totals wrap, detail strip scrolls inside its card */
+@media (max-width: 1100px) {
+  .snacking-outer { display: flex !important; flex-direction: row !important; flex-wrap: wrap; }
+  .snacking-outer > * { min-width: 0; }
+  .snacking-sep { display: none !important; }
+  .snacking-total-item, .snacking-grand { flex: 1 1 30% !important; }
+  .snacking-detail-wrap {
+    flex: 1 1 100% !important;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    border-top: 1px solid var(--border-light);
+  }
+  .snacking-detail-wrap::-webkit-scrollbar { display: none; }
+  .snacking-detail { min-width: max-content; }
+  .lm-card { min-width: 0; }
+}
+
 /* ── 900px : tablette ── */
 @media (max-width: 900px) {
   .lm-main { padding: 20px 20px 40px; }
@@ -757,7 +794,7 @@ button { font-family: inherit; cursor: pointer; }
     padding: 5px 10px;
     border-radius: 6px;
     background: var(--fg-primary);
-    color: var(--bg-primary);
+    color: #fff;
     font-size: 12px;
     font-weight: 600;
     text-decoration: none;

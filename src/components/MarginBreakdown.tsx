@@ -12,6 +12,8 @@ type Props = {
   margeCoveredMerchCAHT: number;
   /** Rate difference in pp (e.g. 0.023 = +2.3 pp). */
   margeDelta: number | null;
+  /** false when cost data is missing on one side: the delta row is hidden. */
+  margeDeltaAvailable?: boolean;
   yoyMargeDelta: number | null;
   yoyAvailable: boolean;
   partial?: boolean;
@@ -58,6 +60,7 @@ export function MarginBreakdown({
   margeCoveredEpicerieCAHT,
   margeCoveredMerchCAHT,
   margeDelta,
+  margeDeltaAvailable,
   yoyMargeDelta,
   yoyAvailable,
   partial,
@@ -90,7 +93,7 @@ export function MarginBreakdown({
         )}
       </div>
       <div className="lm-kpi-deltas" style={{ marginTop: 8 }}>
-        {typeof margeDelta === "number" && isFinite(margeDelta) && (
+        {margeDeltaAvailable !== false && typeof margeDelta === "number" && isFinite(margeDelta) && (
           <div className="lm-kpi-delta-row">
             <span className={"lm-delta " + ppClass(margeDelta)}>
               {fmtPP(margeDelta)}
@@ -101,14 +104,14 @@ export function MarginBreakdown({
         {yoyAvailable === false ? (
           <div className="lm-kpi-delta-row">
             <span className="lm-delta neu">—</span>
-            <span className="lm-delta-label">last year N/A</span>
+            <span className="lm-delta-label">N-1 indisponible</span>
           </div>
         ) : typeof yoyMargeDelta === "number" && isFinite(yoyMargeDelta) ? (
           <div className="lm-kpi-delta-row">
             <span className={"lm-delta " + ppClass(yoyMargeDelta)}>
               {fmtPP(yoyMargeDelta)}
             </span>
-            <span className="lm-delta-label">vs. last year</span>
+            <span className="lm-delta-label">vs N-1</span>
           </div>
         ) : null}
       </div>

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { PeriodSelection, StoreDaily } from "@/lib/apitic/types";
-import { rangeForSelection } from "@/lib/metrics";
+import { rangeForSelection, yoyOffsetForSelection } from "@/lib/metrics";
 import { maybeBucket, type Granularity } from "@/lib/bucketing";
 import { roll7 } from "@/lib/smoothing";
 import { Card } from "./Card";
@@ -44,8 +44,7 @@ export function SegmentEvolution({
   const [showN1, setShowN1] = useState(false);
   const [smooth, setSmooth] = useState(false);
   const isHT = amountMode === "HT";
-  const yoyOffsetDays =
-    period.kind === "month" || period.kind === "fiscal-year-todate" ? 365 : 364;
+  const yoyOffsetDays = yoyOffsetForSelection(period);
 
   const lineData = useMemo(() => {
     if (daily.length === 0) return [];

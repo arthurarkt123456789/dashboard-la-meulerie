@@ -17,6 +17,7 @@ interface FiscalMonth {
   // N-1
   prevCA: number;
   prevNoData: boolean;
+  prevPartialMonth: boolean;
   // Current FY
   curCA: number;       // actual CA (completed months)
   curActualCA: number; // actual CA so far (current partial month)
@@ -37,7 +38,14 @@ function buildFiscalData(daily: StoreDaily[], todayISO: string, isHT: boolean) {
 
   const todayYear = parseInt(effectiveTodayISO.slice(0, 4), 10);
   const todayMonth = parseInt(effectiveTodayISO.slice(5, 7), 10);
-  const todayDay = parseInt(effectiveTodayISO.slice(8, 10), 10);
+  const clientDay = parseInt(effectiveTodayISO.slice(8, 10), 10);
+  // Days actually covered by the data in the current month. The data stops at
+  // the last closed day (`todayISO`), so dividing month-to-date CA by the
+  // calendar day would understate the daily rate by one day.
+  const todayDay =
+    todayISO.slice(0, 7) === effectiveTodayISO.slice(0, 7)
+      ? parseInt(todayISO.slice(8, 10), 10)
+      : clientDay;
   const curFYEnd = todayMonth >= 10 ? todayYear + 1 : todayYear;
   const prevFYEnd = curFYEnd - 1;
 
@@ -79,6 +87,9 @@ function buildFiscalData(daily: StoreDaily[], todayISO: string, isHT: boolean) {
     const prevMonthEnd = `${prevCY}-${mm}-${String(new Date(prevCY, cm, 0).getDate()).padStart(2, "0")}`;
     const prevNoData = prevMonthEnd < firstDataYM + "-01";
     const prevCA = prevNoData ? 0 : (byYM.get(`${prevCY}-${mm}`) ?? 0);
+    // Store opened during that N-1 month: the month is incomplete, so no % and
+    // no projection can be derived from it.
+    const prevPartialMonth = !prevNoData && firstRealDay > `${prevCY}-${mm}-01`;
 
     // Current FY: only count as "actual" if the month is past AND has real data
     const rawCA = byYM.get(`${curCY}-${mm}`) ?? 0;
@@ -88,6 +99,7 @@ function buildFiscalData(daily: StoreDaily[], todayISO: string, isHT: boolean) {
       label: MONTH_LABELS[i],
       prevCA,
       prevNoData,
+      prevPartialMonth,
       curCA: isActual ? rawCA : 0,
       curActualCA: isCurrent ? rawCA : 0,
       projCA: 0,
@@ -100,7 +112,8 @@ function buildFiscalData(daily: StoreDaily[], todayISO: string, isHT: boolean) {
   });
 
   // YoY average from completed months that have both N-1 and actual data
-  const completedWithN1 = raw.filter((m) => m.isActual && !m.prevNoData && m.prevCA > 0);
+  const completedWithN1 = raw.filter((m) => m.isActual && !m.prevNoData && !m.prevPartialMonth && m.prevCA > 0);
+  const hasRate = completedWithN1.length > 0;
   const avgYoY =
     completedWithN1.length > 0
       ? completedWithN1.reduce((s, m) => s + (m.curCA - m.prevCA) / m.prevCA, 0) /
@@ -111,7 +124,7 @@ function buildFiscalData(daily: StoreDaily[], todayISO: string, isHT: boolean) {
   const months: FiscalMonth[] = raw.map((m) => {
     const out: FiscalMonth = { ...m };
 
-    if (m.isActual && !m.prevNoData && m.prevCA > 0) {
+    if (m.isActual && !m.prevNoData && !m.prevPartialMonth && m.prevCA > 0) {
       // Completed month: real YoY
       out.yoyPct = (m.curCA - m.prevCA) / m.prevCA;
     }
@@ -120,19 +133,19 @@ function buildFiscalData(daily: StoreDaily[], todayISO: string, isHT: boolean) {
       if (m.curActualCA > 0 && todayDay > 0) {
         // Project from actual daily rate × days in month
         out.projCA = (m.curActualCA / todayDay) * m.daysInMonth;
-        if (!m.prevNoData && m.prevCA > 0) {
+        if (!m.prevNoData && !m.prevPartialMonth && m.prevCA > 0) {
           out.yoyPct = (out.projCA - m.prevCA) / m.prevCA;
         }
       } else if (!m.prevNoData && m.prevCA > 0) {
         // Fallback: N-1 × avgYoY
         out.projCA = m.prevCA * (1 + avgYoY);
-        out.yoyPct = avgYoY;
+        out.yoyPct = hasRate && !m.prevPartialMonth ? avgYoY : null;
       }
     }
 
     if (m.isFuture && !m.prevNoData && m.prevCA > 0) {
       out.projCA = m.prevCA * (1 + avgYoY);
-      out.yoyPct = avgYoY;
+      out.yoyPct = hasRate && !m.prevPartialMonth ? avgYoY : null;
     }
 
     return out;
@@ -150,7 +163,10 @@ function buildFiscalData(daily: StoreDaily[], todayISO: string, isHT: boolean) {
   }, 0);
 
   const hasPrevData = totalPrev > 0;
-  const prevPartial = months.some((m) => m.prevNoData);
+  const prevPartial = months.some((m) => m.prevNoData || m.prevPartialMonth);
+  // Year-end projection vs N-1 total, both excluding pro orders (future pro
+  // orders are unknown, so they are left out on both sides).
+  const projYoY = !prevPartial && totalPrev > 0 ? totalProj / totalPrev - 1 : null;
   const firstDataMonthIdx = parseInt(firstDataYM.slice(5, 7), 10) - 1;
   const firstDataYear = parseInt(firstDataYM.slice(0, 4), 10);
   const firstDataLabel = `${FR_MONTHS_LONG[firstDataMonthIdx]} ${firstDataYear}`;
@@ -158,6 +174,7 @@ function buildFiscalData(daily: StoreDaily[], todayISO: string, isHT: boolean) {
   return {
     months,
     avgYoY,
+    projYoY,
     totalPrev,
     totalActual,
     totalActualWithCurrent,
@@ -205,6 +222,7 @@ export function FiscalYearChart({ daily, todayISO, isHT, proInvoices }: Props) {
   const {
     months,
     avgYoY,
+    projYoY,
     totalPrev,
     totalActual,
     totalActualWithCurrent,
@@ -642,18 +660,19 @@ export function FiscalYearChart({ daily, todayISO, isHT, proInvoices }: Props) {
               <div style={{ fontSize: 10, color: "var(--fg-tertiary)", marginTop: 1, marginBottom: 8 }}>
                 {suffix}
               </div>
-              {hasPrevData && completedCount > 0 && (
+              {projYoY !== null && (
                 <>
                   <div style={{
                     display: "inline-flex", alignItems: "center", gap: 4,
-                    background: avgYoY >= 0 ? "rgba(22,163,74,0.1)" : "rgba(0,47,167,0.1)",
-                    color: avgYoY >= 0 ? "#08C167" : "#DC2626",
+                    background: projYoY >= 0 ? "rgba(22,163,74,0.1)" : "rgba(220,38,38,0.08)",
+                    color: projYoY >= 0 ? "#08C167" : "#DC2626",
                     borderRadius: 4, padding: "3px 7px", fontSize: 11, fontWeight: 600,
                   }}>
-                    {fmtPctShort(avgYoY)} YoY
+                    {fmtPctShort(projYoY)} vs N-1
                   </div>
                   <div style={{ fontSize: 9, color: "var(--fg-tertiary)", marginTop: 5, lineHeight: 1.4 }}>
-                    Taux sur {completedCount}m avec N-1 · mois en cours : taux journalier × jours restants · mois futurs : N-1 × {(1 + avgYoY).toFixed(2).replace(".", ",")}
+                    Projection et N-1 comparés hors cmdes pro · mois en cours : rythme journalier × jours du mois
+                    {completedCount > 0 && <> · mois futurs : N-1 × {(1 + avgYoY).toFixed(2).replace(".", ",")} (taux moyen sur {completedCount} mois clos)</>}
                   </div>
                 </>
               )}
