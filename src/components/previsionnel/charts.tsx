@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Plan, PlanDay } from "@/lib/previsionnel/types";
+import type { Baseline, Plan, PlanDay } from "@/lib/previsionnel/types";
 
 const fmtEur0 = (n: number) =>
   new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
@@ -10,6 +10,7 @@ const fmtK = (n: number) => {
   if (a >= 1000) return `${n < 0 ? "-" : ""}${(a / 1000).toFixed(a >= 10000 ? 0 : 1)} k€`;
   return `${Math.round(n)} €`;
 };
+const fmtSigned = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${fmtEur0(Math.abs(n))}`;
 const dayLabel = (iso: string) => {
   const d = new Date(`${iso}T00:00:00`);
   return d.toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit" });
@@ -23,6 +24,8 @@ export const KIND_COLORS = {
   divers: "#8B93A7",
   horsExploitation: "#F472B6",
 };
+const PROJ = "#F5A524"; // projection figée
+
 const C = {
   past: "var(--prev-past)",
   accent: "var(--prev-accent)",
@@ -35,7 +38,7 @@ const C = {
 
 // ── Courbe de solde ────────────────────────────────────────────────────────────
 
-export function SoldeChart({ plan, aligned = false }: { plan: Plan; aligned?: boolean }) {
+export function SoldeChart({ plan, baseline = null, aligned = false }: { plan: Plan; baseline?: Baseline | null; aligned?: boolean }) {
   const [hover, setHover] = useState<number | null>(null);
   const W = 900;
   const H = aligned ? 260 : 280;
@@ -46,7 +49,14 @@ export function SoldeChart({ plan, aligned = false }: { plan: Plan; aligned?: bo
   const padR = aligned ? W / n / 2 : 16;
   const padT = 18;
   const padB = aligned ? 10 : 34;
-  const values = days.flatMap((d) => [d.solde, d.soldeOptimiste, d.soldePessimiste]);
+  // Projection figée, alignée sur les jours du plan (null si le jour n'y figure pas).
+  const projByDate = new Map((baseline?.days ?? []).map((b) => [b.date, b.solde]));
+  const proj = days.map((d) => projByDate.get(d.date) ?? null);
+  const hasProj = proj.some((v) => v !== null);
+  const values = [
+    ...days.flatMap((d) => [d.solde, d.soldeOptimiste, d.soldePessimiste]),
+    ...proj.filter((v): v is number => v !== null),
+  ];
   const thr = plan.kpis.alertThreshold;
   const minV = Math.min(0, thr, ...values);
   const maxV = Math.max(thr, ...values);
@@ -115,6 +125,20 @@ export function SoldeChart({ plan, aligned = false }: { plan: Plan; aligned?: bo
         <path d={path((d) => d.solde, splitIdx, n - 1)} fill="none" stroke={C.accent} strokeWidth={2.4} strokeLinejoin="round" />
         <path d={path((d) => d.soldeOptimiste, splitIdx, n - 1)} fill="none" stroke={C.accent} strokeWidth={1} strokeDasharray="3 3" opacity={0.5} />
         <path d={path((d) => d.soldePessimiste, splitIdx, n - 1)} fill="none" stroke={C.accent} strokeWidth={1} strokeDasharray="3 3" opacity={0.5} />
+        {/* Projection figée */}
+        {hasProj && (
+          <path
+            d={proj
+              .map((v, i) => (v === null ? null : `${x(i).toFixed(1)},${y(v).toFixed(1)}`))
+              .filter((pt): pt is string => pt !== null)
+              .map((pt, i) => `${i === 0 ? "M" : "L"}${pt}`)
+              .join(" ")}
+            fill="none"
+            stroke={PROJ}
+            strokeWidth={1.8}
+            strokeDasharray="6 4"
+          />
+        )}
         {/* Aujourd'hui */}
         {todayIdx >= 0 && (
           <g>
@@ -162,12 +186,16 @@ export function SoldeChart({ plan, aligned = false }: { plan: Plan; aligned?: bo
           {hv.encaissements.source === "forecast" && (
             <span className="prev-muted"> ({fmtEur0(hv.soldePessimiste)} à {fmtEur0(hv.soldeOptimiste)})</span>
           )}
+          {hover !== null && proj[hover] !== null && (
+            <span style={{ color: PROJ }}> · projeté {fmtEur0(proj[hover] as number)} (écart {fmtSigned(hv.solde - (proj[hover] as number))})</span>
+          )}
           <span className="prev-muted"> · entrées {fmtEur0(hv.encaissements.bank)} · sorties {fmtEur0(hv.sorties.total)}</span>
         </div>
       )}
       <div className="prev-legend">
-        <span><i style={{ background: "var(--prev-past)" }} />réalisé</span>
-        <span><i style={{ background: "var(--prev-accent)" }} />prévu</span>
+        <span><i style={{ background: "var(--prev-past)" }} />réel</span>
+        <span><i style={{ background: "var(--prev-accent)" }} />prévision actuelle</span>
+        {hasProj && <span><i style={{ background: PROJ }} />projeté (figé)</span>}
         <span><i style={{ background: "var(--prev-band)" }} />scénarios ±{Math.round(plan.hypotheses.settings.scenarioSpread * 100)} %</span>
         <span><i style={{ background: "var(--prev-danger)" }} />seuil d&apos;alerte</span>
       </div>
@@ -310,6 +338,172 @@ export function Waterfall({ plan }: { plan: Plan }) {
           );
         })}
       </svg>
+    </div>
+  );
+}
+
+// ── Projeté vs réel ────────────────────────────────────────────────────────────
+
+/**
+ * Compare la projection figée au réel, sur les jours déjà réalisés, et
+ * superpose les trois courbes de CA cumulé : projeté, réel, prévision actuelle.
+ */
+export function ProjeteVsReel({ plan, baseline, onRefreeze, busy }: {
+  plan: Plan;
+  baseline: Baseline;
+  onRefreeze: () => void;
+  busy: boolean;
+}) {
+  const [hover, setHover] = useState<number | null>(null);
+  const days = plan.days;
+  const n = days.length;
+  const byDate = new Map(baseline.days.map((b) => [b.date, b]));
+
+  // Jours réalisés : CA de caisse réel, et flux bancaires réels.
+  const caRealIdx = days.reduce((last, d, i) => (d.ca.source === "actual" ? i : last), -1);
+  const bankRealIdx = days.reduce((last, d, i) => (d.encaissements.source === "actual" ? i : last), -1);
+
+  let cumReal = 0;
+  let cumNow = 0;
+  let cumProj = 0;
+  const rows = days.map((d, i) => {
+    const b = byDate.get(d.date);
+    cumNow += d.ca.value;
+    if (i <= caRealIdx) cumReal += d.ca.value;
+    if (b) cumProj += b.ca;
+    return { date: d.date, real: i <= caRealIdx ? cumReal : null, now: cumNow, proj: b ? cumProj : null };
+  });
+
+  const sumTo = (idx: number, real: (d: PlanDay) => number, projected: (date: string) => number | undefined) => {
+    let r = 0;
+    let p = 0;
+    for (let i = 0; i <= idx; i++) {
+      const pv = projected(days[i].date);
+      if (pv === undefined) continue;
+      r += real(days[i]);
+      p += pv;
+    }
+    return { real: r, proj: p };
+  };
+  const ca = sumTo(caRealIdx, (d) => d.ca.value, (dt) => byDate.get(dt)?.ca);
+  const enc = sumTo(bankRealIdx, (d) => d.encaissements.bank, (dt) => byDate.get(dt)?.bank);
+  const sor = sumTo(bankRealIdx, (d) => d.sorties.total, (dt) => byDate.get(dt)?.sorties);
+  const soldeDay = bankRealIdx >= 0 ? days[bankRealIdx] : null;
+  const soldeProj = soldeDay ? byDate.get(soldeDay.date)?.solde : undefined;
+
+  const W = 900;
+  const H = 220;
+  const padL = 56;
+  const padR = 16;
+  const padT = 12;
+  const padB = 28;
+  const maxV = Math.max(1, ...rows.flatMap((r) => [r.now, r.proj ?? 0, r.real ?? 0]));
+  const x = (i: number) => padL + (i / Math.max(1, n - 1)) * (W - padL - padR);
+  const y = (v: number) => padT + (1 - v / maxV) * (H - padT - padB);
+  const line = (get: (r: (typeof rows)[number]) => number | null) =>
+    rows
+      .map((r, i) => {
+        const v = get(r);
+        return v === null ? null : `${x(i).toFixed(1)},${y(v).toFixed(1)}`;
+      })
+      .filter((pt): pt is string => pt !== null)
+      .map((pt, i) => `${i === 0 ? "M" : "L"}${pt}`)
+      .join(" ");
+  const hv = hover !== null ? rows[hover] : null;
+
+  const frozen = new Date(baseline.frozenAt).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  const lastReal = caRealIdx >= 0 ? dayLabel(days[caRealIdx].date) : null;
+
+  const Stat = ({ label, real, proj, goodWhenHigher }: { label: string; real: number; proj: number; goodWhenHigher: boolean }) => {
+    const diff = real - proj;
+    const pct = proj !== 0 ? diff / Math.abs(proj) : null;
+    const tone = Math.abs(diff) < 1 ? "" : (diff > 0) === goodWhenHigher ? " prev-pvr-good" : " prev-pvr-bad";
+    return (
+      <div className="prev-pvr-stat">
+        <div className="lm-label">{label}</div>
+        <div className="prev-pvr-real">{fmtEur0(real)}</div>
+        <div className="prev-muted">projeté {fmtEur0(proj)}</div>
+        <div className={`prev-pvr-diff${tone}`}>
+          {fmtSigned(diff)}{pct !== null && ` (${pct > 0 ? "+" : pct < 0 ? "−" : ""}${(Math.abs(pct) * 100).toFixed(1).replace(".", ",")} %)`}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="prev-card">
+      <div className="prev-pvr-head">
+        <div>
+          <div className="lm-label">Projeté vs réel</div>
+          <div className="prev-muted">
+            Projection figée le {frozen}{lastReal && <> · réel jusqu&apos;au {lastReal}</>}
+          </div>
+        </div>
+        <button className="prev-btn prev-btn-sm" onClick={onRefreeze} disabled={busy} title="Remplace la projection figée par le plan actuel">
+          Refiger le projeté
+        </button>
+      </div>
+
+      {caRealIdx < 0 ? (
+        <p className="prev-muted" style={{ marginTop: 10 }}>Aucun jour réalisé sur ce mois pour l&apos;instant.</p>
+      ) : (
+        <div className="prev-pvr-stats">
+          <Stat label="CA caisse à date" real={ca.real} proj={ca.proj} goodWhenHigher />
+          <Stat label="Encaissé en banque à date" real={enc.real} proj={enc.proj} goodWhenHigher />
+          <Stat label="Sorties à date" real={sor.real} proj={sor.proj} goodWhenHigher={false} />
+          {soldeDay && soldeProj !== undefined && (
+            <Stat label={`Solde au ${dayLabel(soldeDay.date)}`} real={soldeDay.solde} proj={soldeProj} goodWhenHigher />
+          )}
+          <Stat label="Solde fin de mois (prévision)" real={plan.kpis.soldeFinMois} proj={baseline.soldeFinMois} goodWhenHigher />
+        </div>
+      )}
+
+      <div className="prev-chart-wrap">
+        <svg viewBox={`0 0 ${W} ${H}`} className="prev-chart" onMouseLeave={() => setHover(null)}>
+          {[0, 0.25, 0.5, 0.75, 1].map((t) => (
+            <g key={t}>
+              <line x1={padL} x2={W - padR} y1={y(maxV * t)} y2={y(maxV * t)} stroke={C.grid} strokeDasharray="2 3" />
+              <text x={padL - 8} y={y(maxV * t) + 4} textAnchor="end" className="prev-axis">{fmtK(maxV * t)}</text>
+            </g>
+          ))}
+          <path d={line((r) => r.now)} fill="none" stroke={C.accent} strokeWidth={1.4} opacity={0.7} />
+          <path d={line((r) => r.proj)} fill="none" stroke={PROJ} strokeWidth={1.8} strokeDasharray="6 4" />
+          <path d={line((r) => r.real)} fill="none" stroke={C.past} strokeWidth={2.6} strokeLinejoin="round" />
+          {rows.map((r, i) =>
+            i % 3 === 0 || i === n - 1 ? (
+              <text key={r.date} x={x(i)} y={H - padB + 16} textAnchor="middle" className="prev-axis">{r.date.slice(8)}</text>
+            ) : null,
+          )}
+          {rows.map((r, i) => (
+            <rect
+              key={r.date}
+              x={x(i) - (W - padL - padR) / n / 2}
+              y={padT}
+              width={(W - padL - padR) / n}
+              height={H - padT - padB}
+              fill="transparent"
+              onMouseEnter={() => setHover(i)}
+            />
+          ))}
+          {hv && hover !== null && (
+            <line x1={x(hover)} x2={x(hover)} y1={padT} y2={H - padB} stroke={C.accent} strokeWidth={1} opacity={0.5} />
+          )}
+        </svg>
+        {hv && (
+          <div className="prev-tooltip">
+            <strong>{dayLabel(hv.date)}</strong> · CA cumulé
+            {hv.real !== null && <> · réel {fmtEur0(hv.real)}</>}
+            {hv.proj !== null && <span style={{ color: PROJ }}> · projeté {fmtEur0(hv.proj)}</span>}
+            {hv.real === null && <span className="prev-muted"> · prévision actuelle {fmtEur0(hv.now)}</span>}
+            {hv.real !== null && hv.proj !== null && <span className="prev-muted"> · écart {fmtSigned(hv.real - hv.proj)}</span>}
+          </div>
+        )}
+        <div className="prev-legend">
+          <span><i style={{ background: "var(--prev-past)" }} />CA cumulé réel</span>
+          <span><i style={{ background: PROJ }} />projeté (figé)</span>
+          <span><i style={{ background: "var(--prev-accent)" }} />prévision actuelle</span>
+        </div>
+      </div>
     </div>
   );
 }

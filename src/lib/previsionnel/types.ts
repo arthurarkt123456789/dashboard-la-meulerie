@@ -290,3 +290,25 @@ export type Plan = {
   fixedSchedule: FixedScheduleItem[];
   warnings: string[];
 };
+
+/**
+ * Projection figée : la valeur de chaque jour telle qu'elle était prévue au
+ * moment du gel. Elle ne bouge plus quand le plan est recalculé, ce qui permet
+ * de comparer le projeté au réel.
+ */
+export type BaselineDay = {
+  date: string;
+  ca: number;
+  bank: number;
+  sorties: number;
+  solde: number;
+};
+
+export type Baseline = {
+  storeId: string;
+  month: string;
+  frozenAt: string;
+  days: BaselineDay[];
+  soldeFinMois: number;
+  caMois: number;
+};

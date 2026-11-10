@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { Store } from "@/lib/apitic/types";
-import { RULE_KIND_LABELS, RULE_SOURCE_LABELS, type Adjustment, type Briefing, type Decision, type EventDay, type Plan, type PlanDay, type RuleKind, type Settings } from "@/lib/previsionnel/types";
-import { FluxChart, KIND_COLORS, SoldeChart, Waterfall } from "./charts";
+import { RULE_KIND_LABELS, RULE_SOURCE_LABELS, type Adjustment, type Baseline, type Briefing, type Decision, type EventDay, type Plan, type PlanDay, type RuleKind, type Settings } from "@/lib/previsionnel/types";
+import { FluxChart, KIND_COLORS, ProjeteVsReel, SoldeChart, Waterfall } from "./charts";
 import { DayMatrix } from "./DayMatrix";
 
 // ── Types API ──────────────────────────────────────────────────────────────────
@@ -24,10 +24,14 @@ type PlanResponse = {
   pendingDoubts: number;
   events: EventDay[];
   txCount: number;
+  /** Projection figée, comparée au réel. Absente sur un cache navigateur ancien. */
+  baseline?: Baseline | null;
+  /** Date du dernier calcul enregistré côté serveur. */
+  savedAt?: string;
   error?: string;
 };
 
-type Step = "chargement" | "doutes" | "analyse" | "plan";
+type Step = "ouverture" | "chargement" | "doutes" | "analyse" | "plan";
 
 // ── Format ─────────────────────────────────────────────────────────────────────
 
@@ -1077,13 +1081,14 @@ function AjustementsPanel({ storeId, month, onReload }: { storeId: string; month
   );
 }
 
-function PlanStep({ data, storeId, onReview, onReload, cachedAt, onRefresh }: {
+function PlanStep({ data, storeId, onReview, onReload, onRefresh, onRefreeze, refreshing }: {
   data: PlanResponse;
   storeId: string;
   onReview: () => void;
   onReload: (force?: boolean) => void;
-  cachedAt: number | null;
   onRefresh: () => void;
+  onRefreeze: () => void;
+  refreshing: boolean;
 }) {
   const plan = data.plan;
   const k = plan.kpis;
@@ -1107,15 +1112,14 @@ function PlanStep({ data, storeId, onReview, onReload, cachedAt, onRefresh }: {
           <div className="prev-muted">
             Solde {plan.opening.source === "bank-sync" ? "Pennylane" : plan.opening.source === "override" ? "saisi" : "inconnu"} au {fmtDate(plan.opening.asOf)} : {fmtEur(plan.opening.balance)}
             {plan.bankAccounts.length > 1 && <> ({plan.bankAccounts.map((a) => `${a.name} ${fmtEur(a.balance)}`).join(" + ")})</>}
-            {" · "}{cachedAt
-              ? <>mis en cache le {new Date(cachedAt).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</>
-              : <>généré à {new Date(plan.generatedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</>}
+            {" · "}calculé le {new Date(data.savedAt ?? plan.generatedAt).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
           </div>
         </div>
         <div className="prev-actions">
-          {cachedAt && <button className="prev-btn prev-btn-primary" onClick={onRefresh}>Actualiser</button>}
-          <button className="prev-btn" onClick={onReview}>{data.pendingDoubts > 0 ? `Briefing · ${data.pendingDoubts} question${data.pendingDoubts > 1 ? "s" : ""}` : "Briefing"}</button>
-          <button className="prev-btn" onClick={() => onReload(true)}>Recharger Pennylane</button>
+          <button className="prev-btn prev-btn-primary" onClick={onRefresh} disabled={refreshing}>
+            {refreshing ? "Actualisation…" : "Actualiser"}
+          </button>
+          <button className="prev-btn" onClick={onReview} disabled={refreshing}>{data.pendingDoubts > 0 ? `Briefing · ${data.pendingDoubts} question${data.pendingDoubts > 1 ? "s" : ""}` : "Briefing"}</button>
         </div>
       </div>
 
@@ -1152,12 +1156,14 @@ function PlanStep({ data, storeId, onReview, onReload, cachedAt, onRefresh }: {
           <div className="prev-mx-inner">
             <div className="prev-mx-row prev-mx-chartrow">
               <div className="prev-mx-label" />
-              <SoldeChart plan={plan} aligned />
+              <SoldeChart plan={plan} baseline={data.baseline ?? null} aligned />
             </div>
             <DayMatrix plan={plan} />
           </div>
         </div>
       </div>
+
+      {data.baseline && <ProjeteVsReel plan={plan} baseline={data.baseline} onRefreeze={onRefreeze} busy={refreshing} />}
 
       <div className="prev-two">
         <div className="prev-card">
@@ -1257,40 +1263,38 @@ export function PrevisionnelView({ stores, initialStore }: { stores: Store[]; in
   const [plan, setPlan] = useState<PlanResponse | null>(null);
   const [saved, setSaved] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [cachedAt, setCachedAt] = useState<number | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const loadPlan = useCallback(async (force = false) => {
-    setStep("analyse");
+  /**
+   * Recalcule le plan. Si un plan est déjà à l'écran il reste affiché pendant
+   * le calcul (bouton « Actualisation… ») ; l'écran d'analyse n'apparaît que
+   * lorsqu'il n'y a encore rien à montrer.
+   */
+  const loadPlan = useCallback(async (force = false, opts: { refreeze?: boolean; inPlace?: boolean } = {}) => {
+    if (opts.inPlace) setRefreshing(true);
+    else setStep("analyse");
     setError(null);
     try {
-      const r = await api<PlanResponse>(`/api/previsionnel?store=${storeId}&month=${month}${force ? "&force=1" : ""}`);
+      const r = await api<PlanResponse>(`/api/previsionnel?store=${storeId}&month=${month}${force ? "&force=1" : ""}${opts.refreeze ? "&refreeze=1" : ""}`);
       writeCache(storeId, month, r);
-      setCachedAt(null);
       setPlan(r);
       setStep("plan");
     } catch (e) {
       setError((e as Error).message);
       setStep("plan");
+    } finally {
+      setRefreshing(false);
     }
   }, [storeId, month]);
 
-  const loadDoutes = useCallback(async (force = false) => {
-    if (!force) {
-      const cached = readCache(storeId, month);
-      if (cached) {
-        setPlan(cached.data);
-        setCachedAt(cached.at);
-        setStep("plan");
-        return;
-      }
-    }
+  const loadDoutes = useCallback(async (force = false, show = false) => {
     setStep("chargement");
     setError(null);
     try {
       const r = await api<DoutesResponse>(`/api/previsionnel/doutes?store=${storeId}&month=${month}${force ? "&force=1" : ""}`);
       setDoutes(r);
       const nothingNew = r.questions.length === 0 && !r.decisions.some((d) => d.isNew) && r.scout.found === 0 && r.bankSynced;
-      if (nothingNew && !force) {
+      if (nothingNew && !force && !show) {
         setSaved(0);
         await loadPlan();
       } else {
@@ -1302,7 +1306,32 @@ export function PrevisionnelView({ stores, initialStore }: { stores: Store[]; in
     }
   }, [storeId, month, loadPlan]);
 
-  useEffect(() => { void loadDoutes(); }, [loadDoutes]);
+  /**
+   * Ouverture : on affiche le dernier plan enregistré, sans aucun calcul.
+   * Ordre : enregistrement serveur (commun à tous les appareils), sinon cache
+   * du navigateur, sinon premier calcul du mois avec le briefing.
+   */
+  const open = useCallback(async () => {
+    setError(null);
+    const local = readCache(storeId, month);
+    if (local) {
+      setPlan(local.data);
+      setStep("plan");
+    } else {
+      setPlan(null);
+      setStep("ouverture");
+    }
+    try {
+      const r = await api<PlanResponse>(`/api/previsionnel?store=${storeId}&month=${month}&cached=1`);
+      writeCache(storeId, month, r);
+      setPlan(r);
+      setStep("plan");
+    } catch {
+      if (!local) await loadDoutes();
+    }
+  }, [storeId, month, loadDoutes]);
+
+  useEffect(() => { void open(); }, [open]);
 
   const resetAuto = async () => {
     setStep("chargement");
@@ -1338,6 +1367,11 @@ export function PrevisionnelView({ stores, initialStore }: { stores: Store[]; in
       <PrevHeader stores={stable} storeId={storeId} month={month} onStore={setStoreId} onMonth={setMonth} />
       <main className="lm-main prev-main">
         {error && <div className="prev-error" style={{ marginBottom: 12 }}>Erreur : {error}</div>}
+        {step === "ouverture" && (
+          <div className="prev-step prev-analyse">
+            <p className="prev-muted">Chargement du plan enregistré<Dots /></p>
+          </div>
+        )}
         {step === "chargement" && (
           <div className="prev-step prev-analyse">
             <h2 className="prev-h2">Le trésorier prépare son briefing<Dots /></h2>
@@ -1357,7 +1391,16 @@ export function PrevisionnelView({ stores, initialStore }: { stores: Store[]; in
         )}
         {step === "analyse" && <AnalyseStep saved={saved} />}
         {step === "plan" && plan && (
-          <PlanStep data={plan} storeId={storeId} onReview={() => loadDoutes()} onReload={(force) => loadPlan(Boolean(force))} cachedAt={cachedAt} onRefresh={() => loadDoutes(true)} />
+          <PlanStep
+            key={`${storeId}:${month}:${plan.savedAt ?? plan.plan.generatedAt}`}
+            data={plan}
+            storeId={storeId}
+            onReview={() => loadDoutes(false, true)}
+            onReload={(force) => loadPlan(Boolean(force), { inPlace: true })}
+            onRefresh={() => loadPlan(true, { inPlace: true })}
+            onRefreeze={() => loadPlan(false, { inPlace: true, refreeze: true })}
+            refreshing={refreshing}
+          />
         )}
       </main>
     </div>
