@@ -21,11 +21,11 @@ export async function storePlan<T>(storeId: string, month: string, payload: T): 
   return savedAt;
 }
 
-export function baselineFromPlan(plan: Plan): Baseline {
+export function baselineFromPlan(plan: Plan, frozenAt: string = new Date().toISOString()): Baseline {
   return {
     storeId: plan.storeId,
     month: plan.month,
-    frozenAt: new Date().toISOString(),
+    frozenAt,
     days: plan.days.map((d) => ({
       date: d.date,
       ca: d.ca.value,
@@ -54,4 +54,22 @@ export async function ensureBaseline(plan: Plan, refreeze = false): Promise<Base
   const baseline = baselineFromPlan(plan);
   await cacheSet(baselineKey(plan.storeId, plan.month), baseline);
   return baseline;
+}
+
+/**
+ * Reprend un plan déjà calculé (cache d'un navigateur, antérieur à
+ * l'enregistrement serveur) comme plan enregistré et comme projection figée.
+ * Sans effet si un plan est déjà enregistré pour ce mois : rien n'est écrasé.
+ */
+export async function adoptPlan<T extends { plan: Plan }>(storeId: string, month: string, payload: T): Promise<{ adopted: boolean; baseline: Baseline | null; savedAt: string | null }> {
+  const existing = await getStoredPlan<T>(storeId, month);
+  if (existing) return { adopted: false, baseline: await getBaseline(storeId, month), savedAt: existing.savedAt };
+  const savedAt = payload.plan.generatedAt;
+  await cacheSet(planKey(storeId, month), { savedAt, payload });
+  let baseline = await getBaseline(storeId, month);
+  if (!baseline) {
+    baseline = baselineFromPlan(payload.plan, savedAt);
+    await cacheSet(baselineKey(storeId, month), baseline);
+  }
+  return { adopted: true, baseline, savedAt };
 }

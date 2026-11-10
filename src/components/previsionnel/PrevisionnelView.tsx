@@ -1327,7 +1327,24 @@ export function PrevisionnelView({ stores, initialStore }: { stores: Store[]; in
       setPlan(r);
       setStep("plan");
     } catch {
-      if (!local) await loadDoutes();
+      if (!local) {
+        await loadDoutes();
+        return;
+      }
+      // Rien d'enregistré côté serveur mais un plan existe dans ce navigateur :
+      // il devient le plan enregistré et la projection figée, pour que le
+      // projeté corresponde à ce qui était déjà calculé.
+      try {
+        const adopted = await api<{ baseline: Baseline | null; savedAt: string | null }>(
+          `/api/previsionnel?store=${storeId}&month=${month}`,
+          { method: "POST", body: JSON.stringify(local.data) },
+        );
+        const merged = { ...local.data, baseline: adopted.baseline, savedAt: adopted.savedAt ?? undefined };
+        writeCache(storeId, month, merged);
+        setPlan(merged);
+      } catch {
+        // Le plan du navigateur reste affiché tel quel.
+      }
     }
   }, [storeId, month, loadDoutes]);
 

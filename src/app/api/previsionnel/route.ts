@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { runTresorier } from "@/lib/previsionnel/agent";
 import { buildStorePlan, loadStoreContext, todayParis } from "@/lib/previsionnel/data";
-import { ensureBaseline, getBaseline, getStoredPlan, storePlan } from "@/lib/previsionnel/snapshot";
+import type { Plan } from "@/lib/previsionnel/types";
+import { adoptPlan, ensureBaseline, getBaseline, getStoredPlan, storePlan } from "@/lib/previsionnel/snapshot";
 import { noStore, parseMonth, parseStore } from "./_shared";
 
 export const dynamic = "force-dynamic";
@@ -47,6 +48,41 @@ export async function GET(req: NextRequest) {
     return noStore({ ...payload, baseline, savedAt });
   } catch (err) {
     console.error(`[previsionnel] ${storeId}/${month}:`, (err as Error).message);
+    return noStore({ error: (err as Error).message }, 500);
+  }
+}
+
+/**
+ * POST /api/previsionnel?store=davso&month=2026-11  { plan, briefing, … }
+ * Reprend un plan déjà calculé et gardé dans le cache d'un navigateur : il
+ * devient le plan enregistré et la projection figée du mois. Ne remplace
+ * jamais un plan déjà enregistré.
+ */
+export async function POST(req: NextRequest) {
+  const storeId = parseStore(req);
+  if (storeId instanceof NextResponse) return storeId;
+  const month = parseMonth(req, todayParis());
+  if (month instanceof NextResponse) return month;
+  try {
+    const body = (await req.json()) as { plan?: Plan };
+    const plan = body?.plan;
+    const valid =
+      plan &&
+      plan.storeId === storeId &&
+      plan.month === month &&
+      typeof plan.generatedAt === "string" &&
+      !Number.isNaN(Date.parse(plan.generatedAt)) &&
+      Array.isArray(plan.days) &&
+      plan.days.length >= 28 &&
+      plan.days.every((d) => typeof d?.date === "string" && d.date.startsWith(month) && typeof d?.solde === "number" && typeof d?.ca?.value === "number") &&
+      typeof plan.kpis?.soldeFinMois === "number";
+    if (!valid) return noStore({ error: "Plan invalide pour ce magasin et ce mois." }, 400);
+    const { baseline: _b, savedAt: _s, ...payload } = body as { plan: Plan; baseline?: unknown; savedAt?: unknown };
+    void _b; void _s;
+    const res = await adoptPlan(storeId, month, payload);
+    return noStore(res);
+  } catch (err) {
+    console.error(`[previsionnel] adopt ${storeId}/${month}:`, (err as Error).message);
     return noStore({ error: (err as Error).message }, 500);
   }
 }
