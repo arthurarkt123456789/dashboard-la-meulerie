@@ -462,29 +462,13 @@ function AnalyseStep({ saved }: { saved: number }) {
 // ── Étape 3 : plan ─────────────────────────────────────────────────────────────
 
 function SoldeCorrection({ opening, storeId, onReload }: {
-  opening: { source: string; balance: number; asOf: string };
+  opening: Plan["opening"];
   storeId: string;
   onReload: () => void;
 }) {
-  const pbKey = `prev-pb:${storeId}`;
-
-  const [pennylane, setPennylane] = useState<number | null>(() => {
-    if (opening.source === "bank-sync") return opening.balance;
-    try {
-      const raw = localStorage.getItem(pbKey);
-      return raw ? (JSON.parse(raw) as { b: number }).b : null;
-    } catch { return null; }
-  });
-
-  useEffect(() => {
-    if (opening.source === "bank-sync") {
-      setPennylane(opening.balance);
-      try { localStorage.setItem(pbKey, JSON.stringify({ b: opening.balance, d: opening.asOf })); } catch {}
-    }
-  }, [opening.source, opening.balance, opening.asOf, pbKey]);
-
-  const currentOffset = pennylane !== null && opening.source === "override"
-    ? Math.round(opening.balance - pennylane) : 0;
+  // La correction est un écart sur le solde Pennylane, enregistré tel quel côté serveur.
+  const pennylane = opening.pennylane ?? (opening.source === "bank-sync" ? opening.balance : null);
+  const currentOffset = opening.correction ?? 0;
 
   const [offset, setOffset] = useState(currentOffset);
   const [busy, setBusy] = useState(false);
@@ -492,16 +476,17 @@ function SoldeCorrection({ opening, storeId, onReload }: {
   useEffect(() => { setOffset(currentOffset); }, [currentOffset]);
 
   const apply = async () => {
-    const base = pennylane ?? opening.balance;
     setBusy(true);
     try {
       await api(`/api/previsionnel/reglages?store=${storeId}`, {
         method: "PUT",
-        body: JSON.stringify({ openingBalanceOverride: offset === 0 ? null : base + offset }),
+        body: JSON.stringify({ balanceCorrection: offset }),
       });
       onReload();
     } finally { setBusy(false); }
   };
+
+  if (pennylane === null) return null;
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, flexWrap: "wrap" }} className="prev-muted">
@@ -749,7 +734,7 @@ function SettingsPanel({ storeId, settings, onSaved }: { storeId: string; settin
     alertThreshold: String(settings.alertThreshold),
     scenarioSpread: String(Math.round(settings.scenarioSpread * 100)),
     smallThreshold: String(settings.smallThreshold),
-    openingBalanceOverride: settings.openingBalanceOverride?.toString() ?? "",
+    balanceCorrection: String(settings.balanceCorrection ?? 0),
     weatherEnabled: settings.weatherEnabled,
   });
   const [busy, setBusy] = useState(false);
@@ -768,7 +753,7 @@ function SettingsPanel({ storeId, settings, onSaved }: { storeId: string; settin
           alertThreshold: Number(form.alertThreshold),
           scenarioSpread: Number(form.scenarioSpread) / 100,
           smallThreshold: Number(form.smallThreshold),
-          openingBalanceOverride: form.openingBalanceOverride === "" ? null : Number(form.openingBalanceOverride),
+          balanceCorrection: Number(form.balanceCorrection) || 0,
           weatherEnabled: form.weatherEnabled,
         }),
       });
@@ -793,7 +778,7 @@ function SettingsPanel({ storeId, settings, onSaved }: { storeId: string; settin
         {field("alertThreshold", "Seuil d'alerte", "€")}
         {field("scenarioSpread", "Amplitude scénarios", "%")}
         {field("smallThreshold", "Seuil de question", "€ / 13 mois")}
-        {field("openingBalanceOverride", "Solde d'ouverture forcé", "€ (vide = synchro)")}
+        {field("balanceCorrection", "Correction du solde Pennylane", "€ (0 = aucune)")}
         <label className="prev-field">
           <span>Météo</span>
           <input type="checkbox" checked={form.weatherEnabled} onChange={(e) => setForm({ ...form, weatherEnabled: e.target.checked })} />
@@ -1111,6 +1096,7 @@ function PlanStep({ data, storeId, onReview, onReload, onRefresh, onRefreeze, re
           <h2 className="prev-h2">Plan de trésorerie · {monthLabel(plan.month)}</h2>
           <div className="prev-muted">
             Solde {plan.opening.source === "bank-sync" ? "Pennylane" : plan.opening.source === "override" ? "saisi" : "inconnu"} au {fmtDate(plan.opening.asOf)} : {fmtEur(plan.opening.balance)}
+            {(plan.opening.correction ?? 0) !== 0 && <> (dont correction {fmtEur(plan.opening.correction ?? 0)})</>}
             {plan.bankAccounts.length > 1 && <> ({plan.bankAccounts.map((a) => `${a.name} ${fmtEur(a.balance)}`).join(" + ")})</>}
             {" · "}calculé le {new Date(data.savedAt ?? plan.generatedAt).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
           </div>

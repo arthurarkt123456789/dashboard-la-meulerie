@@ -703,10 +703,21 @@ export function buildPlan(input: EngineInput): Plan {
 
   // Solde d'ouverture.
   let opening: Plan["opening"];
-  if (settings.openingBalanceOverride !== null) {
-    opening = { balance: settings.openingBalanceOverride, asOf: addDays(today, -1), source: "override" };
-  } else if (input.openingBalance !== null) {
-    opening = { balance: input.openingBalance, asOf: input.balanceAsOf ?? addDays(today, -1), source: "bank-sync" };
+  // Le solde synchronisé prime : il est daté de la dernière transaction connue, donc les
+  // soldes passés reconstitués à rebours ne bougent pas d'un calcul à l'autre. La correction
+  // est un écart ajouté à ce solde. Un montant saisi en absolu ne sert que sans synchro :
+  // réancré sur la veille à chaque calcul, il décalerait tout le passé des flux intervenus.
+  if (input.openingBalance !== null) {
+    const correction = settings.balanceCorrection ?? 0;
+    opening = {
+      balance: round2(input.openingBalance + correction),
+      asOf: input.balanceAsOf ?? addDays(today, -1),
+      source: "bank-sync",
+      pennylane: input.openingBalance,
+      correction,
+    };
+  } else if (settings.openingBalanceOverride !== null) {
+    opening = { balance: settings.openingBalanceOverride, asOf: addDays(today, -1), source: "override", pennylane: null, correction: 0 };
   } else {
     opening = { balance: 0, asOf: addDays(today, -1), source: "none" };
     warnings.push("Solde bancaire indisponible : saisir un solde d'ouverture dans les réglages.");

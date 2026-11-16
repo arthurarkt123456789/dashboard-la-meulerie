@@ -280,6 +280,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     smallThreshold: num("smallThreshold", 0, 100000),
     alertThreshold: num("alertThreshold", -1e9, 1e9),
     openingBalanceOverride: override === null || override === undefined || override === "" ? null : Number(override),
+    balanceCorrection: Number.isFinite(Number(o.balanceCorrection)) ? Math.round(Number(o.balanceCorrection) * 100) / 100 : 0,
     weatherEnabled: o.weatherEnabled === undefined ? DEFAULT_SETTINGS.weatherEnabled : Boolean(o.weatherEnabled),
     scenarioSpread: num("scenarioSpread", 0, 0.5),
     forceOpenWeekdays: sanitizeWeekdays(rawWeekdays),

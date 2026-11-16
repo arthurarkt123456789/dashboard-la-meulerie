@@ -86,7 +86,10 @@ export type Settings = {
   defaultEventImpact: number;
   smallThreshold: number;
   alertThreshold: number;
+  /** Solde saisi à la main, utilisé seulement quand la synchro bancaire est indisponible. */
   openingBalanceOverride: number | null;
+  /** Écart en € ajouté au solde Pennylane (0 = aucun). Suit le solde synchronisé d'un calcul à l'autre. */
+  balanceCorrection: number;
   weatherEnabled: boolean;
   scenarioSpread: number;
   /** Jours de semaine forcés ouverts (0 = dim … 6 = sam) — jours normalement fermés à inclure. */
@@ -107,6 +110,7 @@ export const DEFAULT_SETTINGS: Settings = {
   smallThreshold: 150,
   alertThreshold: 5000,
   openingBalanceOverride: null,
+  balanceCorrection: 0,
   weatherEnabled: true,
   scenarioSpread: 0.1,
   forceOpenWeekdays: [],
@@ -236,7 +240,14 @@ export type Plan = {
   month: string;
   today: string;
   generatedAt: string;
-  opening: { balance: number; asOf: string; source: "bank-sync" | "override" | "none" };
+  opening: {
+    balance: number;
+    asOf: string;
+    source: "bank-sync" | "override" | "none";
+    /** Solde Pennylane brut (null sans synchro) et correction appliquée dessus. */
+    pennylane?: number | null;
+    correction?: number;
+  };
   days: PlanDay[];
   kpis: {
     soldeActuel: number;
