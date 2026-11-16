@@ -281,6 +281,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     alertThreshold: num("alertThreshold", -1e9, 1e9),
     openingBalanceOverride: override === null || override === undefined || override === "" ? null : Number(override),
     balanceCorrection: Number.isFinite(Number(o.balanceCorrection)) ? Math.round(Number(o.balanceCorrection) * 100) / 100 : 0,
+    bankGapEnabled: o.bankGapEnabled === undefined ? true : Boolean(o.bankGapEnabled),
     weatherEnabled: o.weatherEnabled === undefined ? DEFAULT_SETTINGS.weatherEnabled : Boolean(o.weatherEnabled),
     scenarioSpread: num("scenarioSpread", 0, 0.5),
     forceOpenWeekdays: sanitizeWeekdays(rawWeekdays),

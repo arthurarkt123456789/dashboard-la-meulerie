@@ -1,6 +1,6 @@
 import "server-only";
 import { cacheGet, cacheSet } from "./db";
-import type { Baseline, Plan } from "./types";
+import { BANK_GAP, type Baseline, type Plan } from "./types";
 
 // Les snapshots n'expirent pas : ils sont remplacés à chaque recalcul.
 const FOREVER = 10 * 365 * 24 * 3600;
@@ -26,6 +26,7 @@ export function baselineFromPlan(plan: Plan, frozenAt: string = new Date().toISO
     storeId: plan.storeId,
     month: plan.month,
     frozenAt,
+    correction: plan.opening.correction ?? 0,
     days: plan.days.map((d) => ({
       date: d.date,
       ca: d.ca.value,
@@ -35,6 +36,24 @@ export function baselineFromPlan(plan: Plan, frozenAt: string = new Date().toISO
     })),
     soldeFinMois: plan.kpis.soldeFinMois,
     caMois: plan.kpis.caMoisPrevu,
+  };
+}
+
+/**
+ * Met la projection figée sur la même base de solde que le plan affiché : si la
+ * correction de solde a changé depuis le gel (écart fixe activé ou désactivé),
+ * les soldes figés sont décalés d'autant. Les flux figés ne changent pas.
+ */
+export function alignBaseline(baseline: Baseline | null, plan: Plan | undefined): Baseline | null {
+  if (!baseline || !plan || plan.opening?.correction === undefined) return baseline;
+  const frozenWith = baseline.correction ?? BANK_GAP[baseline.storeId] ?? 0;
+  const delta = Math.round((plan.opening.correction - frozenWith) * 100) / 100;
+  if (delta === 0) return baseline;
+  const shift = (v: number) => Math.round((v + delta) * 100) / 100;
+  return {
+    ...baseline,
+    days: baseline.days.map((d) => ({ ...d, solde: shift(d.solde) })),
+    soldeFinMois: shift(baseline.soldeFinMois),
   };
 }
 

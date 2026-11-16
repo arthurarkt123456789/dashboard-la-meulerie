@@ -486,7 +486,36 @@ function SoldeCorrection({ opening, storeId, onReload }: {
     } finally { setBusy(false); }
   };
 
+  const toggleGap = async (enabled: boolean) => {
+    setBusy(true);
+    try {
+      await api(`/api/previsionnel/reglages?store=${storeId}`, {
+        method: "PUT",
+        body: JSON.stringify({ bankGapEnabled: enabled }),
+      });
+      onReload();
+    } finally { setBusy(false); }
+  };
+
   if (pennylane === null) return null;
+
+  // Magasin avec écart fixe banque / Pennylane : un simple interrupteur.
+  const fixedGap = opening.fixedGap ?? 0;
+  if (fixedGap !== 0) {
+    const on = opening.fixedGapEnabled !== false;
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, flexWrap: "wrap" }} className="prev-muted">
+        <span>
+          {on
+            ? `Pennylane ${fmtEur(pennylane)} + écart banque ${fmtEur(fixedGap)}`
+            : `Écart banque ${fmtEur(fixedGap)} non appliqué`}
+        </span>
+        <button className="prev-btn-link" onClick={() => void toggleGap(!on)} disabled={busy}>
+          {on ? "désactiver" : "réactiver"}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, flexWrap: "wrap" }} className="prev-muted">

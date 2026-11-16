@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { runTresorier } from "@/lib/previsionnel/agent";
 import { buildStorePlan, loadStoreContext, todayParis } from "@/lib/previsionnel/data";
 import type { Plan } from "@/lib/previsionnel/types";
-import { adoptPlan, ensureBaseline, getBaseline, getStoredPlan, storePlan } from "@/lib/previsionnel/snapshot";
+import { adoptPlan, alignBaseline, ensureBaseline, getBaseline, getStoredPlan, storePlan } from "@/lib/previsionnel/snapshot";
 import { noStore, parseMonth, parseStore } from "./_shared";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
     if (params.get("cached") === "1") {
       const stored = await getStoredPlan<Record<string, unknown>>(storeId, month);
       if (!stored) return noStore({ error: "Aucun plan enregistré pour ce mois." }, 404);
-      const baseline = await getBaseline(storeId, month);
+      const baseline = alignBaseline(await getBaseline(storeId, month), stored.payload.plan as Plan | undefined);
       return noStore({ ...stored.payload, baseline, savedAt: stored.savedAt });
     }
     const ctx = await loadStoreContext(storeId, month, { force });
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
     } catch (err) {
       console.error(`[previsionnel] snapshot ${storeId}/${month}:`, (err as Error).message);
     }
-    return noStore({ ...payload, baseline, savedAt });
+    return noStore({ ...payload, baseline: alignBaseline(baseline, plan), savedAt });
   } catch (err) {
     console.error(`[previsionnel] ${storeId}/${month}:`, (err as Error).message);
     return noStore({ error: (err as Error).message }, 500);
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
     const { baseline: _b, savedAt: _s, ...payload } = body as { plan: Plan; baseline?: unknown; savedAt?: unknown };
     void _b; void _s;
     const res = await adoptPlan(storeId, month, payload);
-    return noStore(res);
+    return noStore({ ...res, baseline: alignBaseline(res.baseline, plan) });
   } catch (err) {
     console.error(`[previsionnel] adopt ${storeId}/${month}:`, (err as Error).message);
     return noStore({ error: (err as Error).message }, 500);

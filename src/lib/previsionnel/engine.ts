@@ -5,6 +5,7 @@
 // Sortie : plan jour par jour du mois demandé + hypothèses explicites.
 
 import { holidayName } from "./holidays";
+import { BANK_GAP } from "./types";
 import type {
   Adjustment,
   DailyHist,
@@ -708,13 +709,17 @@ export function buildPlan(input: EngineInput): Plan {
   // est un écart ajouté à ce solde. Un montant saisi en absolu ne sert que sans synchro :
   // réancré sur la veille à chaque calcul, il décalerait tout le passé des flux intervenus.
   if (input.openingBalance !== null) {
-    const correction = settings.balanceCorrection ?? 0;
+    const fixedGap = BANK_GAP[input.storeId] ?? 0;
+    const fixedGapEnabled = settings.bankGapEnabled !== false;
+    const correction = round2((fixedGapEnabled ? fixedGap : 0) + (settings.balanceCorrection ?? 0));
     opening = {
       balance: round2(input.openingBalance + correction),
       asOf: input.balanceAsOf ?? addDays(today, -1),
       source: "bank-sync",
       pennylane: input.openingBalance,
       correction,
+      fixedGap,
+      fixedGapEnabled,
     };
   } else if (settings.openingBalanceOverride !== null) {
     opening = { balance: settings.openingBalanceOverride, asOf: addDays(today, -1), source: "override", pennylane: null, correction: 0 };

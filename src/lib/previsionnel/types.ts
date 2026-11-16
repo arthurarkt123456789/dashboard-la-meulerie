@@ -79,6 +79,12 @@ export type WeatherDay = {
   source: "forecast" | "archive";
 };
 
+/**
+ * Écart fixe entre le solde réel en banque et le solde synchronisé par Pennylane, par magasin.
+ * Davso : la banque est en permanence 5 500 € au-dessus de Pennylane.
+ */
+export const BANK_GAP: Record<string, number> = { davso: 5500 };
+
 export type Settings = {
   cbDelayDays: number;
   trDelayDays: number;
@@ -90,6 +96,8 @@ export type Settings = {
   openingBalanceOverride: number | null;
   /** Écart en € ajouté au solde Pennylane (0 = aucun). Suit le solde synchronisé d'un calcul à l'autre. */
   balanceCorrection: number;
+  /** Applique l'écart fixe banque / Pennylane du magasin (BANK_GAP). */
+  bankGapEnabled: boolean;
   weatherEnabled: boolean;
   scenarioSpread: number;
   /** Jours de semaine forcés ouverts (0 = dim … 6 = sam) — jours normalement fermés à inclure. */
@@ -111,6 +119,7 @@ export const DEFAULT_SETTINGS: Settings = {
   alertThreshold: 5000,
   openingBalanceOverride: null,
   balanceCorrection: 0,
+  bankGapEnabled: true,
   weatherEnabled: true,
   scenarioSpread: 0.1,
   forceOpenWeekdays: [],
@@ -247,6 +256,9 @@ export type Plan = {
     /** Solde Pennylane brut (null sans synchro) et correction appliquée dessus. */
     pennylane?: number | null;
     correction?: number;
+    /** Écart fixe du magasin (0 si aucun) et s'il est appliqué dans `correction`. */
+    fixedGap?: number;
+    fixedGapEnabled?: boolean;
   };
   days: PlanDay[];
   kpis: {
@@ -319,6 +331,8 @@ export type Baseline = {
   storeId: string;
   month: string;
   frozenAt: string;
+  /** Correction de solde incluse dans les soldes figés (absent = écart fixe du magasin). */
+  correction?: number;
   days: BaselineDay[];
   soldeFinMois: number;
   caMois: number;
