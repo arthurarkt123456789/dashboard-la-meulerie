@@ -759,26 +759,32 @@ export function StoreView({ store, period, today, amountMode }: Props) {
         </div>
       </Card>
 
-      {/* ── C.A. mensuel jour par jour — toujours le mois en cours ── */}
+      {/* ── C.A. mensuel jour par jour — mois sélectionné, sinon mois en cours ── */}
       {(() => {
-        const year = Number(todayISO.slice(0, 4));
-        const month = Number(todayISO.slice(5, 7));
+        const dataYear = Number(todayISO.slice(0, 4));
+        const dataMonth = Number(todayISO.slice(5, 7));
         const todayDay = Number(todayISO.slice(8, 10));
+        const year = period.kind === "month" ? period.year : dataYear;
+        const month = period.kind === "month" ? period.month : dataMonth;
+        const isDataMonth = year === dataYear && month === dataMonth;
         const FR_MONTHS = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
         const monthName = FR_MONTHS[month - 1];
         const storeColor = STORE_COLORS[store.id] ?? "var(--color-coral)";
         return (
           <Card
             title={`C.A. de ${monthName} ${year} · jour par jour`}
-            subtitle={`Arrêté au ${todayDay - 1} ${monthName} · ${isHT ? "HT" : "TTC"} · cliquer une barre pour le détail`}
+            subtitle={`${isDataMonth ? `Arrêté au ${todayDay} ${monthName}` : "Mois complet"} · ${isHT ? "HT" : "TTC"} · cliquer une barre pour le détail`}
             span={3}
           >
             <div style={{ padding: "0 20px 20px" }}>
               <MonthDailyBars
+                key={`${year}-${month}`}
                 daily={dailyWithLive}
                 todayISO={todayISO}
                 isHT={isHT}
                 storeColor={storeColor}
+                viewYear={year}
+                viewMonth={month}
               />
             </div>
           </Card>

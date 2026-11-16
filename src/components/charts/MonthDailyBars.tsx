@@ -57,8 +57,12 @@ export function MonthDailyBars({ daily, todayISO, isHT, storeColor, initialLocke
   const month = viewMonth ?? todayMonthNum;
   const isCurrentMonth = year === todayYear && month === todayMonthNum;
   const daysCount = daysInMonth(year, month);
-  // For past months all days are realized; use daysCount+1 so isFuture is never true
-  const effectiveTodayDay = isCurrentMonth ? todayDay : daysCount + 1;
+  // `todayISO` is the last day with data (last closed day), so that day is
+  // realized and must be drawn. Past months: every day is realized. A month
+  // after the last data day (e.g. the 1st, before any closing): none is.
+  const viewIdx = year * 12 + month;
+  const dataIdx = todayYear * 12 + todayMonthNum;
+  const lastRealizedDay = viewIdx < dataIdx ? daysCount : viewIdx === dataIdx ? todayDay : 0;
 
   const dailyByDate = useMemo(
     () => new Map(daily.map((d) => [d.date, d])),
@@ -70,7 +74,7 @@ export function MonthDailyBars({ daily, todayISO, isHT, storeColor, initialLocke
       const day = i + 1;
       const dateStr = `${year}-${pad2(month)}-${pad2(day)}`;
       const real = dailyByDate.get(dateStr);
-      const isFuture = day >= effectiveTodayDay;
+      const isFuture = day > lastRealizedDay;
 
       const n1d = new Date(`${dateStr}T00:00:00Z`);
       n1d.setUTCDate(n1d.getUTCDate() - 364);
@@ -95,7 +99,7 @@ export function MonthDailyBars({ daily, todayISO, isHT, storeColor, initialLocke
         n1snackingCA: n1real?.snackingCA ?? null,
       };
     });
-  }, [daily, dailyByDate, year, month, daysCount, todayDay, isHT]);
+  }, [daily, dailyByDate, year, month, daysCount, lastRealizedDay, isHT]);
 
   // Summary stats
   const realized = days.filter((d) => !d.isFuture && d.ca !== null);
@@ -354,8 +358,8 @@ export function MonthDailyBars({ daily, todayISO, isHT, storeColor, initialLocke
                   <text
                     x={xc} y={H - 6}
                     textAnchor="middle" fontSize={10}
-                    fill={d.day === todayDay ? storeColor : "var(--fg-tertiary)"}
-                    fontWeight={d.day === todayDay ? 600 : 400}
+                    fill={isCurrentMonth && d.day === todayDay ? storeColor : "var(--fg-tertiary)"}
+                    fontWeight={isCurrentMonth && d.day === todayDay ? 600 : 400}
                     style={{ fontFamily: "var(--font-body)" }}
                   >
                     {d.day}
